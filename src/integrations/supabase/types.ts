@@ -14,16 +14,392 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      assegnazioni: {
+        Row: {
+          camera_id: string
+          candidatura_id: string
+          created_at: string | null
+          data_fine: string | null
+          data_inizio: string | null
+          id: string
+          note: string | null
+          posto: number
+          stato: string | null
+          studente_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          camera_id: string
+          candidatura_id: string
+          created_at?: string | null
+          data_fine?: string | null
+          data_inizio?: string | null
+          id?: string
+          note?: string | null
+          posto: number
+          stato?: string | null
+          studente_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          camera_id?: string
+          candidatura_id?: string
+          created_at?: string | null
+          data_fine?: string | null
+          data_inizio?: string | null
+          id?: string
+          note?: string | null
+          posto?: number
+          stato?: string | null
+          studente_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assegnazioni_camera_id_fkey"
+            columns: ["camera_id"]
+            isOneToOne: false
+            referencedRelation: "camere"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assegnazioni_candidatura_id_fkey"
+            columns: ["candidatura_id"]
+            isOneToOne: false
+            referencedRelation: "candidature"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assegnazioni_studente_id_fkey"
+            columns: ["studente_id"]
+            isOneToOne: false
+            referencedRelation: "studenti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      camere: {
+        Row: {
+          created_at: string | null
+          id: string
+          note: string | null
+          numero: string
+          piano: number | null
+          posti: number
+          stato: string | null
+          struttura_id: string
+          tipo: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          note?: string | null
+          numero: string
+          piano?: number | null
+          posti: number
+          stato?: string | null
+          struttura_id: string
+          tipo: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          note?: string | null
+          numero?: string
+          piano?: number | null
+          posti?: number
+          stato?: string | null
+          struttura_id?: string
+          tipo?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "camere_struttura_id_fkey"
+            columns: ["struttura_id"]
+            isOneToOne: false
+            referencedRelation: "strutture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      candidature: {
+        Row: {
+          anno_accademico: string | null
+          anno_corso_snapshot: string | null
+          corso_snapshot: string | null
+          created_at: string | null
+          id: string
+          matricola_snapshot: string | null
+          messaggio: string | null
+          note_admin: string | null
+          periodo_fine: string | null
+          periodo_inizio: string | null
+          stato: string | null
+          struttura_preferita_id: string | null
+          studente_id: string
+          tipo_camera_preferito: string | null
+          universita_snapshot: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          anno_accademico?: string | null
+          anno_corso_snapshot?: string | null
+          corso_snapshot?: string | null
+          created_at?: string | null
+          id?: string
+          matricola_snapshot?: string | null
+          messaggio?: string | null
+          note_admin?: string | null
+          periodo_fine?: string | null
+          periodo_inizio?: string | null
+          stato?: string | null
+          struttura_preferita_id?: string | null
+          studente_id: string
+          tipo_camera_preferito?: string | null
+          universita_snapshot?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          anno_accademico?: string | null
+          anno_corso_snapshot?: string | null
+          corso_snapshot?: string | null
+          created_at?: string | null
+          id?: string
+          matricola_snapshot?: string | null
+          messaggio?: string | null
+          note_admin?: string | null
+          periodo_fine?: string | null
+          periodo_inizio?: string | null
+          stato?: string | null
+          struttura_preferita_id?: string | null
+          studente_id?: string
+          tipo_camera_preferito?: string | null
+          universita_snapshot?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidature_struttura_preferita_id_fkey"
+            columns: ["struttura_preferita_id"]
+            isOneToOne: false
+            referencedRelation: "strutture"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidature_studente_id_fkey"
+            columns: ["studente_id"]
+            isOneToOne: false
+            referencedRelation: "studenti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documenti: {
+        Row: {
+          candidatura_id: string | null
+          caricato_da: string | null
+          created_at: string | null
+          id: string
+          nome_file: string
+          studente_id: string
+          tipo: string | null
+          url: string
+        }
+        Insert: {
+          candidatura_id?: string | null
+          caricato_da?: string | null
+          created_at?: string | null
+          id?: string
+          nome_file: string
+          studente_id: string
+          tipo?: string | null
+          url: string
+        }
+        Update: {
+          candidatura_id?: string | null
+          caricato_da?: string | null
+          created_at?: string | null
+          id?: string
+          nome_file?: string
+          studente_id?: string
+          tipo?: string | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documenti_candidatura_id_fkey"
+            columns: ["candidatura_id"]
+            isOneToOne: false
+            referencedRelation: "candidature"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documenti_studente_id_fkey"
+            columns: ["studente_id"]
+            isOneToOne: false
+            referencedRelation: "studenti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      log_stato_candidature: {
+        Row: {
+          cambiato_da: string | null
+          candidatura_id: string
+          created_at: string | null
+          id: string
+          note: string | null
+          stato_nuovo: string
+          stato_precedente: string | null
+        }
+        Insert: {
+          cambiato_da?: string | null
+          candidatura_id: string
+          created_at?: string | null
+          id?: string
+          note?: string | null
+          stato_nuovo: string
+          stato_precedente?: string | null
+        }
+        Update: {
+          cambiato_da?: string | null
+          candidatura_id?: string
+          created_at?: string | null
+          id?: string
+          note?: string | null
+          stato_nuovo?: string
+          stato_precedente?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "log_stato_candidature_candidatura_id_fkey"
+            columns: ["candidatura_id"]
+            isOneToOne: false
+            referencedRelation: "candidature"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      strutture: {
+        Row: {
+          attiva: boolean | null
+          created_at: string | null
+          id: string
+          indirizzo: string | null
+          nome: string
+          piani: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          attiva?: boolean | null
+          created_at?: string | null
+          id?: string
+          indirizzo?: string | null
+          nome: string
+          piani?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          attiva?: boolean | null
+          created_at?: string | null
+          id?: string
+          indirizzo?: string | null
+          nome?: string
+          piani?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      studenti: {
+        Row: {
+          anno_di_corso: string | null
+          auth_user_id: string | null
+          codice_fiscale: string | null
+          cognome: string
+          corso_di_studi: string | null
+          created_at: string | null
+          data_nascita: string | null
+          email: string
+          id: string
+          matricola: string | null
+          nazionalita: string | null
+          nome: string
+          telefono: string | null
+          universita: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          anno_di_corso?: string | null
+          auth_user_id?: string | null
+          codice_fiscale?: string | null
+          cognome: string
+          corso_di_studi?: string | null
+          created_at?: string | null
+          data_nascita?: string | null
+          email: string
+          id?: string
+          matricola?: string | null
+          nazionalita?: string | null
+          nome: string
+          telefono?: string | null
+          universita?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          anno_di_corso?: string | null
+          auth_user_id?: string | null
+          codice_fiscale?: string | null
+          cognome?: string
+          corso_di_studi?: string | null
+          created_at?: string | null
+          data_nascita?: string | null
+          email?: string
+          id?: string
+          matricola?: string | null
+          nazionalita?: string | null
+          nome?: string
+          telefono?: string | null
+          universita?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "studente"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +526,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "studente"],
+    },
   },
 } as const
