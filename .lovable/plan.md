@@ -1,46 +1,33 @@
 
 
-## Piano modifiche design
+## Piano: "Residenti" UI + Gestione fine assegnazioni
 
-Tre problemi segnalati dallo screenshot:
+### 1. Rinominare tab "Studenti" → "Residenti" (solo UI)
 
-### 1. Focus ring troppo invadente sui form elements
+- **`src/components/admin/AdminSidebar.tsx`** — label "Studenti" → "Residenti", URL `/admin/residenti`
+- **`src/App.tsx`** — route `studenti` → `residenti`
+- **`src/pages/admin/Studenti.tsx`** — rinominare file in `Residenti.tsx`:
+  - Titolo "Residenti", sottotitolo "Studenti con assegnazione attiva"
+  - Query: join `assegnazioni` (stato = 'attiva') con `studenti` e `camere`, mostrare solo studenti con assegnazione
+  - Colonne: Nome, Email, Nazionalità, Camera (numero), Struttura
+  - Mantenere ricerca e stile tabella esistente
 
-**Problema**: `focus:ring-2 focus:ring-ring focus:ring-offset-2` crea un anello spesso navy che copre le label adiacenti.
+### 2. Gestione fine assegnazioni in Camere
 
-**Soluzione**: Ridurre a `focus:ring-1` e rimuovere `ring-offset-2` su `Input`, `SelectTrigger`, e `Textarea`. Questo darà un bordo sottile senza overflow sugli elementi vicini.
+**File: `src/pages/admin/Camere.tsx`**
 
-File coinvolti:
-- `src/components/ui/input.tsx` — cambiare `focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2` → `focus-visible:ring-1 focus-visible:ring-ring`
-- `src/components/ui/select.tsx` — stesso cambio su `SelectTrigger`
-- `src/components/ui/textarea.tsx` — stesso cambio
+Nel dialog camera con occupanti attivi:
+- Mostrare lista occupanti con pulsante "Concludi assegnazione"
+- `AlertDialog` di conferma prima di procedere
+- Mutation `concludiAssegnazione`:
+  - UPDATE `assegnazioni` SET `stato = 'conclusa'`, `data_fine = today`
+  - Contare assegnazioni attive rimaste nella camera
+  - UPDATE `camere.stato`: 0 rimaste → `libera`, < posti → `parzialmente_occupata`
+- Invalidare queries: `camere`, `assegnazioni-attive`, `dashboard-stats`
 
-### 2. Hover sidebar su elemento attivo non leggibile
-
-**Problema**: L'item attivo ha sfondo navy con testo bianco, ma l'hover generico (`hover:bg-muted`) sovrascrive il colore rendendo il testo illeggibile.
-
-**Soluzione**: In `AdminSidebar.tsx`, l'`activeClassName` già usa `hover:bg-primary/90` che è corretto. Verificare che il `NavLink` applichi correttamente la classe attiva sovrascrivendo l'hover di default. Se necessario, aggiungere priorità con `hover:text-primary-foreground` sulla classe attiva.
-
-File: `src/components/admin/AdminSidebar.tsx`
-
-### 3. Tabelle poco curate
-
-**Problema**: La tabella candidature appare piatta e poco strutturata visivamente.
-
-**Soluzione**:
-- Aggiungere bordi interni più definiti alle righe (`border-b border-border/30`)
-- Aumentare leggermente il padding delle celle
-- Migliorare il contrasto dell'header con `bg-muted/70` e `text-xs uppercase tracking-wider`
-- Aggiungere `font-medium` al testo principale nelle celle
-
-File: `src/pages/admin/Candidature.tsx` (e pattern analogo su `Studenti.tsx`, `Camere.tsx`)
-
-### Riepilogo file da modificare
-1. `src/components/ui/input.tsx`
-2. `src/components/ui/select.tsx`
-3. `src/components/ui/textarea.tsx`
-4. `src/components/admin/AdminSidebar.tsx`
-5. `src/pages/admin/Candidature.tsx`
-6. `src/pages/admin/Studenti.tsx`
-7. `src/pages/admin/Camere.tsx`
+### File da modificare
+1. `src/components/admin/AdminSidebar.tsx`
+2. `src/App.tsx`
+3. `src/pages/admin/Studenti.tsx` → rinominare/riscrivere come `Residenti.tsx`
+4. `src/pages/admin/Camere.tsx`
 
