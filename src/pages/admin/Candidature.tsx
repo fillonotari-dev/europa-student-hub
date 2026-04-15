@@ -99,18 +99,18 @@ export default function Candidature() {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="bg-muted/50 text-[13px] text-muted-foreground">
-                <th className="text-left px-4 py-3 font-medium">Studente</th>
-                <th className="text-left px-4 py-3 font-medium">Struttura</th>
-                <th className="text-left px-4 py-3 font-medium">Anno</th>
-                <th className="text-left px-4 py-3 font-medium">Stato</th>
-                <th className="text-left px-4 py-3 font-medium">Data</th>
+              <tr className="bg-muted/70 text-xs uppercase tracking-wider text-muted-foreground">
+                <th className="text-left px-4 py-3 font-semibold">Studente</th>
+                <th className="text-left px-4 py-3 font-semibold">Struttura</th>
+                <th className="text-left px-4 py-3 font-semibold">Anno</th>
+                <th className="text-left px-4 py-3 font-semibold">Stato</th>
+                <th className="text-left px-4 py-3 font-semibold">Data</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody>
               {filtered?.map((c: any, i: number) => (
                 <motion.tr key={c.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}
-                  className="hover:bg-muted/50 cursor-pointer transition-colors" onClick={() => setSelected(c)}>
+                  className="border-b border-border/30 hover:bg-muted/50 cursor-pointer transition-colors" onClick={() => setSelected(c)}>
                   <td className="px-4 py-3">
                     <p className="text-sm font-medium">{c.studenti?.nome} {c.studenti?.cognome}</p>
                     <p className="text-[11px] text-muted-foreground">{c.studenti?.email}</p>
