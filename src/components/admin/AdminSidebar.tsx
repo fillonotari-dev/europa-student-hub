@@ -52,7 +52,7 @@ export function AdminSidebar() {
                       to={item.url}
                       end={item.url === '/admin'}
                       className="hover:bg-muted"
-                      activeClassName="bg-primary text-primary-foreground hover:bg-primary/90"
+                      activeClassName="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
                     >
                       <item.icon className="mr-2 h-4 w-4" />
                       {!collapsed && <span>{item.title}</span>}

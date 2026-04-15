@@ -37,19 +37,19 @@ export default function Studenti() {
       <div className="bg-card border border-border/50 rounded-lg overflow-hidden">
         <table className="w-full">
           <thead>
-            <tr className="bg-muted/50 text-[13px] text-muted-foreground">
-              <th className="text-left px-4 py-3 font-medium">Nome</th>
-              <th className="text-left px-4 py-3 font-medium">Email</th>
-              <th className="text-left px-4 py-3 font-medium">Nazionalità</th>
-              <th className="text-left px-4 py-3 font-medium">Università</th>
-              <th className="text-left px-4 py-3 font-medium">Corso</th>
-              <th className="text-left px-4 py-3 font-medium">Matricola</th>
+            <tr className="bg-muted/70 text-xs uppercase tracking-wider text-muted-foreground">
+              <th className="text-left px-4 py-3 font-semibold">Nome</th>
+              <th className="text-left px-4 py-3 font-semibold">Email</th>
+              <th className="text-left px-4 py-3 font-semibold">Nazionalità</th>
+              <th className="text-left px-4 py-3 font-semibold">Università</th>
+              <th className="text-left px-4 py-3 font-semibold">Corso</th>
+              <th className="text-left px-4 py-3 font-semibold">Matricola</th>
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody>
             {filtered?.map((s, i) => (
               <motion.tr key={s.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}
-                className="hover:bg-muted/50 transition-colors">
+                className="border-b border-border/30 hover:bg-muted/50 transition-colors">
                 <td className="px-4 py-3 text-sm font-medium">{s.cognome} {s.nome}</td>
                 <td className="px-4 py-3 text-sm text-muted-foreground">{s.email}</td>
                 <td className="px-4 py-3 text-sm">{s.nazionalita || '-'}</td>
