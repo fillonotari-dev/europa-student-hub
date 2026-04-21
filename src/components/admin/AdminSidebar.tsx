@@ -10,7 +10,7 @@ import {
 const items = [
   { title: 'Dashboard', url: '/admin', icon: LayoutDashboard },
   { title: 'Candidature', url: '/admin/candidature', icon: FileText },
-  { title: 'Studenti', url: '/admin/studenti', icon: Users },
+  { title: 'Residenti', url: '/admin/residenti', icon: Users },
   { title: 'Camere', url: '/admin/camere', icon: DoorOpen },
   { title: 'Esportazione', url: '/admin/esportazione', icon: Download },
 ];
