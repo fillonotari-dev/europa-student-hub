@@ -9,18 +9,20 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { DoorOpen, User, X } from 'lucide-react';
 
-const STATO_CAMERA_COLORS: Record<string, string> = {
-  libera: 'bg-success/10 border-success/30 text-success',
-  parzialmente_occupata: 'bg-warning/10 border-warning/30 text-warning',
-  occupata: 'bg-destructive/10 border-destructive/30 text-destructive',
-  manutenzione: 'bg-muted border-border text-muted-foreground',
-};
-
 const STATO_CAMERA_LABELS: Record<string, string> = {
   libera: 'Libera', parzialmente_occupata: 'Parz. occupata', occupata: 'Occupata', manutenzione: 'Manutenzione',
+};
+
+const STATO_BADGE_CLASSES: Record<string, string> = {
+  libera: 'bg-success/10 text-success border-success/30 hover:bg-success/10',
+  parzialmente_occupata: 'bg-warning/10 text-warning border-warning/30 hover:bg-warning/10',
+  occupata: 'bg-destructive/10 text-destructive border-destructive/30 hover:bg-destructive/10',
+  manutenzione: 'bg-muted text-muted-foreground border-border hover:bg-muted',
 };
 
 export default function Camere() {
