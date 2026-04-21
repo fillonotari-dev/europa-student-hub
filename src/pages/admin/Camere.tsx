@@ -5,8 +5,12 @@ import { motion } from 'framer-motion';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { DoorOpen, User } from 'lucide-react';
+import { DoorOpen, User, X } from 'lucide-react';
 
 const STATO_CAMERA_COLORS: Record<string, string> = {
   libera: 'bg-success/10 border-success/30 text-success',
@@ -79,6 +83,26 @@ export default function Camere() {
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       toast({ title: 'Studente assegnato' });
       setSelectedCamera(null);
+    },
+  });
+
+  const concludi = useMutation({
+    mutationFn: async ({ assegnazione_id, camera_id }: { assegnazione_id: string; camera_id: string }) => {
+      await supabase
+        .from('assegnazioni')
+        .update({ stato: 'conclusa', data_fine: new Date().toISOString().split('T')[0] })
+        .eq('id', assegnazione_id);
+      const rimaste = (assegnazioni?.filter(a => a.camera_id === camera_id && a.id !== assegnazione_id).length ?? 0);
+      const camera = camere?.find(c => c.id === camera_id);
+      const nuovoStato = rimaste === 0 ? 'libera' : (camera && rimaste < camera.posti ? 'parzialmente_occupata' : 'occupata');
+      await supabase.from('camere').update({ stato: nuovoStato }).eq('id', camera_id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['camere'] });
+      queryClient.invalidateQueries({ queryKey: ['assegnazioni-attive'] });
+      queryClient.invalidateQueries({ queryKey: ['residenti'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      toast({ title: 'Assegnazione conclusa' });
     },
   });
 
@@ -157,6 +181,47 @@ export default function Camere() {
                   <p>Posti: <strong>{selectedCamera.posti}</strong></p>
                   <p>Stato: <strong>{STATO_CAMERA_LABELS[selectedCamera.stato]}</strong></p>
                 </div>
+
+                {(() => {
+                  const occupanti = assegnazioni?.filter(a => a.camera_id === selectedCamera.id) ?? [];
+                  if (occupanti.length === 0) return null;
+                  return (
+                    <div>
+                      <p className="text-sm font-semibold mb-2">Occupanti attivi</p>
+                      <div className="space-y-2">
+                        {occupanti.map((a: any) => (
+                          <div key={a.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/40">
+                            <div className="flex items-center gap-2 text-sm">
+                              <User className="w-4 h-4 text-muted-foreground" />
+                              <span>{a.studenti?.nome} {a.studenti?.cognome}</span>
+                            </div>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="sm" variant="outline" className="text-destructive hover:text-destructive">
+                                  <X className="w-3.5 h-3.5 mr-1" />Concludi
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Concludere l'assegnazione?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    L'assegnazione di {a.studenti?.nome} {a.studenti?.cognome} alla camera {selectedCamera.numero} verrà conclusa con data odierna. Lo stato della camera verrà aggiornato automaticamente.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => concludi.mutate({ assegnazione_id: a.id, camera_id: selectedCamera.id })}>
+                                    Conferma
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {selectedCamera.stato !== 'occupata' && selectedCamera.stato !== 'manutenzione' && studentiApprovati && studentiApprovati.length > 0 && (
                   <div>

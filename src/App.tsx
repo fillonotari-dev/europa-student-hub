@@ -10,7 +10,7 @@ import Login from "./pages/Login";
 import AdminLayout from "./pages/admin/AdminLayout";
 import Dashboard from "./pages/admin/Dashboard";
 import Candidature from "./pages/admin/Candidature";
-import Studenti from "./pages/admin/Studenti";
+import Residenti from "./pages/admin/Residenti";
 import Camere from "./pages/admin/Camere";
 import Esportazione from "./pages/admin/Esportazione";
 
@@ -29,7 +29,7 @@ const App = () => (
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="candidature" element={<Candidature />} />
-            <Route path="studenti" element={<Studenti />} />
+            <Route path="residenti" element={<Residenti />} />
             <Route path="camere" element={<Camere />} />
             <Route path="esportazione" element={<Esportazione />} />
           </Route>
