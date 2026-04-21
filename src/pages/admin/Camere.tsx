@@ -9,23 +9,26 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { DoorOpen, User, X } from 'lucide-react';
-
-const STATO_CAMERA_COLORS: Record<string, string> = {
-  libera: 'bg-success/10 border-success/30 text-success',
-  parzialmente_occupata: 'bg-warning/10 border-warning/30 text-warning',
-  occupata: 'bg-destructive/10 border-destructive/30 text-destructive',
-  manutenzione: 'bg-muted border-border text-muted-foreground',
-};
 
 const STATO_CAMERA_LABELS: Record<string, string> = {
   libera: 'Libera', parzialmente_occupata: 'Parz. occupata', occupata: 'Occupata', manutenzione: 'Manutenzione',
 };
 
+const STATO_BADGE_CLASSES: Record<string, string> = {
+  libera: 'bg-success/10 text-success border-success/30 hover:bg-success/10',
+  parzialmente_occupata: 'bg-warning/10 text-warning border-warning/30 hover:bg-warning/10',
+  occupata: 'bg-destructive/10 text-destructive border-destructive/30 hover:bg-destructive/10',
+  manutenzione: 'bg-muted text-muted-foreground border-border hover:bg-muted',
+};
+
 export default function Camere() {
   const [selectedCamera, setSelectedCamera] = useState<any>(null);
   const [selectedStruttura, setSelectedStruttura] = useState<string>('tutti');
+  const [filterStato, setFilterStato] = useState<string>('tutti');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -106,66 +109,111 @@ export default function Camere() {
     },
   });
 
-  const piani = [...new Set(camere?.map(c => c.piano))].sort();
+  const filteredCamere = (camere ?? [])
+    .filter(c => filterStato === 'tutti' || (c.stato || 'libera') === filterStato)
+    .sort((a: any, b: any) => {
+      const sa = a.strutture?.nome ?? '';
+      const sb = b.strutture?.nome ?? '';
+      if (sa !== sb) return sa.localeCompare(sb);
+      if ((a.piano ?? 0) !== (b.piano ?? 0)) return (a.piano ?? 0) - (b.piano ?? 0);
+      return String(a.numero).localeCompare(String(b.numero), undefined, { numeric: true });
+    });
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight">Camere e Occupazione</h1>
-          <p className="text-[13px] text-muted-foreground">Mappa delle camere per struttura e piano</p>
+          <p className="text-[13px] text-muted-foreground">Elenco camere per struttura, piano e stato</p>
         </div>
-        <Select value={selectedStruttura} onValueChange={setSelectedStruttura}>
-          <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="tutti">Tutte le strutture</SelectItem>
-            {strutture?.map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Select value={selectedStruttura} onValueChange={setSelectedStruttura}>
+            <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">Tutte le strutture</SelectItem>
+              {strutture?.map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filterStato} onValueChange={setFilterStato}>
+            <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">Tutti gli stati</SelectItem>
+              {Object.entries(STATO_CAMERA_LABELS).map(([k, v]) => (
+                <SelectItem key={k} value={k}>{v}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {/* Legend */}
-      <div className="flex gap-4 flex-wrap">
-        {Object.entries(STATO_CAMERA_LABELS).map(([k, v]) => (
-          <div key={k} className="flex items-center gap-1.5 text-[11px]">
-            <div className={`w-3 h-3 rounded ${STATO_CAMERA_COLORS[k]}`} />
-            <span className="text-muted-foreground">{v}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Rooms by floor */}
-      {piani.map(piano => (
-        <div key={piano}>
-          <h2 className="text-sm font-semibold mb-3">Piano {piano}</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {camere?.filter(c => c.piano === piano).map((c, i) => {
-              const cameraAssegnazioni = assegnazioni?.filter(a => a.camera_id === c.id) ?? [];
+      {/* Rooms table */}
+      <div className="border rounded-lg overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/70 hover:bg-muted/70">
+              <TableHead className="text-xs uppercase tracking-wider">Numero</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider">Struttura</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider">Piano</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider">Tipo</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider">Posti</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider">Occupanti</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider">Stato</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-right">Azioni</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredCamere.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">
+                  Nessuna camera trovata
+                </TableCell>
+              </TableRow>
+            )}
+            {filteredCamere.map((c: any, i: number) => {
+              const occ = assegnazioni?.filter(a => a.camera_id === c.id) ?? [];
+              const stato = c.stato || 'libera';
               return (
-                <motion.div key={c.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
-                  className={`border rounded-lg p-3 cursor-pointer transition-shadow hover:shadow-md ${STATO_CAMERA_COLORS[c.stato || 'libera']}`}
-                  onClick={() => setSelectedCamera(c)}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-bold">{c.numero}</span>
-                    <DoorOpen className="w-4 h-4" />
-                  </div>
-                  <p className="text-[11px] capitalize">{c.tipo} · {c.posti} posti</p>
-                  {cameraAssegnazioni.length > 0 && (
-                    <div className="mt-2 space-y-1">
-                      {cameraAssegnazioni.map((a: any) => (
-                        <div key={a.id} className="flex items-center gap-1 text-[11px]">
-                          <User className="w-3 h-3" />
-                          <span>{a.studenti?.nome} {a.studenti?.cognome}</span>
-                        </div>
-                      ))}
+                <motion.tr
+                  key={c.id}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: Math.min(i * 0.015, 0.3) }}
+                  className="border-b cursor-pointer hover:bg-muted/40 transition-colors"
+                  onClick={() => setSelectedCamera(c)}
+                >
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      <DoorOpen className="w-4 h-4 text-muted-foreground" />
+                      {c.numero}
                     </div>
-                  )}
-                </motion.div>
+                  </TableCell>
+                  <TableCell className="text-sm">{c.strutture?.nome ?? '—'}</TableCell>
+                  <TableCell className="text-sm">{c.piano ?? '—'}</TableCell>
+                  <TableCell className="text-sm capitalize">{c.tipo}</TableCell>
+                  <TableCell className="text-sm tabular-nums">{occ.length}/{c.posti}</TableCell>
+                  <TableCell className="text-sm">
+                    {occ.length === 0 ? (
+                      <span className="text-muted-foreground">—</span>
+                    ) : (
+                      occ.map((a: any) => `${a.studenti?.nome ?? ''} ${a.studenti?.cognome ?? ''}`.trim()).join(', ')
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={STATO_BADGE_CLASSES[stato]}>
+                      {STATO_CAMERA_LABELS[stato]}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setSelectedCamera(c); }}>
+                      Gestisci
+                    </Button>
+                  </TableCell>
+                </motion.tr>
               );
             })}
-          </div>
-        </div>
-      ))}
+          </TableBody>
+        </Table>
+      </div>
 
       {/* Assign dialog */}
       <Dialog open={!!selectedCamera} onOpenChange={open => !open && setSelectedCamera(null)}>
