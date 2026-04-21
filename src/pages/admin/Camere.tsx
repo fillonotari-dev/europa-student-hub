@@ -86,6 +86,26 @@ export default function Camere() {
     },
   });
 
+  const concludi = useMutation({
+    mutationFn: async ({ assegnazione_id, camera_id }: { assegnazione_id: string; camera_id: string }) => {
+      await supabase
+        .from('assegnazioni')
+        .update({ stato: 'conclusa', data_fine: new Date().toISOString().split('T')[0] })
+        .eq('id', assegnazione_id);
+      const rimaste = (assegnazioni?.filter(a => a.camera_id === camera_id && a.id !== assegnazione_id).length ?? 0);
+      const camera = camere?.find(c => c.id === camera_id);
+      const nuovoStato = rimaste === 0 ? 'libera' : (camera && rimaste < camera.posti ? 'parzialmente_occupata' : 'occupata');
+      await supabase.from('camere').update({ stato: nuovoStato }).eq('id', camera_id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['camere'] });
+      queryClient.invalidateQueries({ queryKey: ['assegnazioni-attive'] });
+      queryClient.invalidateQueries({ queryKey: ['residenti'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      toast({ title: 'Assegnazione conclusa' });
+    },
+  });
+
   const piani = [...new Set(camere?.map(c => c.piano))].sort();
 
   return (
