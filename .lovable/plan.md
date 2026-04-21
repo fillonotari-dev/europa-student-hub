@@ -1,33 +1,42 @@
 
 
-## Piano: "Residenti" UI + Gestione fine assegnazioni
+## Piano: Camere in vista tabella
 
-### 1. Rinominare tab "Studenti" → "Residenti" (solo UI)
+Sostituire la visualizzazione a card raggruppata per piano con una tabella unica più leggibile e scansionabile.
 
-- **`src/components/admin/AdminSidebar.tsx`** — label "Studenti" → "Residenti", URL `/admin/residenti`
-- **`src/App.tsx`** — route `studenti` → `residenti`
-- **`src/pages/admin/Studenti.tsx`** — rinominare file in `Residenti.tsx`:
-  - Titolo "Residenti", sottotitolo "Studenti con assegnazione attiva"
-  - Query: join `assegnazioni` (stato = 'attiva') con `studenti` e `camere`, mostrare solo studenti con assegnazione
-  - Colonne: Nome, Email, Nazionalità, Camera (numero), Struttura
-  - Mantenere ricerca e stile tabella esistente
+### Struttura tabella
 
-### 2. Gestione fine assegnazioni in Camere
+Colonne:
+- **Numero** (con icona porta)
+- **Struttura**
+- **Piano**
+- **Tipo** (singola/doppia)
+- **Posti** (occupati/totali, es. "1/2")
+- **Occupanti** (nomi separati da virgola, "—" se libera)
+- **Stato** (badge colorato: Libera / Parz. occupata / Occupata / Manutenzione)
+- **Azioni** (pulsante "Gestisci" che apre il dialog esistente)
 
-**File: `src/pages/admin/Camere.tsx`**
+### Comportamento
 
-Nel dialog camera con occupanti attivi:
-- Mostrare lista occupanti con pulsante "Concludi assegnazione"
-- `AlertDialog` di conferma prima di procedere
-- Mutation `concludiAssegnazione`:
-  - UPDATE `assegnazioni` SET `stato = 'conclusa'`, `data_fine = today`
-  - Contare assegnazioni attive rimaste nella camera
-  - UPDATE `camere.stato`: 0 rimaste → `libera`, < posti → `parzialmente_occupata`
-- Invalidare queries: `camere`, `assegnazioni-attive`, `dashboard-stats`
+- Header tabella stilizzato come Candidature/Residenti (`bg-muted/70 text-xs uppercase tracking-wider`)
+- Righe ordinate per struttura → piano → numero
+- Clic su riga o pulsante "Gestisci" apre il dialog esistente per assegnazione/conclusione
+- Filtro struttura in alto (mantenuto)
+- Aggiunta filtro stato (select: tutti/libera/parzialmente_occupata/occupata/manutenzione)
+- Legenda colori rimossa (gli stati sono già visibili nei badge)
+- Animazione fade-in righe (stagger leggero)
+
+### Badge stato
+
+Riutilizzo del componente `Badge` con varianti custom via className:
+- Libera → verde (success)
+- Parz. occupata → giallo (warning)
+- Occupata → rosso (destructive)
+- Manutenzione → grigio (muted)
 
 ### File da modificare
-1. `src/components/admin/AdminSidebar.tsx`
-2. `src/App.tsx`
-3. `src/pages/admin/Studenti.tsx` → rinominare/riscrivere come `Residenti.tsx`
-4. `src/pages/admin/Camere.tsx`
+
+1. **`src/pages/admin/Camere.tsx`** — sostituire la sezione "Rooms by floor" con una `<Table>` (import da `@/components/ui/table`), aggiungere stato `filterStato`, mantenere intatto il `Dialog` di gestione e tutte le mutation esistenti (`assegna`, `concludi`).
+
+Nessuna modifica al database o ad altri file.
 
