@@ -11,8 +11,18 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import {
+  Pagination, PaginationContent, PaginationItem, PaginationLink,
+  PaginationNext, PaginationPrevious,
+} from '@/components/ui/pagination';
 import { useToast } from '@/hooks/use-toast';
-import { DoorOpen, User, X } from 'lucide-react';
+import { DoorOpen, User, X, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+
+const STATO_ORDER: Record<string, number> = {
+  libera: 0, parzialmente_occupata: 1, occupata: 2, manutenzione: 3,
+};
+const PAGE_SIZE = 15;
+type SortKey = 'numero' | 'struttura' | 'piano' | 'tipo' | 'posti' | 'occupanti' | 'stato';
 
 const STATO_CAMERA_LABELS: Record<string, string> = {
   libera: 'Libera', parzialmente_occupata: 'Parz. occupata', occupata: 'Occupata', manutenzione: 'Manutenzione',
@@ -29,6 +39,9 @@ export default function Camere() {
   const [selectedCamera, setSelectedCamera] = useState<any>(null);
   const [selectedStruttura, setSelectedStruttura] = useState<string>('tutti');
   const [filterStato, setFilterStato] = useState<string>('tutti');
+  const [sortKey, setSortKey] = useState<SortKey>('numero');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [page, setPage] = useState(1);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -109,15 +122,61 @@ export default function Camere() {
     },
   });
 
+  const occCount = (cameraId: string) => assegnazioni?.filter(a => a.camera_id === cameraId).length ?? 0;
+
   const filteredCamere = (camere ?? [])
     .filter(c => filterStato === 'tutti' || (c.stato || 'libera') === filterStato)
     .sort((a: any, b: any) => {
-      const sa = a.strutture?.nome ?? '';
-      const sb = b.strutture?.nome ?? '';
-      if (sa !== sb) return sa.localeCompare(sb);
-      if ((a.piano ?? 0) !== (b.piano ?? 0)) return (a.piano ?? 0) - (b.piano ?? 0);
-      return String(a.numero).localeCompare(String(b.numero), undefined, { numeric: true });
+      const dir = sortDir === 'asc' ? 1 : -1;
+      switch (sortKey) {
+        case 'numero':
+          return dir * String(a.numero).localeCompare(String(b.numero), undefined, { numeric: true });
+        case 'struttura':
+          return dir * (a.strutture?.nome ?? '').localeCompare(b.strutture?.nome ?? '');
+        case 'piano':
+          return dir * ((a.piano ?? 0) - (b.piano ?? 0));
+        case 'tipo':
+          return dir * String(a.tipo).localeCompare(String(b.tipo));
+        case 'posti':
+          return dir * ((a.posti ?? 0) - (b.posti ?? 0));
+        case 'occupanti':
+          return dir * (occCount(a.id) - occCount(b.id));
+        case 'stato':
+          return dir * ((STATO_ORDER[a.stato || 'libera'] ?? 0) - (STATO_ORDER[b.stato || 'libera'] ?? 0));
+      }
     });
+
+  const totalPages = Math.max(1, Math.ceil(filteredCamere.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const pageItems = filteredCamere.slice(pageStart, pageStart + PAGE_SIZE);
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+    setPage(1);
+  };
+
+  const SortHeader = ({ k, label, align = 'left' }: { k: SortKey; label: string; align?: 'left' | 'right' }) => {
+    const active = sortKey === k;
+    const Icon = !active ? ArrowUpDown : sortDir === 'asc' ? ArrowUp : ArrowDown;
+    return (
+      <TableHead className={`text-xs uppercase tracking-wider ${align === 'right' ? 'text-right' : ''}`}>
+        <button
+          type="button"
+          onClick={() => toggleSort(k)}
+          className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${active ? 'text-foreground' : ''}`}
+        >
+          {label}
+          <Icon className={`w-3 h-3 ${active ? 'opacity-100' : 'opacity-40'}`} />
+        </button>
+      </TableHead>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -151,25 +210,25 @@ export default function Camere() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/70 hover:bg-muted/70">
-              <TableHead className="text-xs uppercase tracking-wider">Numero</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider">Struttura</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider">Piano</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider">Tipo</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider">Posti</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider">Occupanti</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider">Stato</TableHead>
+              <SortHeader k="numero" label="Numero" />
+              <SortHeader k="struttura" label="Struttura" />
+              <SortHeader k="piano" label="Piano" />
+              <SortHeader k="tipo" label="Tipo" />
+              <SortHeader k="posti" label="Posti" />
+              <SortHeader k="occupanti" label="Occupanti" />
+              <SortHeader k="stato" label="Stato" />
               <TableHead className="text-xs uppercase tracking-wider text-right">Azioni</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredCamere.length === 0 && (
+            {pageItems.length === 0 && (
               <TableRow>
                 <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">
                   Nessuna camera trovata
                 </TableCell>
               </TableRow>
             )}
-            {filteredCamere.map((c: any, i: number) => {
+            {pageItems.map((c: any, i: number) => {
               const occ = assegnazioni?.filter(a => a.camera_id === c.id) ?? [];
               const stato = c.stato || 'libera';
               return (
@@ -214,6 +273,46 @@ export default function Camere() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination */}
+      {filteredCamere.length > 0 && (
+        <div className="flex items-center justify-between text-[13px] text-muted-foreground">
+          <span>
+            {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filteredCamere.length)} di {filteredCamere.length}
+          </span>
+          {totalPages > 1 && (
+            <Pagination className="mx-0 w-auto justify-end">
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    href="#"
+                    onClick={(e) => { e.preventDefault(); setPage(p => Math.max(1, p - 1)); }}
+                    className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
+                  />
+                </PaginationItem>
+                {Array.from({ length: totalPages }).map((_, i) => (
+                  <PaginationItem key={i}>
+                    <PaginationLink
+                      href="#"
+                      isActive={currentPage === i + 1}
+                      onClick={(e) => { e.preventDefault(); setPage(i + 1); }}
+                    >
+                      {i + 1}
+                    </PaginationLink>
+                  </PaginationItem>
+                ))}
+                <PaginationItem>
+                  <PaginationNext
+                    href="#"
+                    onClick={(e) => { e.preventDefault(); setPage(p => Math.min(totalPages, p + 1)); }}
+                    className={currentPage === totalPages ? 'pointer-events-none opacity-50' : ''}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          )}
+        </div>
+      )}
 
       {/* Assign dialog */}
       <Dialog open={!!selectedCamera} onOpenChange={open => !open && setSelectedCamera(null)}>
