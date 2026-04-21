@@ -182,6 +182,47 @@ export default function Camere() {
                   <p>Stato: <strong>{STATO_CAMERA_LABELS[selectedCamera.stato]}</strong></p>
                 </div>
 
+                {(() => {
+                  const occupanti = assegnazioni?.filter(a => a.camera_id === selectedCamera.id) ?? [];
+                  if (occupanti.length === 0) return null;
+                  return (
+                    <div>
+                      <p className="text-sm font-semibold mb-2">Occupanti attivi</p>
+                      <div className="space-y-2">
+                        {occupanti.map((a: any) => (
+                          <div key={a.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/40">
+                            <div className="flex items-center gap-2 text-sm">
+                              <User className="w-4 h-4 text-muted-foreground" />
+                              <span>{a.studenti?.nome} {a.studenti?.cognome}</span>
+                            </div>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="sm" variant="outline" className="text-destructive hover:text-destructive">
+                                  <X className="w-3.5 h-3.5 mr-1" />Concludi
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Concludere l'assegnazione?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    L'assegnazione di {a.studenti?.nome} {a.studenti?.cognome} alla camera {selectedCamera.numero} verrà conclusa con data odierna. Lo stato della camera verrà aggiornato automaticamente.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => concludi.mutate({ assegnazione_id: a.id, camera_id: selectedCamera.id })}>
+                                    Conferma
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {selectedCamera.stato !== 'occupata' && selectedCamera.stato !== 'manutenzione' && studentiApprovati && studentiApprovati.length > 0 && (
                   <div>
                     <p className="text-sm font-semibold mb-2">Assegna studente approvato</p>
