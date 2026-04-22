@@ -1,13 +1,28 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
   PaginationNext, PaginationPrevious,
 } from '@/components/ui/pagination';
-import { Search, Users as UsersIcon, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { RowActions } from '@/components/admin/RowActions';
+import { useToast } from '@/hooks/use-toast';
+import {
+  Search, Users as UsersIcon, ArrowUp, ArrowDown, ArrowUpDown,
+  User, ArrowRightLeft, LogOut, Mail,
+} from 'lucide-react';
 
 const PAGE_SIZE = 15;
 type SortKey = 'nome' | 'email' | 'nazionalita' | 'camera' | 'struttura';
@@ -18,14 +33,113 @@ export default function Residenti() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(1);
 
+  const [profileTarget, setProfileTarget] = useState<any>(null);
+  const [transferTarget, setTransferTarget] = useState<any>(null);
+  const [transferCameraId, setTransferCameraId] = useState<string>('');
+  const [transferData, setTransferData] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [endTarget, setEndTarget] = useState<any>(null);
+  const [endData, setEndData] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [endNote, setEndNote] = useState('');
+
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
   const { data: residenti } = useQuery({
     queryKey: ['residenti'],
     queryFn: async () => {
       const { data } = await supabase
         .from('assegnazioni')
-        .select('id, studenti(id, nome, cognome, email, nazionalita), camere(numero, strutture(nome))')
+        .select('id, posto, data_inizio, camera_id, studente_id, studenti(id, nome, cognome, email, nazionalita, telefono, universita, corso_di_studi, anno_di_corso, matricola), camere(id, numero, posti, struttura_id, strutture(nome))')
         .eq('stato', 'attiva');
       return data ?? [];
+    },
+  });
+
+  const { data: tutteCamere } = useQuery({
+    queryKey: ['camere-disponibili'],
+    queryFn: async () => {
+      const { data } = await supabase.from('camere').select('*, strutture(nome)').neq('stato', 'manutenzione');
+      return data ?? [];
+    },
+  });
+
+  const { data: tutteAssegnazioniAttive } = useQuery({
+    queryKey: ['assegnazioni-attive'],
+    queryFn: async () => {
+      const { data } = await supabase.from('assegnazioni').select('camera_id').eq('stato', 'attiva');
+      return data ?? [];
+    },
+  });
+
+  const { data: storico } = useQuery({
+    queryKey: ['storico-studente', profileTarget?.studenti?.id],
+    enabled: !!profileTarget?.studenti?.id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('assegnazioni')
+        .select('id, data_inizio, data_fine, stato, posto, camere(numero, strutture(nome))')
+        .eq('studente_id', profileTarget.studenti.id)
+        .order('data_inizio', { ascending: false });
+      return data ?? [];
+    },
+  });
+
+  const recalcCameraStato = async (cameraId: string) => {
+    const { data: rim } = await supabase.from('assegnazioni').select('id', { count: 'exact' }).eq('camera_id', cameraId).eq('stato', 'attiva');
+    const { data: cam } = await supabase.from('camere').select('posti, stato').eq('id', cameraId).single();
+    if (!cam) return;
+    if (cam.stato === 'manutenzione') return;
+    const occ = rim?.length ?? 0;
+    const nuovo = occ === 0 ? 'libera' : occ >= cam.posti ? 'occupata' : 'parzialmente_occupata';
+    await supabase.from('camere').update({ stato: nuovo }).eq('id', cameraId);
+  };
+
+  const transferisci = useMutation({
+    mutationFn: async ({ assegnazione_id, vecchia_camera_id, studente_id, nuova_camera_id, data }: any) => {
+      // Conclude old
+      await supabase.from('assegnazioni').update({ stato: 'conclusa', data_fine: data }).eq('id', assegnazione_id);
+      // Compute next posto in new camera
+      const { data: existing } = await supabase.from('assegnazioni').select('posto').eq('camera_id', nuova_camera_id).eq('stato', 'attiva');
+      const nextPosto = (existing?.length ?? 0) + 1;
+      // Create new assignment (candidatura_id required NOT NULL → reuse last from this student)
+      const { data: lastCand } = await supabase
+        .from('candidature').select('id').eq('studente_id', studente_id)
+        .order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (!lastCand) throw new Error('Nessuna candidatura trovata per lo studente.');
+      await supabase.from('assegnazioni').insert({
+        camera_id: nuova_camera_id, studente_id, candidatura_id: lastCand.id,
+        posto: nextPosto, data_inizio: data, stato: 'attiva',
+      });
+      await recalcCameraStato(vecchia_camera_id);
+      await recalcCameraStato(nuova_camera_id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['residenti'] });
+      queryClient.invalidateQueries({ queryKey: ['camere'] });
+      queryClient.invalidateQueries({ queryKey: ['assegnazioni-attive'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      toast({ title: 'Trasferimento completato' });
+      setTransferTarget(null);
+      setTransferCameraId('');
+    },
+    onError: (e: any) => toast({ title: 'Errore', description: e.message, variant: 'destructive' }),
+  });
+
+  const concludi = useMutation({
+    mutationFn: async ({ assegnazione_id, camera_id, data, note }: any) => {
+      await supabase.from('assegnazioni')
+        .update({ stato: 'conclusa', data_fine: data, note: note || null })
+        .eq('id', assegnazione_id);
+      await recalcCameraStato(camera_id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['residenti'] });
+      queryClient.invalidateQueries({ queryKey: ['camere'] });
+      queryClient.invalidateQueries({ queryKey: ['assegnazioni-attive'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      toast({ title: 'Soggiorno concluso' });
+      setEndTarget(null);
+      setEndNote('');
     },
   });
 
@@ -69,17 +183,21 @@ export default function Residenti() {
     const Icon = !active ? ArrowUpDown : sortDir === 'asc' ? ArrowUp : ArrowDown;
     return (
       <th className="text-left px-4 py-3 font-semibold">
-        <button
-          type="button"
-          onClick={() => toggleSort(k)}
-          className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${active ? 'text-foreground' : ''}`}
-        >
+        <button type="button" onClick={() => toggleSort(k)}
+          className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${active ? 'text-foreground' : ''}`}>
           {label}
           <Icon className={`w-3 h-3 ${active ? 'opacity-100' : 'opacity-40'}`} />
         </button>
       </th>
     );
   };
+
+  // Camere disponibili per il trasferimento (escludi la camera corrente, escludi piene)
+  const camereDisponibili = (tutteCamere ?? []).filter((c: any) => {
+    if (transferTarget && c.id === transferTarget.camera_id) return false;
+    const occ = (tutteAssegnazioniAttive ?? []).filter((a: any) => a.camera_id === c.id).length;
+    return occ < c.posti;
+  });
 
   return (
     <div className="space-y-6">
@@ -102,6 +220,7 @@ export default function Residenti() {
               <SortHeader k="nazionalita" label="Nazionalità" />
               <SortHeader k="camera" label="Camera" />
               <SortHeader k="struttura" label="Struttura" />
+              <th className="px-4 py-3 text-right font-semibold">Azioni</th>
             </tr>
           </thead>
           <tbody>
@@ -113,6 +232,28 @@ export default function Residenti() {
                 <td className="px-4 py-3 text-sm">{a.studenti?.nazionalita || '-'}</td>
                 <td className="px-4 py-3 text-sm">{a.camere?.numero || '-'}</td>
                 <td className="px-4 py-3 text-sm">{a.camere?.strutture?.nome || '-'}</td>
+                <td className="px-4 py-3 text-right">
+                  <RowActions>
+                    <DropdownMenuItem onClick={() => setProfileTarget(a)}>
+                      <User className="w-4 h-4 mr-2" /> Visualizza profilo
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { setTransferTarget(a); setTransferCameraId(''); setTransferData(new Date().toISOString().split('T')[0]); }}>
+                      <ArrowRightLeft className="w-4 h-4 mr-2" /> Trasferisci in altra camera
+                    </DropdownMenuItem>
+                    {a.studenti?.email && (
+                      <DropdownMenuItem asChild>
+                        <a href={`mailto:${a.studenti.email}`}><Mail className="w-4 h-4 mr-2" /> Contatta via email</a>
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => { setEndTarget(a); setEndData(new Date().toISOString().split('T')[0]); setEndNote(''); }}
+                    >
+                      <LogOut className="w-4 h-4 mr-2" /> Concludi soggiorno
+                    </DropdownMenuItem>
+                  </RowActions>
+                </td>
               </motion.tr>
             ))}
           </tbody>
@@ -127,42 +268,166 @@ export default function Residenti() {
 
       {filtered.length > 0 && (
         <div className="flex items-center justify-between text-[13px] text-muted-foreground">
-          <span>
-            {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filtered.length)} di {filtered.length}
-          </span>
+          <span>{pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filtered.length)} di {filtered.length}</span>
           {totalPages > 1 && (
             <Pagination className="mx-0 w-auto justify-end">
               <PaginationContent>
                 <PaginationItem>
-                  <PaginationPrevious
-                    href="#"
-                    onClick={(e) => { e.preventDefault(); setPage(p => Math.max(1, p - 1)); }}
-                    className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
-                  />
+                  <PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); setPage(p => Math.max(1, p - 1)); }}
+                    className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''} />
                 </PaginationItem>
                 {Array.from({ length: totalPages }).map((_, i) => (
                   <PaginationItem key={i}>
-                    <PaginationLink
-                      href="#"
-                      isActive={currentPage === i + 1}
-                      onClick={(e) => { e.preventDefault(); setPage(i + 1); }}
-                    >
-                      {i + 1}
-                    </PaginationLink>
+                    <PaginationLink href="#" isActive={currentPage === i + 1}
+                      onClick={(e) => { e.preventDefault(); setPage(i + 1); }}>{i + 1}</PaginationLink>
                   </PaginationItem>
                 ))}
                 <PaginationItem>
-                  <PaginationNext
-                    href="#"
-                    onClick={(e) => { e.preventDefault(); setPage(p => Math.min(totalPages, p + 1)); }}
-                    className={currentPage === totalPages ? 'pointer-events-none opacity-50' : ''}
-                  />
+                  <PaginationNext href="#" onClick={(e) => { e.preventDefault(); setPage(p => Math.min(totalPages, p + 1)); }}
+                    className={currentPage === totalPages ? 'pointer-events-none opacity-50' : ''} />
                 </PaginationItem>
               </PaginationContent>
             </Pagination>
           )}
         </div>
       )}
+
+      {/* Profile dialog */}
+      <Dialog open={!!profileTarget} onOpenChange={open => !open && setProfileTarget(null)}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          {profileTarget && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{profileTarget.studenti?.cognome} {profileTarget.studenti?.nome}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 mt-2">
+                <div className="bg-muted/30 rounded-lg p-3 space-y-1.5 text-[13px]">
+                  <Row label="Email" value={profileTarget.studenti?.email} />
+                  <Row label="Telefono" value={profileTarget.studenti?.telefono} />
+                  <Row label="Nazionalità" value={profileTarget.studenti?.nazionalita} />
+                  <Row label="Università" value={profileTarget.studenti?.universita} />
+                  <Row label="Corso" value={profileTarget.studenti?.corso_di_studi} />
+                  <Row label="Anno" value={profileTarget.studenti?.anno_di_corso} />
+                  <Row label="Matricola" value={profileTarget.studenti?.matricola} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold mb-2">Storico assegnazioni</p>
+                  <div className="space-y-1.5">
+                    {(storico ?? []).map((s: any) => (
+                      <div key={s.id} className="flex items-center justify-between text-[13px] p-2 rounded bg-muted/30">
+                        <span>
+                          Cam. {s.camere?.numero} ({s.camere?.strutture?.nome})
+                        </span>
+                        <span className="text-muted-foreground">
+                          {s.data_inizio} → {s.data_fine ?? 'in corso'} · {s.stato}
+                        </span>
+                      </div>
+                    ))}
+                    {(storico?.length ?? 0) === 0 && <p className="text-[13px] text-muted-foreground">Nessun dato</p>}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Transfer dialog */}
+      <Dialog open={!!transferTarget} onOpenChange={open => { if (!open) { setTransferTarget(null); setTransferCameraId(''); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Trasferisci residente</DialogTitle>
+          </DialogHeader>
+          {transferTarget && (
+            <div className="space-y-3">
+              <p className="text-sm">
+                <strong>{transferTarget.studenti?.cognome} {transferTarget.studenti?.nome}</strong>
+                <br />
+                <span className="text-muted-foreground">
+                  Da camera {transferTarget.camere?.numero} ({transferTarget.camere?.strutture?.nome})
+                </span>
+              </p>
+              <div>
+                <Label>Nuova camera</Label>
+                <Select value={transferCameraId} onValueChange={setTransferCameraId}>
+                  <SelectTrigger><SelectValue placeholder="Seleziona camera disponibile" /></SelectTrigger>
+                  <SelectContent>
+                    {camereDisponibili.map((c: any) => {
+                      const occ = (tutteAssegnazioniAttive ?? []).filter((a: any) => a.camera_id === c.id).length;
+                      return (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.strutture?.nome} – Cam. {c.numero} ({occ}/{c.posti})
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Data trasferimento</Label>
+                <Input type="date" value={transferData} onChange={e => setTransferData(e.target.value)} />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTransferTarget(null)}>Annulla</Button>
+            <Button
+              disabled={!transferCameraId || transferisci.isPending}
+              onClick={() => transferisci.mutate({
+                assegnazione_id: transferTarget.id,
+                vecchia_camera_id: transferTarget.camera_id,
+                studente_id: transferTarget.studente_id,
+                nuova_camera_id: transferCameraId,
+                data: transferData,
+              })}
+            >
+              Trasferisci
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* End stay */}
+      <AlertDialog open={!!endTarget} onOpenChange={open => { if (!open) setEndTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Concludere il soggiorno?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {endTarget?.studenti?.cognome} {endTarget?.studenti?.nome} – Camera {endTarget?.camere?.numero}.
+              L'assegnazione verrà chiusa e lo stato camera ricalcolato.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <div>
+              <Label>Data fine</Label>
+              <Input type="date" value={endData} onChange={e => setEndData(e.target.value)} />
+            </div>
+            <div>
+              <Label>Nota (opzionale)</Label>
+              <Textarea rows={2} value={endNote} onChange={e => setEndNote(e.target.value)} />
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => endTarget && concludi.mutate({
+                assegnazione_id: endTarget.id, camera_id: endTarget.camera_id, data: endData, note: endNote,
+              })}
+            >
+              Conferma
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: any }) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium">{value || '-'}</span>
     </div>
   );
 }
