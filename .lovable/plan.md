@@ -1,42 +1,62 @@
 
 
-## Piano: Camere in vista tabella
+## Piano: sistema di "Azioni Admin" per Camere, Candidature, Residenti
 
-Sostituire la visualizzazione a card raggruppata per piano con una tabella unica più leggibile e scansionabile.
+Pattern UI uniforme: **menu "⋯" per riga** (DropdownMenu) + **conferme AlertDialog** per azioni distruttive. Nessuna duplicazione con la sezione Esportazione esistente.
 
-### Struttura tabella
+---
 
-Colonne:
-- **Numero** (con icona porta)
-- **Struttura**
-- **Piano**
-- **Tipo** (singola/doppia)
-- **Posti** (occupati/totali, es. "1/2")
-- **Occupanti** (nomi separati da virgola, "—" se libera)
-- **Stato** (badge colorato: Libera / Parz. occupata / Occupata / Manutenzione)
-- **Azioni** (pulsante "Gestisci" che apre il dialog esistente)
+### 1. Camere — CRUD completo + manutenzione
 
-### Comportamento
+**Toolbar:**
+- **+ Nuova camera** → dialog (struttura, numero, piano, tipo, posti, note)
 
-- Header tabella stilizzato come Candidature/Residenti (`bg-muted/70 text-xs uppercase tracking-wider`)
-- Righe ordinate per struttura → piano → numero
-- Clic su riga o pulsante "Gestisci" apre il dialog esistente per assegnazione/conclusione
-- Filtro struttura in alto (mantenuto)
-- Aggiunta filtro stato (select: tutti/libera/parzialmente_occupata/occupata/manutenzione)
-- Legenda colori rimossa (gli stati sono già visibili nei badge)
-- Animazione fade-in righe (stagger leggero)
+**Menu riga ⋯:**
+- **Gestisci occupanti** (apre dialog esistente)
+- **Modifica camera** → stesso dialog della creazione
+- **Imposta in manutenzione** → conferma + nota opzionale (`stato='manutenzione'`)
+- **Riattiva** (solo se in manutenzione) → ricalcola stato in base agli occupanti
+- **Elimina camera** → conferma; bloccata se ci sono assegnazioni attive
 
-### Badge stato
+---
 
-Riutilizzo del componente `Badge` con varianti custom via className:
-- Libera → verde (success)
-- Parz. occupata → giallo (warning)
-- Occupata → rosso (destructive)
-- Manutenzione → grigio (muted)
+### 2. Candidature — workflow completo
+
+**Menu riga ⋯ + bottoni nel dialog dettaglio:**
+- **Prendi in carico** (ricevuta → in_valutazione)
+- **Approva** / **Rifiuta** (in_valutazione → …)
+- **Rimetti in valutazione** (da approvata/rifiutata, per correggere errori)
+- **Segna come ritirata**
+- **Assegna a una camera** (solo se `approvata`) → naviga a `/admin/camere` con la candidatura preselezionata
+- **Contatta via email** → `mailto:` con oggetto precompilato
+- **Elimina candidatura** → conferma forte; bloccata se esiste un'assegnazione collegata
+
+Tutte le transizioni di stato continuano a loggare in `log_stato_candidature` con nota opzionale.
+
+---
+
+### 3. Residenti — gestione del soggiorno
+
+**Menu riga ⋯:**
+- **Visualizza profilo** → dialog con dati anagrafici/accademici + storico assegnazioni dello studente
+- **Trasferisci in altra camera** → seleziona nuova camera (filtrate per posti disponibili) + posto + data; conclude la vecchia assegnazione e ne crea una nuova attiva, aggiornando lo stato di entrambe le camere
+- **Concludi soggiorno** → conferma + data fine (default oggi) + nota; aggiorna stato camera
+- **Contatta via email** → `mailto:`
+
+---
+
+### Dettagli tecnici
+
+- Nuovo componente `src/components/admin/RowActions.tsx`: wrapper su `DropdownMenu` (shadcn) con icona `MoreHorizontal` e slot per le voci.
+- Conferme distruttive con `AlertDialog` (già usato in Camere).
+- Toast su ogni esito; invalidazione coerente di `camere`, `assegnazioni-attive`, `residenti`, `candidature`, `dashboard-stats`.
+- "Assegna a camera" da Candidature → naviga con `?candidatura=<id>` e Camere apre automaticamente il dialog di gestione filtrando le camere compatibili.
+- Nessuna modifica al DB schema. Nessuna nuova edge function.
 
 ### File da modificare
 
-1. **`src/pages/admin/Camere.tsx`** — sostituire la sezione "Rooms by floor" con una `<Table>` (import da `@/components/ui/table`), aggiungere stato `filterStato`, mantenere intatto il `Dialog` di gestione e tutte le mutation esistenti (`assegna`, `concludi`).
-
-Nessuna modifica al database o ad altri file.
+1. `src/components/admin/RowActions.tsx` *(nuovo)*
+2. `src/pages/admin/Camere.tsx` — toolbar "+ Nuova", `RowActions`, dialog create/edit, manutenzione, elimina con guard, lettura querystring `?candidatura`
+3. `src/pages/admin/Candidature.tsx` — `RowActions` con tutte le transizioni, mailto, elimina con guard, link "Assegna a camera"
+4. `src/pages/admin/Residenti.tsx` — `RowActions` con profilo, trasferimento, conclusione, mailto
 
