@@ -1,13 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -15,8 +19,13 @@ import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
   PaginationNext, PaginationPrevious,
 } from '@/components/ui/pagination';
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { RowActions } from '@/components/admin/RowActions';
 import { useToast } from '@/hooks/use-toast';
-import { DoorOpen, User, X, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import {
+  DoorOpen, User, X, ArrowUp, ArrowDown, ArrowUpDown, Plus,
+  Pencil, Wrench, RotateCcw, Trash2, Settings,
+} from 'lucide-react';
 
 const STATO_ORDER: Record<string, number> = {
   libera: 0, parzialmente_occupata: 1, occupata: 2, manutenzione: 3,
@@ -35,13 +44,39 @@ const STATO_BADGE_CLASSES: Record<string, string> = {
   manutenzione: 'bg-muted text-muted-foreground border-border hover:bg-muted',
 };
 
+type CameraForm = {
+  id?: string;
+  struttura_id: string;
+  numero: string;
+  piano: string;
+  tipo: 'singola' | 'doppia';
+  posti: string;
+  note: string;
+};
+
+const emptyForm: CameraForm = {
+  struttura_id: '', numero: '', piano: '', tipo: 'singola', posti: '1', note: '',
+};
+
 export default function Camere() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const candidaturaParam = searchParams.get('candidatura');
+
   const [selectedCamera, setSelectedCamera] = useState<any>(null);
   const [selectedStruttura, setSelectedStruttura] = useState<string>('tutti');
   const [filterStato, setFilterStato] = useState<string>('tutti');
   const [sortKey, setSortKey] = useState<SortKey>('numero');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(1);
+
+  // CRUD dialogs
+  const [formOpen, setFormOpen] = useState(false);
+  const [form, setForm] = useState<CameraForm>(emptyForm);
+  const [maintenanceTarget, setMaintenanceTarget] = useState<any>(null);
+  const [maintenanceNote, setMaintenanceNote] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [reactivateTarget, setReactivateTarget] = useState<any>(null);
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -82,12 +117,23 @@ export default function Camere() {
     },
   });
 
+  // If navigated with ?candidatura=<id>, surface a hint by setting filter to 'libera'
+  useEffect(() => {
+    if (candidaturaParam) {
+      setFilterStato('libera');
+      toast({
+        title: 'Assegna candidatura',
+        description: 'Seleziona una camera disponibile e premi "Gestisci".',
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidaturaParam]);
+
   const assegna = useMutation({
     mutationFn: async ({ camera_id, studente_id, candidatura_id, posto }: any) => {
       await supabase.from('assegnazioni').insert({
         camera_id, studente_id, candidatura_id, posto, data_inizio: new Date().toISOString().split('T')[0], stato: 'attiva',
       });
-      // Update camera stato
       const cameraAssegnazioni = (assegnazioni?.filter(a => a.camera_id === camera_id).length ?? 0) + 1;
       const camera = camere?.find(c => c.id === camera_id);
       const nuovoStato = camera && cameraAssegnazioni >= camera.posti ? 'occupata' : 'parzialmente_occupata';
@@ -96,9 +142,14 @@ export default function Camere() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['camere'] });
       queryClient.invalidateQueries({ queryKey: ['assegnazioni-attive'] });
+      queryClient.invalidateQueries({ queryKey: ['residenti'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       toast({ title: 'Studente assegnato' });
       setSelectedCamera(null);
+      if (candidaturaParam) {
+        searchParams.delete('candidatura');
+        setSearchParams(searchParams);
+      }
     },
   });
 
@@ -122,9 +173,81 @@ export default function Camere() {
     },
   });
 
+  const saveCamera = useMutation({
+    mutationFn: async (f: CameraForm) => {
+      const payload = {
+        struttura_id: f.struttura_id,
+        numero: f.numero.trim(),
+        piano: f.piano === '' ? null : Number(f.piano),
+        tipo: f.tipo,
+        posti: Math.max(1, Number(f.posti) || 1),
+        note: f.note.trim() || null,
+      };
+      if (f.id) {
+        const { error } = await supabase.from('camere').update(payload).eq('id', f.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('camere').insert({ ...payload, stato: 'libera' });
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_d, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['camere'] });
+      toast({ title: vars.id ? 'Camera aggiornata' : 'Camera creata' });
+      setFormOpen(false);
+      setForm(emptyForm);
+    },
+    onError: (e: any) => toast({ title: 'Errore', description: e.message, variant: 'destructive' }),
+  });
+
+  const setManutenzione = useMutation({
+    mutationFn: async ({ id, note }: { id: string; note: string }) => {
+      const { data: existing } = await supabase.from('camere').select('note').eq('id', id).single();
+      const merged = note
+        ? `${existing?.note ? existing.note + '\n' : ''}[Manutenzione ${new Date().toLocaleDateString('it-IT')}] ${note}`
+        : existing?.note;
+      await supabase.from('camere').update({ stato: 'manutenzione', note: merged }).eq('id', id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['camere'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      toast({ title: 'Camera in manutenzione' });
+      setMaintenanceTarget(null);
+      setMaintenanceNote('');
+    },
+  });
+
+  const reactivate = useMutation({
+    mutationFn: async (camera: any) => {
+      const occupati = assegnazioni?.filter(a => a.camera_id === camera.id).length ?? 0;
+      const nuovo = occupati === 0 ? 'libera' : occupati >= camera.posti ? 'occupata' : 'parzialmente_occupata';
+      await supabase.from('camere').update({ stato: nuovo }).eq('id', camera.id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['camere'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      toast({ title: 'Camera riattivata' });
+      setReactivateTarget(null);
+    },
+  });
+
+  const deleteCamera = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('camere').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['camere'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      toast({ title: 'Camera eliminata' });
+      setDeleteTarget(null);
+    },
+    onError: (e: any) => toast({ title: 'Errore', description: e.message, variant: 'destructive' }),
+  });
+
   const occCount = (cameraId: string) => assegnazioni?.filter(a => a.camera_id === cameraId).length ?? 0;
 
-  const filteredCamere = (camere ?? [])
+  const filteredCamere = useMemo(() => (camere ?? [])
     .filter(c => filterStato === 'tutti' || (c.stato || 'libera') === filterStato)
     .sort((a: any, b: any) => {
       const dir = sortDir === 'asc' ? 1 : -1;
@@ -144,7 +267,7 @@ export default function Camere() {
         case 'stato':
           return dir * ((STATO_ORDER[a.stato || 'libera'] ?? 0) - (STATO_ORDER[b.stato || 'libera'] ?? 0));
       }
-    });
+    }), [camere, assegnazioni, filterStato, sortKey, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filteredCamere.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -152,12 +275,8 @@ export default function Camere() {
   const pageItems = filteredCamere.slice(pageStart, pageStart + PAGE_SIZE);
 
   const toggleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortKey(key);
-      setSortDir('asc');
-    }
+    if (sortKey === key) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(key); setSortDir('asc'); }
     setPage(1);
   };
 
@@ -176,6 +295,24 @@ export default function Camere() {
         </button>
       </TableHead>
     );
+  };
+
+  const openCreate = () => {
+    setForm({ ...emptyForm, struttura_id: strutture?.[0]?.id ?? '' });
+    setFormOpen(true);
+  };
+
+  const openEdit = (c: any) => {
+    setForm({
+      id: c.id,
+      struttura_id: c.struttura_id,
+      numero: c.numero ?? '',
+      piano: c.piano?.toString() ?? '',
+      tipo: (c.tipo as 'singola' | 'doppia') ?? 'singola',
+      posti: c.posti?.toString() ?? '1',
+      note: c.note ?? '',
+    });
+    setFormOpen(true);
   };
 
   return (
@@ -202,8 +339,20 @@ export default function Camere() {
               ))}
             </SelectContent>
           </Select>
+          <Button onClick={openCreate} size="sm">
+            <Plus className="w-4 h-4 mr-1" /> Nuova camera
+          </Button>
         </div>
       </div>
+
+      {candidaturaParam && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm flex items-center justify-between">
+          <span>Modalità assegnazione: scegli una camera disponibile e premi "Gestisci".</span>
+          <Button variant="ghost" size="sm" onClick={() => { searchParams.delete('candidatura'); setSearchParams(searchParams); }}>
+            Annulla
+          </Button>
+        </div>
+      )}
 
       {/* Rooms table */}
       <div className="border rounded-lg overflow-hidden">
@@ -231,6 +380,7 @@ export default function Camere() {
             {pageItems.map((c: any, i: number) => {
               const occ = assegnazioni?.filter(a => a.camera_id === c.id) ?? [];
               const stato = c.stato || 'libera';
+              const hasActive = occ.length > 0;
               return (
                 <motion.tr
                   key={c.id}
@@ -263,9 +413,33 @@ export default function Camere() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setSelectedCamera(c); }}>
-                      Gestisci
-                    </Button>
+                    <RowActions>
+                      <DropdownMenuItem onClick={() => setSelectedCamera(c)}>
+                        <Settings className="w-4 h-4 mr-2" /> Gestisci occupanti
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => openEdit(c)}>
+                        <Pencil className="w-4 h-4 mr-2" /> Modifica camera
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      {stato !== 'manutenzione' ? (
+                        <DropdownMenuItem onClick={() => setMaintenanceTarget(c)}>
+                          <Wrench className="w-4 h-4 mr-2" /> Imposta in manutenzione
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem onClick={() => setReactivateTarget(c)}>
+                          <RotateCcw className="w-4 h-4 mr-2" /> Riattiva
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        disabled={hasActive}
+                        onClick={() => !hasActive && setDeleteTarget(c)}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        {hasActive ? 'Elimina (occupata)' : 'Elimina camera'}
+                      </DropdownMenuItem>
+                    </RowActions>
                   </TableCell>
                 </motion.tr>
               );
@@ -284,29 +458,18 @@ export default function Camere() {
             <Pagination className="mx-0 w-auto justify-end">
               <PaginationContent>
                 <PaginationItem>
-                  <PaginationPrevious
-                    href="#"
-                    onClick={(e) => { e.preventDefault(); setPage(p => Math.max(1, p - 1)); }}
-                    className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
-                  />
+                  <PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); setPage(p => Math.max(1, p - 1)); }}
+                    className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''} />
                 </PaginationItem>
                 {Array.from({ length: totalPages }).map((_, i) => (
                   <PaginationItem key={i}>
-                    <PaginationLink
-                      href="#"
-                      isActive={currentPage === i + 1}
-                      onClick={(e) => { e.preventDefault(); setPage(i + 1); }}
-                    >
-                      {i + 1}
-                    </PaginationLink>
+                    <PaginationLink href="#" isActive={currentPage === i + 1}
+                      onClick={(e) => { e.preventDefault(); setPage(i + 1); }}>{i + 1}</PaginationLink>
                   </PaginationItem>
                 ))}
                 <PaginationItem>
-                  <PaginationNext
-                    href="#"
-                    onClick={(e) => { e.preventDefault(); setPage(p => Math.min(totalPages, p + 1)); }}
-                    className={currentPage === totalPages ? 'pointer-events-none opacity-50' : ''}
-                  />
+                  <PaginationNext href="#" onClick={(e) => { e.preventDefault(); setPage(p => Math.min(totalPages, p + 1)); }}
+                    className={currentPage === totalPages ? 'pointer-events-none opacity-50' : ''} />
                 </PaginationItem>
               </PaginationContent>
             </Pagination>
@@ -314,7 +477,7 @@ export default function Camere() {
         </div>
       )}
 
-      {/* Assign dialog */}
+      {/* Manage occupants dialog */}
       <Dialog open={!!selectedCamera} onOpenChange={open => !open && setSelectedCamera(null)}>
         <DialogContent>
           {selectedCamera && (
@@ -343,25 +506,10 @@ export default function Camere() {
                               <span>{a.studenti?.nome} {a.studenti?.cognome}</span>
                             </div>
                             <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button size="sm" variant="outline" className="text-destructive hover:text-destructive">
-                                  <X className="w-3.5 h-3.5 mr-1" />Concludi
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Concludere l'assegnazione?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    L'assegnazione di {a.studenti?.nome} {a.studenti?.cognome} alla camera {selectedCamera.numero} verrà conclusa con data odierna. Lo stato della camera verrà aggiornato automaticamente.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Annulla</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => concludi.mutate({ assegnazione_id: a.id, camera_id: selectedCamera.id })}>
-                                    Conferma
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
+                              <Button size="sm" variant="outline" className="text-destructive hover:text-destructive"
+                                onClick={() => concludi.mutate({ assegnazione_id: a.id, camera_id: selectedCamera.id })}>
+                                <X className="w-3.5 h-3.5 mr-1" />Concludi
+                              </Button>
                             </AlertDialog>
                           </div>
                         ))}
@@ -374,7 +522,9 @@ export default function Camere() {
                   <div>
                     <p className="text-sm font-semibold mb-2">Assegna studente approvato</p>
                     <div className="space-y-2">
-                      {studentiApprovati.map((sa: any) => {
+                      {studentiApprovati
+                        .filter((sa: any) => !candidaturaParam || sa.id === candidaturaParam)
+                        .map((sa: any) => {
                         const alreadyAssigned = assegnazioni?.some(a => a.studente_id === sa.studente_id && a.stato === 'attiva');
                         if (alreadyAssigned) return null;
                         return (
@@ -400,6 +550,124 @@ export default function Camere() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Create / edit camera dialog */}
+      <Dialog open={formOpen} onOpenChange={setFormOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{form.id ? 'Modifica camera' : 'Nuova camera'}</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 mt-2">
+            <div className="col-span-2">
+              <Label>Struttura</Label>
+              <Select value={form.struttura_id} onValueChange={(v) => setForm(f => ({ ...f, struttura_id: v }))}>
+                <SelectTrigger><SelectValue placeholder="Seleziona struttura" /></SelectTrigger>
+                <SelectContent>
+                  {strutture?.map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Numero</Label>
+              <Input value={form.numero} onChange={e => setForm(f => ({ ...f, numero: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Piano</Label>
+              <Input type="number" value={form.piano} onChange={e => setForm(f => ({ ...f, piano: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Tipo</Label>
+              <Select value={form.tipo} onValueChange={(v: 'singola' | 'doppia') => setForm(f => ({
+                ...f, tipo: v, posti: v === 'singola' ? '1' : '2',
+              }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="singola">Singola</SelectItem>
+                  <SelectItem value="doppia">Doppia</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Posti</Label>
+              <Input type="number" min={1} value={form.posti} onChange={e => setForm(f => ({ ...f, posti: e.target.value }))} />
+            </div>
+            <div className="col-span-2">
+              <Label>Note</Label>
+              <Textarea rows={2} value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFormOpen(false)}>Annulla</Button>
+            <Button
+              onClick={() => saveCamera.mutate(form)}
+              disabled={!form.struttura_id || !form.numero.trim() || saveCamera.isPending}
+            >
+              {form.id ? 'Salva' : 'Crea'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Maintenance dialog */}
+      <AlertDialog open={!!maintenanceTarget} onOpenChange={open => { if (!open) { setMaintenanceTarget(null); setMaintenanceNote(''); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Imposta in manutenzione</AlertDialogTitle>
+            <AlertDialogDescription>
+              La camera {maintenanceTarget?.numero} non sarà disponibile per nuove assegnazioni. Le assegnazioni esistenti restano invariate.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div>
+            <Label>Nota (opzionale)</Label>
+            <Textarea rows={2} value={maintenanceNote} onChange={e => setMaintenanceNote(e.target.value)} placeholder="Es. perdita rubinetto bagno" />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => maintenanceTarget && setManutenzione.mutate({ id: maintenanceTarget.id, note: maintenanceNote })}>
+              Conferma
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reactivate */}
+      <AlertDialog open={!!reactivateTarget} onOpenChange={open => { if (!open) setReactivateTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Riattivare la camera?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Lo stato verrà ricalcolato in base agli occupanti attuali.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => reactivateTarget && reactivate.mutate(reactivateTarget)}>
+              Riattiva
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={open => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare la camera {deleteTarget?.numero}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Operazione non reversibile. Sarà rimossa anche dallo storico assegnazioni concluse.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteTarget && deleteCamera.mutate(deleteTarget.id)}
+            >
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

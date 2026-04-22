@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
@@ -8,11 +9,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
   PaginationNext, PaginationPrevious,
 } from '@/components/ui/pagination';
+import { DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
+import { RowActions } from '@/components/admin/RowActions';
 import { useToast } from '@/hooks/use-toast';
-import { Search, FileText, X, Download, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import {
+  Search, FileText, Download, ArrowUp, ArrowDown, ArrowUpDown,
+  PlayCircle, CheckCircle2, XCircle, RotateCcw, Mail, DoorOpen, Trash2, Archive,
+} from 'lucide-react';
 
 const STATI = ['ricevuta', 'in_valutazione', 'approvata', 'rifiutata', 'ritirata'] as const;
 const STATO_LABELS: Record<string, string> = {
@@ -37,10 +47,12 @@ export default function Candidature() {
   const [sortKey, setSortKey] = useState<SortKey>('data');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
-  const { data: candidature, isLoading } = useQuery({
+  const { data: candidature } = useQuery({
     queryKey: ['candidature', filterStato],
     queryFn: async () => {
       let query = supabase
@@ -65,7 +77,7 @@ export default function Candidature() {
   const updateStato = useMutation({
     mutationFn: async ({ id, stato, note }: { id: string; stato: string; note?: string }) => {
       const { data: old } = await supabase.from('candidature').select('stato').eq('id', id).single();
-      await supabase.from('candidature').update({ stato, note_admin: note }).eq('id', id);
+      await supabase.from('candidature').update({ stato, note_admin: note ?? undefined }).eq('id', id);
       const { data: { user } } = await supabase.auth.getUser();
       await supabase.from('log_stato_candidature').insert({
         candidatura_id: id, stato_precedente: old?.stato, stato_nuovo: stato, cambiato_da: user?.id, note,
@@ -73,9 +85,30 @@ export default function Candidature() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['candidature'] });
+      queryClient.invalidateQueries({ queryKey: ['studenti-approvati'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       toast({ title: 'Stato aggiornato' });
     },
+  });
+
+  const deleteCandidatura = useMutation({
+    mutationFn: async (id: string) => {
+      const { count } = await supabase
+        .from('assegnazioni')
+        .select('id', { count: 'exact', head: true })
+        .eq('candidatura_id', id);
+      if ((count ?? 0) > 0) throw new Error('Esiste un\'assegnazione collegata: impossibile eliminare.');
+      const { error } = await supabase.from('candidature').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['candidature'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      toast({ title: 'Candidatura eliminata' });
+      setDeleteTarget(null);
+      setSelected(null);
+    },
+    onError: (e: any) => toast({ title: 'Errore', description: e.message, variant: 'destructive' }),
   });
 
   const filtered = (candidature ?? [])
@@ -116,15 +149,64 @@ export default function Candidature() {
     const Icon = !active ? ArrowUpDown : sortDir === 'asc' ? ArrowUp : ArrowDown;
     return (
       <th className="text-left px-4 py-3 font-semibold">
-        <button
-          type="button"
-          onClick={() => toggleSort(k)}
-          className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${active ? 'text-foreground' : ''}`}
-        >
+        <button type="button" onClick={() => toggleSort(k)}
+          className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${active ? 'text-foreground' : ''}`}>
           {label}
           <Icon className={`w-3 h-3 ${active ? 'opacity-100' : 'opacity-40'}`} />
         </button>
       </th>
+    );
+  };
+
+  const ActionsMenu = ({ c }: { c: any }) => {
+    const stato = c.stato;
+    const mailto = c.studenti?.email
+      ? `mailto:${c.studenti.email}?subject=${encodeURIComponent('La tua candidatura - Studentato Europa')}`
+      : null;
+    return (
+      <RowActions>
+        <DropdownMenuLabel>Cambia stato</DropdownMenuLabel>
+        {stato === 'ricevuta' && (
+          <DropdownMenuItem onClick={() => updateStato.mutate({ id: c.id, stato: 'in_valutazione' })}>
+            <PlayCircle className="w-4 h-4 mr-2" /> Prendi in carico
+          </DropdownMenuItem>
+        )}
+        {stato === 'in_valutazione' && (
+          <>
+            <DropdownMenuItem onClick={() => updateStato.mutate({ id: c.id, stato: 'approvata' })}>
+              <CheckCircle2 className="w-4 h-4 mr-2" /> Approva
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => updateStato.mutate({ id: c.id, stato: 'rifiutata' })}>
+              <XCircle className="w-4 h-4 mr-2" /> Rifiuta
+            </DropdownMenuItem>
+          </>
+        )}
+        {(stato === 'approvata' || stato === 'rifiutata') && (
+          <DropdownMenuItem onClick={() => updateStato.mutate({ id: c.id, stato: 'in_valutazione' })}>
+            <RotateCcw className="w-4 h-4 mr-2" /> Rimetti in valutazione
+          </DropdownMenuItem>
+        )}
+        {stato !== 'ritirata' && stato !== 'sostituita' && (
+          <DropdownMenuItem onClick={() => updateStato.mutate({ id: c.id, stato: 'ritirata' })}>
+            <Archive className="w-4 h-4 mr-2" /> Segna come ritirata
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        {stato === 'approvata' && (
+          <DropdownMenuItem onClick={() => navigate(`/admin/camere?candidatura=${c.id}`)}>
+            <DoorOpen className="w-4 h-4 mr-2" /> Assegna a camera
+          </DropdownMenuItem>
+        )}
+        {mailto && (
+          <DropdownMenuItem asChild>
+            <a href={mailto}><Mail className="w-4 h-4 mr-2" /> Contatta studente</a>
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteTarget(c)}>
+          <Trash2 className="w-4 h-4 mr-2" /> Elimina candidatura
+        </DropdownMenuItem>
+      </RowActions>
     );
   };
 
@@ -135,7 +217,6 @@ export default function Candidature() {
         <p className="text-[13px] text-muted-foreground">Gestisci le candidature degli studenti</p>
       </div>
 
-      {/* Filters */}
       <div className="flex gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -150,7 +231,6 @@ export default function Candidature() {
         </Select>
       </div>
 
-      {/* Table */}
       <div className="bg-card border border-border/50 rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -161,6 +241,7 @@ export default function Candidature() {
                 <SortHeader k="anno" label="Anno" />
                 <SortHeader k="stato" label="Stato" />
                 <SortHeader k="data" label="Data" />
+                <th className="px-4 py-3 text-right font-semibold">Azioni</th>
               </tr>
             </thead>
             <tbody>
@@ -179,6 +260,9 @@ export default function Candidature() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">{new Date(c.created_at).toLocaleDateString('it-IT')}</td>
+                  <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                    <ActionsMenu c={c} />
+                  </td>
                 </motion.tr>
               ))}
             </tbody>
@@ -194,36 +278,23 @@ export default function Candidature() {
 
       {filtered.length > 0 && (
         <div className="flex items-center justify-between text-[13px] text-muted-foreground">
-          <span>
-            {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filtered.length)} di {filtered.length}
-          </span>
+          <span>{pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filtered.length)} di {filtered.length}</span>
           {totalPages > 1 && (
             <Pagination className="mx-0 w-auto justify-end">
               <PaginationContent>
                 <PaginationItem>
-                  <PaginationPrevious
-                    href="#"
-                    onClick={(e) => { e.preventDefault(); setPage(p => Math.max(1, p - 1)); }}
-                    className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
-                  />
+                  <PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); setPage(p => Math.max(1, p - 1)); }}
+                    className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''} />
                 </PaginationItem>
                 {Array.from({ length: totalPages }).map((_, i) => (
                   <PaginationItem key={i}>
-                    <PaginationLink
-                      href="#"
-                      isActive={currentPage === i + 1}
-                      onClick={(e) => { e.preventDefault(); setPage(i + 1); }}
-                    >
-                      {i + 1}
-                    </PaginationLink>
+                    <PaginationLink href="#" isActive={currentPage === i + 1}
+                      onClick={(e) => { e.preventDefault(); setPage(i + 1); }}>{i + 1}</PaginationLink>
                   </PaginationItem>
                 ))}
                 <PaginationItem>
-                  <PaginationNext
-                    href="#"
-                    onClick={(e) => { e.preventDefault(); setPage(p => Math.min(totalPages, p + 1)); }}
-                    className={currentPage === totalPages ? 'pointer-events-none opacity-50' : ''}
-                  />
+                  <PaginationNext href="#" onClick={(e) => { e.preventDefault(); setPage(p => Math.min(totalPages, p + 1)); }}
+                    className={currentPage === totalPages ? 'pointer-events-none opacity-50' : ''} />
                 </PaginationItem>
               </PaginationContent>
             </Pagination>
@@ -264,7 +335,6 @@ export default function Candidature() {
                   </div>
                 )}
 
-                {/* Documenti */}
                 {documenti && documenti.length > 0 && (
                   <div>
                     <p className="text-sm font-semibold mb-2">Documenti</p>
@@ -278,29 +348,44 @@ export default function Candidature() {
                   </div>
                 )}
 
-                {/* Stato actions */}
                 <div>
-                  <p className="text-sm font-semibold mb-2">Cambia stato</p>
-                  <div className="flex gap-2 flex-wrap">
+                  <p className="text-sm font-semibold mb-2">Azioni</p>
+                  <div className="flex flex-wrap gap-2">
                     {selected.stato === 'ricevuta' && (
                       <Button size="sm" onClick={() => updateStato.mutate({ id: selected.id, stato: 'in_valutazione' })}>
-                        Prendi in carico
+                        <PlayCircle className="w-4 h-4 mr-1" /> Prendi in carico
                       </Button>
                     )}
                     {selected.stato === 'in_valutazione' && (
                       <>
                         <Button size="sm" onClick={() => updateStato.mutate({ id: selected.id, stato: 'approvata' })}>
-                          Approva
+                          <CheckCircle2 className="w-4 h-4 mr-1" /> Approva
                         </Button>
                         <Button size="sm" variant="destructive" onClick={() => updateStato.mutate({ id: selected.id, stato: 'rifiutata' })}>
-                          Rifiuta
+                          <XCircle className="w-4 h-4 mr-1" /> Rifiuta
                         </Button>
                       </>
+                    )}
+                    {(selected.stato === 'approvata' || selected.stato === 'rifiutata') && (
+                      <Button size="sm" variant="outline" onClick={() => updateStato.mutate({ id: selected.id, stato: 'in_valutazione' })}>
+                        <RotateCcw className="w-4 h-4 mr-1" /> Rimetti in valutazione
+                      </Button>
+                    )}
+                    {selected.stato === 'approvata' && (
+                      <Button size="sm" variant="outline" onClick={() => { setSelected(null); navigate(`/admin/camere?candidatura=${selected.id}`); }}>
+                        <DoorOpen className="w-4 h-4 mr-1" /> Assegna a camera
+                      </Button>
+                    )}
+                    {selected.studenti?.email && (
+                      <Button size="sm" variant="outline" asChild>
+                        <a href={`mailto:${selected.studenti.email}?subject=${encodeURIComponent('La tua candidatura - Studentato Europa')}`}>
+                          <Mail className="w-4 h-4 mr-1" /> Contatta
+                        </a>
+                      </Button>
                     )}
                   </div>
                 </div>
 
-                {/* Admin notes */}
                 <div>
                   <p className="text-sm font-semibold mb-2">Note admin</p>
                   <Textarea
@@ -320,6 +405,27 @@ export default function Candidature() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirm */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={open => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare la candidatura?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.studenti?.nome} {deleteTarget?.studenti?.cognome}. L'operazione è irreversibile e fallirà se esiste un'assegnazione collegata.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteTarget && deleteCandidatura.mutate(deleteTarget.id)}
+            >
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
