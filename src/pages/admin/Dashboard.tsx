@@ -1,7 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
-import { FileText, Users, DoorOpen, Clock } from 'lucide-react';
+import {
+  FileText, Users, DoorOpen, Clock, ChevronRight, Inbox,
+  ClipboardCheck, UserPlus, Wrench, CalendarClock, CheckCircle2,
+} from 'lucide-react';
 
 export default function Dashboard() {
   const { data: stats } = useQuery({
@@ -45,6 +49,88 @@ export default function Dashboard() {
     },
   });
 
+  const { data: tasks } = useQuery({
+    queryKey: ['admin-tasks'],
+    queryFn: async () => {
+      const today = new Date();
+      const in30 = new Date();
+      in30.setDate(today.getDate() + 30);
+      const todayIso = today.toISOString().slice(0, 10);
+      const in30Iso = in30.toISOString().slice(0, 10);
+
+      const [ricevute, valutazione, approvate, assegnAttive, manutenzione, scadenza] = await Promise.all([
+        supabase.from('candidature').select('id', { count: 'exact', head: true }).eq('stato', 'ricevuta'),
+        supabase.from('candidature').select('id', { count: 'exact', head: true }).eq('stato', 'in_valutazione'),
+        supabase.from('candidature').select('id').eq('stato', 'approvata'),
+        supabase.from('assegnazioni').select('candidatura_id').eq('stato', 'attiva'),
+        supabase.from('camere').select('id', { count: 'exact', head: true }).eq('stato', 'manutenzione'),
+        supabase
+          .from('assegnazioni')
+          .select('id', { count: 'exact', head: true })
+          .eq('stato', 'attiva')
+          .not('data_fine', 'is', null)
+          .gte('data_fine', todayIso)
+          .lte('data_fine', in30Iso),
+      ]);
+
+      const assegnate = new Set((assegnAttive.data ?? []).map((a: any) => a.candidatura_id));
+      const daAssegnare = (approvate.data ?? []).filter((c: any) => !assegnate.has(c.id)).length;
+
+      return {
+        daPrendereInCarico: ricevute.count ?? 0,
+        daDecidere: valutazione.count ?? 0,
+        daAssegnare,
+        manutenzione: manutenzione.count ?? 0,
+        inScadenza: scadenza.count ?? 0,
+      };
+    },
+  });
+
+  const taskItems = [
+    {
+      key: 'ricevute',
+      icon: Inbox,
+      color: 'text-primary bg-primary/10',
+      label: 'Candidature da prendere in carico',
+      count: tasks?.daPrendereInCarico ?? 0,
+      to: '/admin/candidature?stato=ricevuta',
+    },
+    {
+      key: 'valutazione',
+      icon: ClipboardCheck,
+      color: 'text-warning bg-warning/10',
+      label: 'Candidature in valutazione da decidere',
+      count: tasks?.daDecidere ?? 0,
+      to: '/admin/candidature?stato=in_valutazione',
+    },
+    {
+      key: 'approvate',
+      icon: UserPlus,
+      color: 'text-success bg-success/10',
+      label: 'Studenti approvati da assegnare a una camera',
+      count: tasks?.daAssegnare ?? 0,
+      to: '/admin/candidature?stato=approvata',
+    },
+    {
+      key: 'manutenzione',
+      icon: Wrench,
+      color: 'text-muted-foreground bg-muted',
+      label: 'Camere in manutenzione da riattivare',
+      count: tasks?.manutenzione ?? 0,
+      to: '/admin/camere?stato=manutenzione',
+    },
+    {
+      key: 'scadenza',
+      icon: CalendarClock,
+      color: 'text-destructive bg-destructive/10',
+      label: 'Soggiorni in scadenza nei prossimi 30 giorni',
+      count: tasks?.inScadenza ?? 0,
+      to: '/admin/residenti',
+    },
+  ].filter((t) => t.count > 0);
+
+  const totalTasks = taskItems.reduce((s, t) => s + t.count, 0);
+
   const metrics = [
     { label: 'Candidature ricevute', value: stats?.candidatureRicevute ?? 0, icon: Clock, color: 'text-primary bg-primary/10' },
     { label: 'In valutazione', value: stats?.candidatureInValutazione ?? 0, icon: FileText, color: 'text-warning bg-warning/10' },
@@ -73,7 +159,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold tracking-tight">Dashboard</h1>
+        <h1 className="text-xl font-bold tracking-tight">Home</h1>
         <p className="text-[13px] text-muted-foreground">Panoramica dello Studentato Europa</p>
       </div>
 
@@ -94,6 +180,44 @@ export default function Dashboard() {
           </motion.div>
         ))}
       </div>
+
+      {/* Task da svolgere */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+        className="bg-card border border-border/50 rounded-lg">
+        <div className="p-4 border-b flex items-center justify-between">
+          <h2 className="text-sm font-semibold">Task da svolgere</h2>
+          {totalTasks > 0 && (
+            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+              {totalTasks}
+            </span>
+          )}
+        </div>
+        {taskItems.length === 0 ? (
+          <div className="px-4 py-8 text-center">
+            <CheckCircle2 className="w-8 h-8 text-success/70 mx-auto mb-2" />
+            <p className="text-[13px] text-muted-foreground">Nessuna task in sospeso 🎉</p>
+          </div>
+        ) : (
+          <div className="divide-y">
+            {taskItems.map((t) => (
+              <Link
+                key={t.key}
+                to={t.to}
+                className="px-4 py-3 flex items-center gap-3 hover:bg-muted/50 transition-colors"
+              >
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${t.color}`}>
+                  <t.icon className="w-4 h-4" />
+                </div>
+                <p className="text-sm font-medium flex-1">{t.label}</p>
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-muted text-foreground">
+                  {t.count}
+                </span>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </Link>
+            ))}
+          </div>
+        )}
+      </motion.div>
 
       {/* Occupazione */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
