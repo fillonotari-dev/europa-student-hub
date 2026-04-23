@@ -13,6 +13,11 @@ import Candidature from "./pages/admin/Candidature";
 import Residenti from "./pages/admin/Residenti";
 import Camere from "./pages/admin/Camere";
 import Esportazione from "./pages/admin/Esportazione";
+import StoricoLayout from "./pages/admin/storico/StoricoLayout";
+import StoricoCandidature from "./pages/admin/storico/StoricoCandidature";
+import StoricoResidenti from "./pages/admin/storico/StoricoResidenti";
+import StoricoCamere from "./pages/admin/storico/StoricoCamere";
+import { Navigate } from "react-router-dom";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +37,12 @@ const App = () => (
             <Route path="residenti" element={<Residenti />} />
             <Route path="camere" element={<Camere />} />
             <Route path="esportazione" element={<Esportazione />} />
+            <Route path="storico" element={<StoricoLayout />}>
+              <Route index element={<Navigate to="candidature" replace />} />
+              <Route path="candidature" element={<StoricoCandidature />} />
+              <Route path="residenti" element={<StoricoResidenti />} />
+              <Route path="camere" element={<StoricoCamere />} />
+            </Route>
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
