@@ -1,62 +1,56 @@
 
 
-## Piano: sistema di "Azioni Admin" per Camere, Candidature, Residenti
+## Piano: Rinominare "Dashboard" in "Home" e aggiungere sezione Task
 
-Pattern UI uniforme: **menu "⋯" per riga** (DropdownMenu) + **conferme AlertDialog** per azioni distruttive. Nessuna duplicazione con la sezione Esportazione esistente.
+### 1. Rinomina
 
----
+- `src/components/admin/AdminSidebar.tsx`: voce di menu `Dashboard` → **`Home`** (rotta invariata `/admin`)
+- `src/pages/admin/Dashboard.tsx`: titolo pagina `Dashboard` → **`Home`**, sottotitolo invariato
+- File `Dashboard.tsx` non viene rinominato (solo label UI) per evitare modifiche al routing
 
-### 1. Camere — CRUD completo + manutenzione
+### 2. Nuova sezione "Task da svolgere"
 
-**Toolbar:**
-- **+ Nuova camera** → dialog (struttura, numero, piano, tipo, posti, note)
+Posizionata **subito sotto le metriche**, prima del blocco "Occupazione". Card con header `Task da svolgere` e contatore totale.
 
-**Menu riga ⋯:**
-- **Gestisci occupanti** (apre dialog esistente)
-- **Modifica camera** → stesso dialog della creazione
-- **Imposta in manutenzione** → conferma + nota opzionale (`stato='manutenzione'`)
-- **Riattiva** (solo se in manutenzione) → ricalcola stato in base agli occupanti
-- **Elimina camera** → conferma; bloccata se ci sono assegnazioni attive
+**Task calcolate** (ognuna con icona, titolo, conteggio, link rapido):
 
----
+| Task | Condizione query | Link |
+|---|---|---|
+| Candidature ricevute da prendere in carico | `candidature.stato = 'ricevuta'` | `/admin/candidature?stato=ricevuta` |
+| Candidature in valutazione da decidere | `candidature.stato = 'in_valutazione'` | `/admin/candidature?stato=in_valutazione` |
+| Candidature approvate da assegnare a una camera | `candidature.stato = 'approvata'` AND nessuna `assegnazioni` attiva collegata | `/admin/candidature?stato=approvata` |
+| Camere in manutenzione da riattivare | `camere.stato = 'manutenzione'` | `/admin/camere?stato=manutenzione` |
+| Assegnazioni in scadenza nei prossimi 30 giorni | `assegnazioni.stato='attiva'` AND `data_fine` tra oggi e +30gg | `/admin/residenti` |
 
-### 2. Candidature — workflow completo
+Ogni task è una riga cliccabile (`Link` da react-router) con:
+- Icona colorata a sinistra (warning/primary/destructive a seconda dell'urgenza)
+- Titolo + conteggio in badge a destra
+- Hover sfondo `muted/50`
+- Se il conteggio è 0 → riga nascosta
+- Se **tutte** le task sono a 0 → empty state "Nessuna task in sospeso 🎉"
 
-**Menu riga ⋯ + bottoni nel dialog dettaglio:**
-- **Prendi in carico** (ricevuta → in_valutazione)
-- **Approva** / **Rifiuta** (in_valutazione → …)
-- **Rimetti in valutazione** (da approvata/rifiutata, per correggere errori)
-- **Segna come ritirata**
-- **Assegna a una camera** (solo se `approvata`) → naviga a `/admin/camere` con la candidatura preselezionata
-- **Contatta via email** → `mailto:` con oggetto precompilato
-- **Elimina candidatura** → conferma forte; bloccata se esiste un'assegnazione collegata
+### 3. Implementazione tecnica
 
-Tutte le transizioni di stato continuano a loggare in `log_stato_candidature` con nota opzionale.
+In `Dashboard.tsx` aggiungere una nuova `useQuery({ queryKey: ['admin-tasks'] })` che fa in parallelo:
 
----
+```ts
+const [ricevute, valutazione, approvate, manutenzione, assegnazioni] = await Promise.all([
+  supabase.from('candidature').select('id', { count: 'exact', head: true }).eq('stato', 'ricevuta'),
+  supabase.from('candidature').select('id', { count: 'exact', head: true }).eq('stato', 'in_valutazione'),
+  supabase.from('candidature').select('id, assegnazioni!inner(id, stato)').eq('stato', 'approvata'),
+  supabase.from('camere').select('id', { count: 'exact', head: true }).eq('stato', 'manutenzione'),
+  supabase.from('assegnazioni').select('id, data_fine').eq('stato', 'attiva').not('data_fine', 'is', null).lte('data_fine', date30dFromNow).gte('data_fine', today),
+]);
+```
 
-### 3. Residenti — gestione del soggiorno
+Per "approvate da assegnare" si fa una query separata su `candidature` filtrata per stato `approvata` e poi un controllo client-side incrociando con `assegnazioni` attive (via secondo fetch leggero su `assegnazioni.candidatura_id`).
 
-**Menu riga ⋯:**
-- **Visualizza profilo** → dialog con dati anagrafici/accademici + storico assegnazioni dello studente
-- **Trasferisci in altra camera** → seleziona nuova camera (filtrate per posti disponibili) + posto + data; conclude la vecchia assegnazione e ne crea una nuova attiva, aggiornando lo stato di entrambe le camere
-- **Concludi soggiorno** → conferma + data fine (default oggi) + nota; aggiorna stato camera
-- **Contatta via email** → `mailto:`
+Animazione `motion.div` coerente con le altre card. Componente in linea (no nuovo file): la sezione resta semplice e localizzata alla Home.
 
----
+### File modificati
 
-### Dettagli tecnici
+1. `src/components/admin/AdminSidebar.tsx` — label `Dashboard` → `Home`
+2. `src/pages/admin/Dashboard.tsx` — titolo + nuova sezione task con query e UI
 
-- Nuovo componente `src/components/admin/RowActions.tsx`: wrapper su `DropdownMenu` (shadcn) con icona `MoreHorizontal` e slot per le voci.
-- Conferme distruttive con `AlertDialog` (già usato in Camere).
-- Toast su ogni esito; invalidazione coerente di `camere`, `assegnazioni-attive`, `residenti`, `candidature`, `dashboard-stats`.
-- "Assegna a camera" da Candidature → naviga con `?candidatura=<id>` e Camere apre automaticamente il dialog di gestione filtrando le camere compatibili.
-- Nessuna modifica al DB schema. Nessuna nuova edge function.
-
-### File da modificare
-
-1. `src/components/admin/RowActions.tsx` *(nuovo)*
-2. `src/pages/admin/Camere.tsx` — toolbar "+ Nuova", `RowActions`, dialog create/edit, manutenzione, elimina con guard, lettura querystring `?candidatura`
-3. `src/pages/admin/Candidature.tsx` — `RowActions` con tutte le transizioni, mailto, elimina con guard, link "Assegna a camera"
-4. `src/pages/admin/Residenti.tsx` — `RowActions` con profilo, trasferimento, conclusione, mailto
+Nessuna modifica a DB, routing o altri file.
 
