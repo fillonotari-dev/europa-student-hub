@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/sidebar';
 
 const items = [
-  { title: 'Dashboard', url: '/admin', icon: LayoutDashboard },
+  { title: 'Home', url: '/admin', icon: LayoutDashboard },
   { title: 'Candidature', url: '/admin/candidature', icon: FileText },
   { title: 'Residenti', url: '/admin/residenti', icon: Users },
   { title: 'Camere', url: '/admin/camere', icon: DoorOpen },
