@@ -33,7 +33,7 @@ export default function Index() {
             Il tuo posto a Reggio Emilia
           </h1>
           <p className="text-muted-foreground mb-8 text-[15px]">
-            Residenza universitaria moderna in Via Turri 69. Candidati per un posto nello Studentato Europa per il prossimo anno accademico.
+            Candidati per una stanza presso lo Studentato Europa.
           </p>
           <Button size="lg" onClick={() => navigate('/candidatura')}>
             Candidati ora <ArrowRight className="w-4 h-4 ml-2" />
