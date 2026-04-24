@@ -19,6 +19,8 @@ import {
 import { DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
 import { RowActions } from '@/components/admin/RowActions';
 import { useToast } from '@/hooks/use-toast';
+import { ExportButton } from '@/components/admin/ExportButton';
+import { fmtDate } from '@/lib/exportXlsx';
 import {
   Search, FileText, Download, ArrowUp, ArrowDown, ArrowUpDown,
   PlayCircle, CheckCircle2, XCircle, RotateCcw, Mail, DoorOpen, Trash2, Archive,
@@ -229,6 +231,26 @@ export default function Candidature() {
             {STATI.map(s => <SelectItem key={s} value={s}>{STATO_LABELS[s]}</SelectItem>)}
           </SelectContent>
         </Select>
+        <ExportButton
+          filename="candidature"
+          getRows={() => filtered.map((c: any) => ({
+            'Nome': c.studenti?.nome ?? '',
+            'Cognome': c.studenti?.cognome ?? '',
+            'Email': c.studenti?.email ?? '',
+            'Telefono': c.studenti?.telefono ?? '',
+            'Nazionalità': c.studenti?.nazionalita ?? '',
+            'Struttura preferita': c.strutture?.nome ?? '',
+            'Università': c.universita_snapshot ?? '',
+            'Corso': c.corso_snapshot ?? '',
+            'Anno corso': c.anno_corso_snapshot ?? '',
+            'Matricola': c.matricola_snapshot ?? '',
+            'Stato': STATO_LABELS[c.stato] ?? c.stato,
+            'Anno accademico': c.anno_accademico ?? '',
+            'Periodo inizio': fmtDate(c.periodo_inizio),
+            'Periodo fine': fmtDate(c.periodo_fine),
+            'Data candidatura': fmtDate(c.created_at),
+          }))}
+        />
       </div>
 
       <div className="bg-card border border-border/50 rounded-lg overflow-hidden">
