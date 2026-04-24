@@ -11,6 +11,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Check, ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { NATIONALITIES } from '@/lib/nationalities';
 
 const STEPS = ['stepPersonal', 'stepAcademic', 'stepPreferences', 'stepDocuments', 'stepReview'] as const;
 const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
@@ -166,7 +171,7 @@ export default function Candidatura() {
                 <Field label={t(lang, 'form.email')} value={form.email} onChange={v => set('email', v)} type="email" required />
                 <Field label={t(lang, 'form.telefono')} value={form.telefono} onChange={v => set('telefono', v)} required />
                 <Field label={t(lang, 'form.dataNascita')} value={form.data_nascita} onChange={v => set('data_nascita', v)} type="date" required />
-                <Field label={t(lang, 'form.nazionalita')} value={form.nazionalita} onChange={v => set('nazionalita', v)} required />
+                <NationalityField lang={lang} label={t(lang, 'form.nazionalita')} value={form.nazionalita} onChange={v => set('nazionalita', v)} required />
                 <Field label={t(lang, 'form.codiceFiscale')} value={form.codice_fiscale} onChange={v => set('codice_fiscale', v)} required />
               </div>
             )}
@@ -274,6 +279,55 @@ function Field({ label, value, onChange, type = 'text', required }: { label: str
     <div>
       <Label>{label}{required && <span className="text-destructive ml-0.5">*</span>}</Label>
       <Input type={type} value={value} onChange={e => onChange(e.target.value)} className="mt-1.5" />
+    </div>
+  );
+}
+
+function NationalityField({ lang, label, value, onChange, required }: { lang: Lang; label: string; value: string; onChange: (v: string) => void; required?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const placeholder = lang === 'it' ? 'Seleziona nazionalità' : 'Select nationality';
+  const searchPlaceholder = lang === 'it' ? 'Cerca...' : 'Search...';
+  const emptyText = lang === 'it' ? 'Nessun risultato' : 'No results';
+  return (
+    <div>
+      <Label>{label}{required && <span className="text-destructive ml-0.5">*</span>}</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className={cn('mt-1.5 w-full justify-between font-normal', !value && 'text-muted-foreground')}
+          >
+            {value || placeholder}
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+          <Command>
+            <CommandInput placeholder={searchPlaceholder} />
+            <CommandList>
+              <CommandEmpty>{emptyText}</CommandEmpty>
+              <CommandGroup>
+                {NATIONALITIES.map(n => {
+                  const display = lang === 'it' ? n.it : n.en;
+                  return (
+                    <CommandItem
+                      key={n.code}
+                      value={`${n.it} ${n.en}`}
+                      onSelect={() => { onChange(display); setOpen(false); }}
+                    >
+                      <Check className={cn('mr-2 h-4 w-4', value === display ? 'opacity-100' : 'opacity-0')} />
+                      {display}
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }
