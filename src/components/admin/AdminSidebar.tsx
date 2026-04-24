@@ -1,4 +1,4 @@
-import { Building2, LayoutDashboard, FileText, Users, DoorOpen, Download, LogOut, History, ChevronDown } from 'lucide-react';
+import { Building2, LayoutDashboard, FileText, Users, DoorOpen, LogOut, History, ChevronDown } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -112,20 +112,6 @@ export function AdminSidebar() {
                   </SidebarMenuItem>
                 </Collapsible>
               )}
-
-              {/* Esportazione */}
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <NavLink
-                    to="/admin/esportazione"
-                    className="hover:bg-muted"
-                    activeClassName="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    {!collapsed && <span>Esportazione</span>}
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

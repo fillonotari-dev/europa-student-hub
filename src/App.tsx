@@ -12,7 +12,6 @@ import Dashboard from "./pages/admin/Dashboard";
 import Candidature from "./pages/admin/Candidature";
 import Residenti from "./pages/admin/Residenti";
 import Camere from "./pages/admin/Camere";
-import Esportazione from "./pages/admin/Esportazione";
 import StoricoLayout from "./pages/admin/storico/StoricoLayout";
 import StoricoCandidature from "./pages/admin/storico/StoricoCandidature";
 import StoricoResidenti from "./pages/admin/storico/StoricoResidenti";
@@ -36,7 +35,6 @@ const App = () => (
             <Route path="candidature" element={<Candidature />} />
             <Route path="residenti" element={<Residenti />} />
             <Route path="camere" element={<Camere />} />
-            <Route path="esportazione" element={<Esportazione />} />
             <Route path="storico" element={<StoricoLayout />}>
               <Route index element={<Navigate to="candidature" replace />} />
               <Route path="candidature" element={<StoricoCandidature />} />
