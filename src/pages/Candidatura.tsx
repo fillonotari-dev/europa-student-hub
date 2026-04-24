@@ -45,7 +45,7 @@ export default function Candidatura() {
 
   const validateStep = () => {
     const required: Record<number, string[]> = {
-      0: ['nome', 'cognome', 'email', 'data_nascita', 'nazionalita'],
+      0: ['nome', 'cognome', 'email', 'telefono', 'data_nascita', 'nazionalita', 'codice_fiscale'],
       1: ['universita', 'corso_di_studi', 'anno_di_corso', 'matricola'],
       2: ['periodo_inizio', 'periodo_fine', 'anno_accademico'],
       3: [],
@@ -164,10 +164,10 @@ export default function Candidatura() {
                   <Field label={t(lang, 'form.cognome')} value={form.cognome} onChange={v => set('cognome', v)} required />
                 </div>
                 <Field label={t(lang, 'form.email')} value={form.email} onChange={v => set('email', v)} type="email" required />
-                <Field label={t(lang, 'form.telefono')} value={form.telefono} onChange={v => set('telefono', v)} />
+                <Field label={t(lang, 'form.telefono')} value={form.telefono} onChange={v => set('telefono', v)} required />
                 <Field label={t(lang, 'form.dataNascita')} value={form.data_nascita} onChange={v => set('data_nascita', v)} type="date" required />
                 <Field label={t(lang, 'form.nazionalita')} value={form.nazionalita} onChange={v => set('nazionalita', v)} required />
-                <Field label={t(lang, 'form.codiceFiscale')} value={form.codice_fiscale} onChange={v => set('codice_fiscale', v)} />
+                <Field label={t(lang, 'form.codiceFiscale')} value={form.codice_fiscale} onChange={v => set('codice_fiscale', v)} required />
               </div>
             )}
             {step === 1 && (
