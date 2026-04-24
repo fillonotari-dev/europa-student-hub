@@ -11,6 +11,8 @@ import {
   PaginationNext, PaginationPrevious,
 } from '@/components/ui/pagination';
 import { Search, ArrowRight } from 'lucide-react';
+import { ExportButton } from '@/components/admin/ExportButton';
+import { fmtDateTime } from '@/lib/exportXlsx';
 
 const STATO_LABELS: Record<string, string> = {
   ricevuta: 'Ricevuta', in_valutazione: 'In valutazione', approvata: 'Approvata',
@@ -50,6 +52,19 @@ export default function StoricoCandidature() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+      <div className="flex justify-end">
+        <ExportButton
+          filename="storico_candidature"
+          getRows={() => filtered.map((l: any) => ({
+            'Data': fmtDateTime(l.created_at),
+            'Studente': l.candidature?.studenti ? `${l.candidature.studenti.nome} ${l.candidature.studenti.cognome}` : '',
+            'Email': l.candidature?.studenti?.email ?? '',
+            'Stato precedente': l.stato_precedente ? (STATO_LABELS[l.stato_precedente] ?? l.stato_precedente) : '',
+            'Stato nuovo': STATO_LABELS[l.stato_nuovo] ?? l.stato_nuovo,
+            'Note': l.note ?? '',
+          }))}
+        />
+      </div>
       <Card className="p-4 flex flex-col md:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

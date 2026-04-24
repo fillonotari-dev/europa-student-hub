@@ -22,6 +22,7 @@ import {
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { RowActions } from '@/components/admin/RowActions';
 import { useToast } from '@/hooks/use-toast';
+import { ExportButton } from '@/components/admin/ExportButton';
 import {
   DoorOpen, User, X, ArrowUp, ArrowDown, ArrowUpDown, Plus,
   Pencil, Wrench, RotateCcw, Trash2, Settings,
@@ -342,6 +343,19 @@ export default function Camere() {
           <Button onClick={openCreate} size="sm">
             <Plus className="w-4 h-4 mr-1" /> Nuova camera
           </Button>
+          <ExportButton
+            filename="camere"
+            getRows={() => filteredCamere.map((c: any) => ({
+              'Struttura': c.strutture?.nome ?? '',
+              'Numero': c.numero,
+              'Piano': c.piano ?? '',
+              'Tipo': c.tipo,
+              'Posti': c.posti,
+              'Occupanti': occCount(c.id),
+              'Stato': STATO_CAMERA_LABELS[c.stato || 'libera'] ?? c.stato,
+              'Note': c.note ?? '',
+            }))}
+          />
         </div>
       </div>
 

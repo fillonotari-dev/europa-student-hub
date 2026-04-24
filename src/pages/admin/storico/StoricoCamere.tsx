@@ -12,6 +12,7 @@ import {
   PaginationNext, PaginationPrevious,
 } from '@/components/ui/pagination';
 import { Search, Eye } from 'lucide-react';
+import { ExportButton } from '@/components/admin/ExportButton';
 
 const PAGE_SIZE = 20;
 
@@ -52,6 +53,20 @@ export default function StoricoCamere() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+      <div className="flex justify-end">
+        <ExportButton
+          filename="storico_camere"
+          getRows={() => filtered.map((c: any) => ({
+            'Struttura': c.strutture?.nome ?? '',
+            'Camera': c.numero,
+            'Piano': c.piano ?? '',
+            'Tipo': c.tipo,
+            'Posti': c.posti,
+            'Assegnazioni totali': c.assegnazioni?.length ?? 0,
+            'Assegnazioni attive': (c.assegnazioni ?? []).filter((a: any) => a.stato === 'attiva').length,
+          }))}
+        />
+      </div>
       <Card className="p-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

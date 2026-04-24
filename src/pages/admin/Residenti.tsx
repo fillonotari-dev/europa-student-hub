@@ -19,6 +19,8 @@ import {
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { RowActions } from '@/components/admin/RowActions';
 import { useToast } from '@/hooks/use-toast';
+import { ExportButton } from '@/components/admin/ExportButton';
+import { fmtDate } from '@/lib/exportXlsx';
 import {
   Search, Users as UsersIcon, ArrowUp, ArrowDown, ArrowUpDown,
   User, ArrowRightLeft, LogOut, Mail,
@@ -206,9 +208,29 @@ export default function Residenti() {
         <p className="text-[13px] text-muted-foreground">Studenti con assegnazione attiva</p>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input placeholder="Cerca residente..." value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} className="pl-9" />
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Cerca residente..." value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} className="pl-9" />
+        </div>
+        <ExportButton
+          filename="residenti"
+          getRows={() => filtered.map((a: any) => ({
+            'Cognome': a.studenti?.cognome ?? '',
+            'Nome': a.studenti?.nome ?? '',
+            'Email': a.studenti?.email ?? '',
+            'Telefono': a.studenti?.telefono ?? '',
+            'Nazionalità': a.studenti?.nazionalita ?? '',
+            'Università': a.studenti?.universita ?? '',
+            'Corso': a.studenti?.corso_di_studi ?? '',
+            'Anno': a.studenti?.anno_di_corso ?? '',
+            'Matricola': a.studenti?.matricola ?? '',
+            'Struttura': a.camere?.strutture?.nome ?? '',
+            'Camera': a.camere?.numero ?? '',
+            'Posto': a.posto,
+            'Data inizio': fmtDate(a.data_inizio),
+          }))}
+        />
       </div>
 
       <div className="bg-card border border-border/50 rounded-lg overflow-hidden">

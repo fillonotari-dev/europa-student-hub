@@ -10,6 +10,8 @@ import {
   PaginationNext, PaginationPrevious,
 } from '@/components/ui/pagination';
 import { Search } from 'lucide-react';
+import { ExportButton } from '@/components/admin/ExportButton';
+import { fmtDate } from '@/lib/exportXlsx';
 
 const PAGE_SIZE = 20;
 
@@ -51,6 +53,25 @@ export default function StoricoResidenti() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+      <div className="flex justify-end">
+        <ExportButton
+          filename="storico_residenti"
+          getRows={() => filtered.map((r: any) => ({
+            'Studente': r.studenti ? `${r.studenti.nome} ${r.studenti.cognome}` : '',
+            'Email': r.studenti?.email ?? '',
+            'Struttura': r.camere?.strutture?.nome ?? '',
+            'Camera': r.camere?.numero ?? '',
+            'Posto': r.posto,
+            'Data inizio': fmtDate(r.data_inizio),
+            'Data fine': fmtDate(r.data_fine),
+            'Durata (giorni)': r.data_inizio && r.data_fine
+              ? Math.round((new Date(r.data_fine).getTime() - new Date(r.data_inizio).getTime()) / 86400000)
+              : '',
+            'Stato': r.stato,
+            'Note': r.note ?? '',
+          }))}
+        />
+      </div>
       <Card className="p-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
