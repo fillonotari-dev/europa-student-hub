@@ -18,10 +18,12 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const {
       nome, cognome, email, telefono, data_nascita, nazionalita, codice_fiscale,
-      universita, corso_di_studi, anno_di_corso, matricola,
+      universita, dipartimento, corso_di_studi, anno_di_corso, matricola,
       struttura_preferita_id, tipo_camera_preferito, periodo_inizio, periodo_fine,
       anno_accademico, messaggio, documenti
     } = body;
+
+    const corsoCompleto = dipartimento ? `${corso_di_studi} — ${dipartimento}` : corso_di_studi;
 
     // Validate required fields
     if (!nome || !cognome || !email || !universita || !corso_di_studi || !anno_di_corso || !matricola || !anno_accademico) {
@@ -45,7 +47,7 @@ Deno.serve(async (req) => {
       studenteId = existingStudent.id;
       await supabase.from("studenti").update({
         nome, cognome, telefono, data_nascita, nazionalita, codice_fiscale,
-        universita, corso_di_studi, anno_di_corso, matricola,
+        universita, corso_di_studi: corsoCompleto, anno_di_corso, matricola,
       }).eq("id", studenteId);
     } else {
       // Create new student
@@ -53,7 +55,7 @@ Deno.serve(async (req) => {
         .from("studenti")
         .insert({
           nome, cognome, email, telefono, data_nascita, nazionalita, codice_fiscale,
-          universita, corso_di_studi, anno_di_corso, matricola,
+          universita, corso_di_studi: corsoCompleto, anno_di_corso, matricola,
         })
         .select("id")
         .single();
@@ -92,7 +94,7 @@ Deno.serve(async (req) => {
         tipo_camera_preferito: tipo_camera_preferito || null,
         periodo_inizio, periodo_fine, anno_accademico, messaggio,
         universita_snapshot: universita,
-        corso_snapshot: corso_di_studi,
+        corso_snapshot: corsoCompleto,
         anno_corso_snapshot: anno_di_corso,
         matricola_snapshot: matricola,
       })

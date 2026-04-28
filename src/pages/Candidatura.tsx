@@ -16,6 +16,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NATIONALITIES } from '@/lib/nationalities';
+import { UNIVERSITIES, COURSE_LEVEL_LABELS, type CourseLevel } from '@/lib/universities';
 
 const STEPS = ['stepPersonal', 'stepAcademic', 'stepPreferences', 'stepDocuments', 'stepReview'] as const;
 const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
@@ -30,7 +31,8 @@ export default function Candidatura() {
 
   const [form, setForm] = useState({
     nome: '', cognome: '', email: '', telefono: '', data_nascita: '', nazionalita: '', codice_fiscale: '',
-    universita: '', corso_di_studi: '', anno_di_corso: '', matricola: '',
+    universita: UNIVERSITIES.length === 1 ? UNIVERSITIES[0].name : '',
+    dipartimento: '', corso_di_studi: '', anno_di_corso: '', matricola: '',
     struttura_preferita_id: '', tipo_camera_preferito: '', periodo_inizio: '', periodo_fine: '',
     anno_accademico: '2025/2026', messaggio: '',
   });
@@ -48,10 +50,15 @@ export default function Candidatura() {
 
   const set = (key: string, value: string) => setForm(f => ({ ...f, [key]: value }));
 
+  const setUniversita = (value: string) =>
+    setForm(f => ({ ...f, universita: value, dipartimento: '', corso_di_studi: '' }));
+  const setDipartimento = (value: string) =>
+    setForm(f => ({ ...f, dipartimento: value, corso_di_studi: '' }));
+
   const validateStep = () => {
     const required: Record<number, string[]> = {
       0: ['nome', 'cognome', 'email', 'telefono', 'data_nascita', 'nazionalita', 'codice_fiscale'],
-      1: ['universita', 'corso_di_studi', 'anno_di_corso', 'matricola'],
+      1: ['universita', 'dipartimento', 'corso_di_studi', 'anno_di_corso', 'matricola'],
       2: ['periodo_inizio', 'periodo_fine', 'anno_accademico'],
       3: [],
     };
@@ -177,8 +184,9 @@ export default function Candidatura() {
             )}
             {step === 1 && (
               <div className="space-y-4">
-                <Field label={t(lang, 'form.universita')} value={form.universita} onChange={v => set('universita', v)} required />
-                <Field label={t(lang, 'form.corsoStudi')} value={form.corso_di_studi} onChange={v => set('corso_di_studi', v)} required />
+                <UniversitaField lang={lang} value={form.universita} onChange={setUniversita} />
+                <DipartimentoField lang={lang} universitaName={form.universita} value={form.dipartimento} onChange={setDipartimento} />
+                <CorsoField lang={lang} universitaName={form.universita} dipartimentoName={form.dipartimento} value={form.corso_di_studi} onChange={v => set('corso_di_studi', v)} />
                 <Field label={t(lang, 'form.annoCorso')} value={form.anno_di_corso} onChange={v => set('anno_di_corso', v)} required />
                 <Field label={t(lang, 'form.matricola')} value={form.matricola} onChange={v => set('matricola', v)} required />
               </div>
@@ -232,6 +240,7 @@ export default function Candidatura() {
                 ]} />
                 <ReviewSection title={t(lang, 'form.stepAcademic')} items={[
                   [t(lang, 'form.universita'), form.universita],
+                  [t(lang, 'form.dipartimento'), form.dipartimento],
                   [t(lang, 'form.corsoStudi'), form.corso_di_studi],
                   [t(lang, 'form.annoCorso'), form.anno_di_corso],
                   [t(lang, 'form.matricola'), form.matricola],
@@ -361,5 +370,139 @@ function ReviewSection({ title, items }: { title: string; items: [string, string
         ))}
       </div>
     </div>
+  );
+}
+
+type ComboboxOption = { value: string; label: string; group?: string; searchKey?: string };
+
+function Combobox({ lang, label, placeholder, value, onChange, options, disabled, required }: {
+  lang: Lang;
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: ComboboxOption[];
+  disabled?: boolean;
+  required?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const grouped = options.reduce<Record<string, ComboboxOption[]>>((acc, o) => {
+    const k = o.group || '__';
+    (acc[k] ||= []).push(o);
+    return acc;
+  }, {});
+  const groupKeys = Object.keys(grouped);
+  const selectedLabel = options.find(o => o.value === value)?.label;
+  return (
+    <div>
+      <Label>{label}{required && <span className="text-destructive ml-0.5">*</span>}</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            role="combobox"
+            disabled={disabled}
+            aria-expanded={open}
+            className={cn('mt-1.5 w-full justify-between font-normal', !value && 'text-muted-foreground')}
+          >
+            <span className="truncate text-left">{selectedLabel || placeholder}</span>
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+          <Command>
+            <CommandInput placeholder={t(lang, 'form.searchPlaceholder')} />
+            <CommandList>
+              <CommandEmpty>{t(lang, 'form.noResults')}</CommandEmpty>
+              {groupKeys.map(gk => (
+                <CommandGroup key={gk} heading={gk === '__' ? undefined : gk}>
+                  {grouped[gk].map(o => (
+                    <CommandItem
+                      key={`${gk}-${o.value}`}
+                      value={o.searchKey || o.label}
+                      onSelect={() => { onChange(o.value); setOpen(false); }}
+                    >
+                      <Check className={cn('mr-2 h-4 w-4', value === o.value ? 'opacity-100' : 'opacity-0')} />
+                      {o.label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ))}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+function UniversitaField({ lang, value, onChange }: { lang: Lang; value: string; onChange: (v: string) => void }) {
+  const options: ComboboxOption[] = UNIVERSITIES.map(u => ({ value: u.name, label: u.name }));
+  return (
+    <Combobox
+      lang={lang}
+      label={t(lang, 'form.universita')}
+      placeholder={t(lang, 'form.selectUniversita')}
+      value={value}
+      onChange={onChange}
+      options={options}
+      required
+    />
+  );
+}
+
+function DipartimentoField({ lang, universitaName, value, onChange }: { lang: Lang; universitaName: string; value: string; onChange: (v: string) => void }) {
+  const uni = UNIVERSITIES.find(u => u.name === universitaName);
+  const options: ComboboxOption[] = (uni?.departments ?? []).map(d => ({
+    value: d.name,
+    label: d.name,
+    group: d.sede,
+    searchKey: `${d.name} ${d.sede}`,
+  }));
+  return (
+    <Combobox
+      lang={lang}
+      label={t(lang, 'form.dipartimento')}
+      placeholder={t(lang, 'form.selectDipartimento')}
+      value={value}
+      onChange={onChange}
+      options={options}
+      disabled={!uni}
+      required
+    />
+  );
+}
+
+function CorsoField({ lang, universitaName, dipartimentoName, value, onChange }: { lang: Lang; universitaName: string; dipartimentoName: string; value: string; onChange: (v: string) => void }) {
+  const uni = UNIVERSITIES.find(u => u.name === universitaName);
+  const dip = uni?.departments.find(d => d.name === dipartimentoName);
+  const order: CourseLevel[] = ['ciclo_unico', 'triennale', 'professione_sanitaria', 'magistrale'];
+  const options: ComboboxOption[] = [];
+  if (dip) {
+    for (const lvl of order) {
+      const courses = dip.courses.filter(c => c.level === lvl);
+      const groupLabel = COURSE_LEVEL_LABELS[lvl][lang];
+      courses.forEach((c, i) => {
+        options.push({
+          value: c.name,
+          label: c.name,
+          group: groupLabel,
+          searchKey: `${c.name} ${groupLabel} ${i}`,
+        });
+      });
+    }
+  }
+  return (
+    <Combobox
+      lang={lang}
+      label={t(lang, 'form.corsoStudi')}
+      placeholder={t(lang, 'form.selectCorso')}
+      value={value}
+      onChange={onChange}
+      options={options}
+      disabled={!dip}
+      required
+    />
   );
 }
