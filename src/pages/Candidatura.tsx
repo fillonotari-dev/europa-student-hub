@@ -48,7 +48,33 @@ export default function Candidatura() {
     },
   });
 
+  // Tipi camera disponibili per la struttura selezionata (lettura real-time dal DB)
+  const { data: tipiCameraDisponibili } = useQuery({
+    queryKey: ['tipi-camera', form.struttura_preferita_id],
+    queryFn: async () => {
+      if (!form.struttura_preferita_id) return ['singola', 'doppia'];
+      const { data } = await supabase
+        .from('camere')
+        .select('tipo')
+        .eq('struttura_id', form.struttura_preferita_id);
+      const tipi = Array.from(new Set((data ?? []).map(r => r.tipo))).filter(Boolean);
+      return tipi.length > 0 ? tipi : ['singola', 'doppia'];
+    },
+  });
+
+  // Genera anni accademici (corrente + 2 successivi)
+  const anniAccademici = useMemo(() => {
+    const now = new Date();
+    const startYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
+    return Array.from({ length: 3 }, (_, i) => `${startYear + i}/${startYear + i + 1}`);
+  }, []);
+
   const set = (key: string, value: string) => setForm(f => ({ ...f, [key]: value }));
+
+  // Reset tipo camera se non più disponibile per la struttura selezionata
+  const setStruttura = (value: string) => {
+    setForm(f => ({ ...f, struttura_preferita_id: value, tipo_camera_preferito: '' }));
+  };
 
   const setUniversita = (value: string) =>
     setForm(f => ({ ...f, universita: value, dipartimento: '', corso_di_studi: '' }));
@@ -60,10 +86,17 @@ export default function Candidatura() {
       0: ['nome', 'cognome', 'email', 'telefono', 'data_nascita', 'nazionalita', 'codice_fiscale'],
       1: ['universita', 'dipartimento', 'corso_di_studi', 'anno_di_corso', 'matricola'],
       2: ['periodo_inizio', 'periodo_fine', 'anno_accademico'],
-      3: [],
+      3: ['_documenti'],
     };
     const fields = required[step] || [];
     for (const f of fields) {
+      if (f === '_documenti') {
+        if (!files.documento_identita || !files.certificato_iscrizione) {
+          toast({ title: t(lang, 'form.required'), variant: 'destructive' });
+          return false;
+        }
+        continue;
+      }
       if (!(form as any)[f]) {
         toast({ title: t(lang, 'form.required'), variant: 'destructive' });
         return false;
@@ -127,7 +160,7 @@ export default function Candidatura() {
           </div>
           <h1 className="text-xl font-bold mb-2">{t(lang, 'form.successTitle')}</h1>
           <p className="text-muted-foreground text-[13px] mb-6">{t(lang, 'form.successMessage')}</p>
-          <Button onClick={() => { setSuccess(false); setStep(0); setForm(f => ({ ...f, nome: '', cognome: '', email: '' })); }}>
+          <Button onClick={() => { window.location.href = 'https://www.studentatoeuropa.it'; }}>
             {t(lang, 'form.newApplication')}
           </Button>
         </motion.div>
@@ -195,7 +228,7 @@ export default function Candidatura() {
               <div className="space-y-4">
                 <div>
                   <Label>{t(lang, 'form.strutturaPreferita')}</Label>
-                  <Select value={form.struttura_preferita_id} onValueChange={v => set('struttura_preferita_id', v)}>
+                  <Select value={form.struttura_preferita_id} onValueChange={setStruttura}>
                     <SelectTrigger><SelectValue placeholder={t(lang, 'form.nessuna')} /></SelectTrigger>
                     <SelectContent>
                       {strutture?.map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
@@ -207,8 +240,12 @@ export default function Candidatura() {
                   <Select value={form.tipo_camera_preferito} onValueChange={v => set('tipo_camera_preferito', v)}>
                     <SelectTrigger><SelectValue placeholder={t(lang, 'form.nessuna')} /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="singola">{t(lang, 'form.singola')}</SelectItem>
-                      <SelectItem value="doppia">{t(lang, 'form.doppia')}</SelectItem>
+                      {(tipiCameraDisponibili ?? []).includes('singola') && (
+                        <SelectItem value="singola">{t(lang, 'form.singola')}</SelectItem>
+                      )}
+                      {(tipiCameraDisponibili ?? []).includes('doppia') && (
+                        <SelectItem value="doppia">{t(lang, 'form.doppia')}</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -216,13 +253,21 @@ export default function Candidatura() {
                   <Field label={t(lang, 'form.periodoInizio')} value={form.periodo_inizio} onChange={v => set('periodo_inizio', v)} type="date" required />
                   <Field label={t(lang, 'form.periodoFine')} value={form.periodo_fine} onChange={v => set('periodo_fine', v)} type="date" required />
                 </div>
-                <Field label={t(lang, 'form.annoAccademico')} value={form.anno_accademico} onChange={v => set('anno_accademico', v)} required />
+                <div>
+                  <Label>{t(lang, 'form.annoAccademico')}<span className="text-destructive ml-0.5">*</span></Label>
+                  <Select value={form.anno_accademico} onValueChange={v => set('anno_accademico', v)}>
+                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {anniAccademici.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             )}
             {step === 3 && (
               <div className="space-y-4">
-                <FileUpload label={t(lang, 'form.documentoIdentita')} hint={t(lang, 'form.uploadHint')} file={files.documento_identita} onChange={f => handleFile('documento_identita', f)} />
-                <FileUpload label={t(lang, 'form.certificatoIscrizione')} hint={t(lang, 'form.uploadHint')} file={files.certificato_iscrizione} onChange={f => handleFile('certificato_iscrizione', f)} />
+                <FileUpload label={t(lang, 'form.documentoIdentita')} hint={t(lang, 'form.uploadHint')} file={files.documento_identita} onChange={f => handleFile('documento_identita', f)} required />
+                <FileUpload label={t(lang, 'form.certificatoIscrizione')} hint={t(lang, 'form.uploadHint')} file={files.certificato_iscrizione} onChange={f => handleFile('certificato_iscrizione', f)} required />
                 <div>
                   <Label>{t(lang, 'form.messaggio')}</Label>
                   <Textarea value={form.messaggio} onChange={e => set('messaggio', e.target.value)} placeholder={t(lang, 'form.messaggioPlaceholder')} className="mt-1.5" />
@@ -341,10 +386,10 @@ function NationalityField({ lang, label, value, onChange, required }: { lang: La
   );
 }
 
-function FileUpload({ label, hint, file, onChange }: { label: string; hint: string; file: File | null; onChange: (f: File | null) => void }) {
+function FileUpload({ label, hint, file, onChange, required }: { label: string; hint: string; file: File | null; onChange: (f: File | null) => void; required?: boolean }) {
   return (
     <div>
-      <Label>{label}</Label>
+      <Label>{label}{required && <span className="text-destructive ml-0.5">*</span>}</Label>
       <div className="mt-1.5 border-2 border-dashed rounded-lg p-4 text-center hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => document.getElementById(`file-${label}`)?.click()}>
         <input id={`file-${label}`} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => onChange(e.target.files?.[0] || null)} />
         {file ? (
