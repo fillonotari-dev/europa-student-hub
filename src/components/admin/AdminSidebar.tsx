@@ -1,4 +1,4 @@
-import { Building2, LayoutDashboard, FileText, Users, DoorOpen, LogOut, History, ChevronDown } from 'lucide-react';
+import { Building2, LayoutDashboard, FileText, Users, DoorOpen, LogOut, History, ChevronDown, Home } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,6 +14,7 @@ const items = [
   { title: 'Candidature', url: '/admin/candidature', icon: FileText },
   { title: 'Residenti', url: '/admin/residenti', icon: Users },
   { title: 'Camere', url: '/admin/camere', icon: DoorOpen },
+  { title: 'Strutture', url: '/admin/strutture', icon: Home },
 ];
 
 const storicoItems = [

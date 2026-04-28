@@ -1,95 +1,76 @@
-# Aggiunta struttura "Pieve" — piano completo
+# Piano: sezione "Strutture" in area admin
 
-## Quadro di partenza
+## Obiettivo
+Dare all'admin una sezione dedicata per **vedere** le strutture ricettive (Turri, Pieve e future) e **modificare** le loro informazioni anagrafiche, con metriche aggregate sulle camere.
 
-La tabella `strutture` è già dinamica: `Camere`, `Candidatura`, `Residenti`, `ExportButton` leggono tutto da DB. L'unica struttura attuale è "Turri" (`a0000000-…-0001`). I punti hardcoded sono pochi e ben circoscritti. Il lavoro si divide in 3 aree: **dati**, **UI multi-struttura**, **rifiniture**.
+## Stato attuale
+- Tabella `strutture` già presente (campi: `nome`, `indirizzo`, `piani`, `attiva`, `created_at`, `updated_at`).
+- Due strutture esistenti:
+  - **Turri** — Via Turri 69, Reggio Emilia — 4 piani — 29 camere (tutte doppie, 58 posti)
+  - **Pieve** — "Da definire" — 1 piano — 0 camere
+- RLS già configurata: admin ha accesso completo, anonimi solo lettura.
+- Le strutture vengono già usate in: filtro globale (`useStrutturaFilter`), candidatura pubblica, gestione camere.
 
----
+## Ha senso permettere la modifica?
+**Sì**, ma in modo controllato. Motivazioni:
+- Pieve ha indirizzo placeholder ("Da definire") che va aggiornato senza dover passare da una migrazione.
+- I `piani` di Pieve sono provvisori (1) e potrebbero cambiare quando si definisce la planimetria reale.
+- Permette in futuro di aggiungere nuove strutture o disattivarne una senza intervento tecnico.
 
-## 1) Dati — Inserimenti DB
+**Limitazioni consigliate** (per evitare incidenti):
+- Nessuna eliminazione hard: si può solo **disattivare** (`attiva = false`). Una struttura disattivata sparisce dai filtri e dalla candidatura pubblica ma resta per lo storico.
+- Nessuna creazione di nuove strutture nella prima iterazione (solo edit di quelle esistenti). Si può aggiungere dopo se serve.
+- Il campo `nome` è modificabile ma con un avviso (compare in candidatura pubblica e storico).
 
-### 1a. Inserire la struttura
+## Cosa costruire
 
-Nuova riga in `strutture`:
+### 1. Voce sidebar "Strutture"
+Aggiungere in `AdminSidebar.tsx` tra "Camere" e "Storico":
+- Icona `Building2` (lucide), label "Strutture", url `/admin/strutture`.
 
-- `nome = 'Pieve'`
-- `indirizzo = <da fornire>`
-- `piani = <da fornire>`
-- `attiva = true` (così appare subito nel form di candidatura pubblica)
+### 2. Pagina elenco `/admin/strutture`
+Lista a card (una per struttura), in stile coerente con Dashboard. Per ciascuna struttura mostra:
+- Nome (es. "Turri")
+- Indirizzo
+- Numero di piani
+- Badge stato: "Attiva" / "Disattivata"
+- Metriche aggregate live da DB: numero camere totali, posti totali, posti occupati, camere singole/doppie
+- Bottone "Modifica" che apre un dialog
 
-### 1b. Inserire le camere iniziali
+### 3. Dialog di modifica
+Form con i campi:
+- **Nome** (text, obbligatorio) — con piccolo warning "Modificare il nome cambia anche come appare nel form pubblico di candidatura"
+- **Indirizzo** (text)
+- **Piani** (number, ≥ 1)
+- **Attiva** (switch) — con conferma se si sta disattivando una struttura che ha camere occupate o candidature pendenti
 
-Per ogni camera: `numero`, `piano`, `tipo` (singola/doppia), `posti`, `stato = 'libera'`. Verranno seedate via insert tool, collegate alla nuova `struttura_id`.
+Salvataggio via `update` su `strutture`, invalidazione query (`strutture-filter`, `strutture-list`, eventuali metriche dashboard).
 
-### Info che mi servono da te prima di eseguire
+### 4. Pagina dettaglio (opzionale, stessa rotta con tab interno)
+Cliccando su una card si apre `/admin/strutture/:id` con:
+- Header con nome + bottone Modifica
+- Sezione "Anagrafica" (campi sopra in sola lettura)
+- Sezione "Camere" — tabella ridotta delle camere di quella struttura, con link alla pagina Camere filtrata
+- Sezione "Residenti attivi" — conteggio + link a Residenti filtrati
 
-1. **Indirizzo completo** della struttura Pieve.
-2. **Numero di piani**.
-3. **Elenco camere** (formato suggerito: una riga per camera con `numero | piano | tipo | posti | note opzionali`).
+Nella prima iterazione **possiamo limitarci alla lista con dialog di modifica** (più semplice, copre il bisogno principale). La pagina dettaglio si può aggiungere dopo se utile.
 
----
+## Dettagli tecnici
 
-## 2) UI multi-struttura
+- Nuova rotta in `src/App.tsx`: `<Route path="strutture" element={<Strutture />} />` dentro `AdminLayout`.
+- Nuovo file `src/pages/admin/Strutture.tsx` — pagina con `useQuery(['strutture-list'])` che fetcha tutte le strutture (anche non attive) e in parallelo aggrega `camere` e `assegnazioni` per le metriche.
+- Mutation `useMutation` per update con `supabase.from('strutture').update(...).eq('id', ...)`.
+- `AdminSidebar.tsx` — aggiungere voce nell'array `items`.
+- Nessuna modifica DB necessaria (schema già adatto). Nessuna nuova policy RLS necessaria.
+- Riutilizzare componenti esistenti: `Card`, `Dialog`, `Switch`, `Input`, `Label`, `Badge`, `Button`.
 
-### 2a. Selettore globale di struttura nella Dashboard admin
+## Cosa NON facciamo (per ora)
+- Creazione di nuove strutture dall'UI
+- Eliminazione hard
+- Upload di foto/planimetrie
+- Gestione contatti/responsabili struttura
 
-File: `src/pages/admin/Dashboard.tsx`
+Se vuoi includere uno di questi punti, dimmelo e li aggiungo al piano.
 
-Cambiamenti:
-
-- Aggiungere in cima un `Select` "Struttura: [Tutte | Turri | Pieve | …]" alimentato dalla query `strutture` (riuso del pattern già usato in `Camere.tsx`).
-- Tutte le metriche calcolate (`totalePosti`, `postiOccupati`, `occupazione`, `recentCandidature`, task items) vanno filtrate per la struttura selezionata, oppure aggregate se "Tutte".
-- Sostituire l'header hardcoded "Occupazione struttura Turri" con `Occupazione {nomeStrutturaSelezionata || 'totale'}`.
-- Lo stato del selettore può essere persistito in `localStorage` per coerenza tra sessioni.
-
-### 2b. Coerenza con altre pagine
-
-- `Camere.tsx`: già ha il filtro per struttura ✓ — nessun cambio.
-- `Residenti.tsx`: oggi non ha filtro per struttura; aggiungo lo stesso `Select` in cima per coerenza con Dashboard/Camere.
-- `Candidature.tsx` (admin): la struttura preferita è già una colonna ordinabile; aggiungo filtro per struttura preferita.
-- `Storico*` (Camere/Residenti): aggiungo lo stesso filtro per struttura.
-
----
-
-## 3) Rifiniture testuali e di branding
-
-I riferimenti a "Studentato Europa" come **brand** restano invariati (è il nome dell'azienda, non della struttura). Verifico che nessun copy confonda "Europa" con "Turri":
-
-- `Index.tsx` riga 47: `Studentato Europa · Via Turri 69, Reggio Emilia` → cambio in `Studentato Europa · Reggio Emilia` (l'indirizzo specifico di una sola struttura non rappresenta più tutto).
-- `Candidatura.tsx`, `Login.tsx`, `AdminSidebar.tsx`: brand "Studentato Europa" → invariati ✓.
-- Subject email mailto in `Candidature.tsx` ("La tua candidatura - Studentato Europa") → invariato ✓.
-
----
-
-## 4) Form pubblico di candidatura
-
-Nessun cambiamento di codice necessario: `src/pages/Candidatura.tsx` legge `strutture` con `attiva = true` e popola il `Select` "Struttura preferita" dinamicamente. Pieve apparirà automaticamente.
-
----
-
-## File toccati
-
-- **DB (insert tool)**: nuove righe in `strutture` e `camere`.
-- `src/pages/admin/Dashboard.tsx` — selettore + metriche filtrabili.
-- `src/pages/admin/Residenti.tsx` — filtro struttura.
-- `src/pages/admin/Candidature.tsx` — filtro struttura preferita.
-- `src/pages/admin/storico/StoricoCamere.tsx`, `StoricoResidenti.tsx` — filtro struttura.
-- `src/pages/Index.tsx` — copy footer.
-
-## Cosa NON tocco (e perché)
-
-- Schema DB / RLS: nessuna modifica strutturale necessaria, è già pronto al multi-struttura.
-- Edge function `submit-candidatura`: già struttura-agnostica.
-- `Camere.tsx` (admin): già ha tutto.
-- Tipi `src/integrations/supabase/types.ts`: auto-generati.
-
----
-
-## Domande aperte (rispondi prima dell'implementazione)
-
-1. Indirizzo completo di Pieve?
-2. Numero di piani?
-3. Elenco camere (numero, piano, tipo singola/doppia, posti)?
-4. Vuoi un'icona/etichetta visiva diversa per distinguere Pieve da Turri nelle liste, o basta il nome?
-
--> usare dei placeholder per le informazioni di Pieve perché ancora non abbiamo tutte le informazioni
+## Domanda aperta
+Vuoi che includa anche la **pagina di dettaglio** `/admin/strutture/:id` (punto 4) in questa iterazione, o partiamo solo con elenco + dialog di modifica?
