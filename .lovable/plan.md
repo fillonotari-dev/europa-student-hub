@@ -1,60 +1,47 @@
-## Piano: rimuovere "Esportazione" e aggiungere pulsante export per ogni pagina
+# Selezione Università / Dipartimento / Corso di studi
 
-### 1. Rimozione sezione Esportazione
+Trasformare i campi accademici nel form di candidatura in tre menù collegati a cascata, basati sull'elenco UNIMORE fornito.
 
-- `src/components/admin/AdminSidebar.tsx`: rimuovo la voce "Esportazione" e l'import `Download` se non più usato (sarà riusato dal pulsante export, ma è importato solo qui).
-- `src/App.tsx`: rimuovo l'import `Esportazione` e la rotta `<Route path="esportazione" .../>`.
-- `src/pages/admin/Esportazione.tsx`: elimino il file.
+## Comportamento
 
-### 2. Helper riutilizzabile per export
+**Step "Dati accademici"** diventa:
 
-Nuovo file `src/lib/exportXlsx.ts` con una funzione generica:
+1. **Università** — combobox ricercabile (stile nazionalità). Per ora contiene un'unica voce: *Università di Modena e Reggio Emilia (UNIMORE)*. Pre-selezionata di default ma modificabile (struttura pronta per future aggiunte).
+2. **Dipartimento** *(nuovo campo)* — combobox ricercabile, popolato in base all'università scelta. Disabilitato finché l'università non è selezionata.
+3. **Corso di studi** — combobox ricercabile, popolato in base al dipartimento scelto. Mostra i corsi raggruppati per livello (Ciclo Unico / Triennali / Magistrali / Professioni Sanitarie). Disabilitato finché il dipartimento non è selezionato.
+4. **Anno di corso** e **Matricola** restano invariati.
 
-```ts
-exportToXlsx(filename: string, rows: Record<string, any>[]): void
-```
+Cambiare università o dipartimento resetta i campi figli.
 
-Usa `xlsx` + `file-saver` (già nelle dipendenze, vedi `Esportazione.tsx`). Aggiunge automaticamente la data al nome file (`nome_YYYY-MM-DD.xlsx`).
+Tutti e tre i campi restano obbligatori. Le label sono tradotte (IT/EN), i nomi dei dipartimenti e dei corsi restano in italiano (sono nomi propri).
 
-### 3. Componente UI riutilizzabile
+## File da creare
 
-Nuovo file `src/components/admin/ExportButton.tsx`:
-- Pulsante `<Button variant="outline" size="sm">` con icona `Download` e label "Esporta Excel".
-- Props: `filename: string`, `getRows: () => Record<string,any>[]`, `disabled?: boolean`.
-- Mostra toast di successo/errore tramite `useToast`.
+- **`src/lib/universities.ts`** — registro dati strutturato:
+  ```ts
+  type Course = { name: string; level: 'ciclo_unico' | 'triennale' | 'magistrale' | 'professione_sanitaria' };
+  type Department = { name: string; sede: string; courses: Course[] };
+  type University = { id: string; name: string; departments: Department[] };
+  ```
+  Popolato con UNIMORE e i 10 dipartimenti/facoltà del documento allegato (Economia Marco Biagi, Comunicazione ed Economia, Giurisprudenza, Educazione e Scienze Umane, Studi Linguistici e Culturali, Medicina e Chirurgia, Scienze della Vita, Scienze Chimiche e Geologiche, Scienze Fisiche Informatiche e Matematiche, Ingegneria Enzo Ferrari, Scienze e Metodi dell'Ingegneria) con tutti i corsi.
 
-### 4. Pulsante export nelle pagine
+## File da modificare
 
-In ogni pagina aggiungo il pulsante in alto a destra, allineato al titolo (o accanto a "+ Nuova" dove esiste). **Esporta i dati attualmente filtrati/visibili**, non l'intero dataset, così l'admin può esportare un sottoinsieme mirato.
+- **`src/pages/Candidatura.tsx`**
+  - Aggiungere `dipartimento` allo state `form`.
+  - Sostituire i tre `Field` di università/corso con un nuovo componente `AcademicFields` che gestisce le tre combobox a cascata (riusando la stessa UI Popover+Command di `NationalityField`, eventualmente fattorizzata in un piccolo componente `Combobox` interno al file).
+  - Aggiornare `validateStep` step 1: richiedere `universita`, `dipartimento`, `corso_di_studi`, `anno_di_corso`, `matricola`.
+  - Aggiungere il dipartimento nella sezione di riepilogo (step 4).
 
-Pagine "normali":
-- **`src/pages/admin/Candidature.tsx`** — colonne: Nome, Cognome, Email, Telefono, Università, Corso, Stato, Anno accademico, Periodo inizio/fine, Data candidatura.
-- **`src/pages/admin/Residenti.tsx`** — colonne: Studente, Email, Struttura, Camera, Posto, Data inizio, Data fine, Stato.
-- **`src/pages/admin/Camere.tsx`** — colonne: Struttura, Numero, Piano, Tipo, Posti, Stato.
+- **`src/i18n/translations.ts`**
+  - Nuova chiave `form.dipartimento` (IT: "Dipartimento", EN: "Department").
+  - Placeholder per i combobox (es. "Seleziona università/dipartimento/corso").
 
-Pagine "Storico":
-- **`StoricoCandidature.tsx`** — colonne: Data, Studente, Email, Stato precedente, Stato nuovo, Note.
-- **`StoricoResidenti.tsx`** — colonne: Studente, Email, Struttura, Camera, Posto, Data inizio, Data fine, Durata (giorni), Stato, Note.
-- **`StoricoCamere.tsx`** — colonne: Struttura, Camera, Piano, Tipo, Assegnazioni totali, Assegnazioni attive. (La timeline per singola camera resta consultabile in dialog; l'export lista la vista corrente.)
+## Note tecniche
 
-### Dettagli tecnici
+- Il dipartimento **non viene salvato** nel database: la tabella `candidature` non ha una colonna dedicata e non si vuole introdurre una migrazione. Per conservare comunque l'informazione, il dipartimento verrà concatenato al campo `corso_snapshot` esistente nel formato `"<Nome corso> — <Nome dipartimento>"` lato edge function. *(Alternativa se preferisci: aggiungere colonna `dipartimento_snapshot` con migrazione — fammelo sapere.)*
+- **`supabase/functions/submit-candidatura/index.ts`**: accettare il nuovo campo `dipartimento` nel body e comporre `corso_snapshot = "<corso> — <dipartimento>"`. Nessun'altra modifica al backend.
 
-- L'helper mantiene la stessa logica già presente in `Esportazione.tsx` (XLSX.utils.json_to_sheet → workbook → blob → saveAs), centralizzata.
-- I dati esportati vengono ricavati dall'array già caricato dalla query (`filtered` nelle pagine storico, equivalente nelle altre): nessuna nuova chiamata a Supabase.
-- Le date vengono formattate `it-IT` come stringhe leggibili nell'xlsx.
+## Estendibilità
 
-### File toccati
-
-1. `src/lib/exportXlsx.ts` *(nuovo)*
-2. `src/components/admin/ExportButton.tsx` *(nuovo)*
-3. `src/components/admin/AdminSidebar.tsx` — rimossa voce Esportazione
-4. `src/App.tsx` — rimossi import e rotta
-5. `src/pages/admin/Esportazione.tsx` — eliminato
-6. `src/pages/admin/Candidature.tsx` — aggiunto ExportButton
-7. `src/pages/admin/Residenti.tsx` — aggiunto ExportButton
-8. `src/pages/admin/Camere.tsx` — aggiunto ExportButton
-9. `src/pages/admin/storico/StoricoCandidature.tsx` — aggiunto ExportButton
-10. `src/pages/admin/storico/StoricoResidenti.tsx` — aggiunto ExportButton
-11. `src/pages/admin/storico/StoricoCamere.tsx` — aggiunto ExportButton
-
-Nessuna modifica a DB o auth.
+Aggiungere nuove università in futuro = aggiungere una voce all'array in `src/lib/universities.ts`. Nessuna modifica al form.
