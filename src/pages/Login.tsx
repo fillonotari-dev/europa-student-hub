@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Building2 } from 'lucide-react';
+import logoStudentato from '@/assets/logo-studentato.svg';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -30,9 +30,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-            <Building2 className="w-6 h-6 text-primary" />
-          </div>
+          <img src={logoStudentato} alt="Studentato Europa" className="w-12 h-12 object-contain mx-auto mb-4" />
           <h1 className="text-xl font-bold">Studentato Europa</h1>
           <p className="text-[13px] text-muted-foreground mt-1">Pannello di gestione</p>
         </div>
