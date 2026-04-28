@@ -38,7 +38,6 @@ type Metrics = {
 type FormState = {
   nome: string;
   indirizzo: string;
-  piani: string;
   attiva: boolean;
 };
 
@@ -47,7 +46,7 @@ export default function Strutture() {
   const qc = useQueryClient();
 
   const [editing, setEditing] = useState<Struttura | null>(null);
-  const [form, setForm] = useState<FormState>({ nome: '', indirizzo: '', piani: '1', attiva: true });
+  const [form, setForm] = useState<FormState>({ nome: '', indirizzo: '', attiva: true });
   const [confirmDeactivate, setConfirmDeactivate] = useState<Struttura | null>(null);
 
   const { data: strutture = [], isLoading } = useQuery({
@@ -109,13 +108,12 @@ export default function Strutture() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (payload: { id: string; nome: string; indirizzo: string | null; piani: number | null; attiva: boolean }) => {
+    mutationFn: async (payload: { id: string; nome: string; indirizzo: string | null; attiva: boolean }) => {
       const { error } = await supabase
         .from('strutture')
         .update({
           nome: payload.nome,
           indirizzo: payload.indirizzo,
-          piani: payload.piani,
           attiva: payload.attiva,
         })
         .eq('id', payload.id);
@@ -139,7 +137,6 @@ export default function Strutture() {
     setForm({
       nome: s.nome,
       indirizzo: s.indirizzo ?? '',
-      piani: String(s.piani ?? 1),
       attiva: s.attiva,
     });
   };
@@ -150,7 +147,6 @@ export default function Strutture() {
       toast({ title: 'Nome obbligatorio', variant: 'destructive' });
       return;
     }
-    const piani = Math.max(1, parseInt(form.piani, 10) || 1);
     const m = metricsByStruttura[editing.id];
     const isDeactivating = editing.attiva && !form.attiva;
     const hasActivity = m && (m.occupati > 0 || m.candidaturePendenti > 0);
@@ -164,19 +160,16 @@ export default function Strutture() {
       id: editing.id,
       nome: form.nome.trim(),
       indirizzo: form.indirizzo.trim() || null,
-      piani,
       attiva: form.attiva,
     });
   };
 
   const confirmAndSave = () => {
     if (!editing) return;
-    const piani = Math.max(1, parseInt(form.piani, 10) || 1);
     updateMutation.mutate({
       id: editing.id,
       nome: form.nome.trim(),
       indirizzo: form.indirizzo.trim() || null,
-      piani,
       attiva: form.attiva,
     });
   };
@@ -307,17 +300,9 @@ export default function Strutture() {
                 onChange={(e) => setForm({ ...form, indirizzo: e.target.value })}
                 placeholder="Es. Via Turri 69, Reggio Emilia"
               />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="piani">Numero piani</Label>
-              <Input
-                id="piani"
-                type="number"
-                min={1}
-                value={form.piani}
-                onChange={(e) => setForm({ ...form, piani: e.target.value })}
-              />
+              <p className="text-[11px] text-muted-foreground">
+                Visualizzato nel form pubblico di candidatura sotto la struttura selezionata.
+              </p>
             </div>
 
             <div className="flex items-center justify-between rounded-lg border p-3">

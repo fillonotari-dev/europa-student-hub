@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
 import { Lang, t } from '@/i18n/translations';
-import { CheckCircle, Globe, ChevronRight, ChevronLeft } from 'lucide-react';
+import { CheckCircle, Globe, ChevronRight, ChevronLeft, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -44,7 +44,7 @@ export default function Candidatura() {
   const { data: strutture } = useQuery({
     queryKey: ['strutture-pubbliche'],
     queryFn: async () => {
-      const { data } = await supabase.from('strutture').select('id, nome').eq('attiva', true);
+      const { data } = await supabase.from('strutture').select('id, nome, indirizzo').eq('attiva', true);
       return data ?? [];
     },
   });
@@ -240,6 +240,16 @@ export default function Candidatura() {
                       {strutture?.map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                  {(() => {
+                    const sel = strutture?.find(s => s.id === form.struttura_preferita_id);
+                    if (!sel?.indirizzo) return null;
+                    return (
+                      <p className="mt-1.5 text-[12px] text-muted-foreground flex items-center gap-1">
+                        <MapPin className="w-3 h-3 shrink-0" />
+                        {sel.indirizzo}
+                      </p>
+                    );
+                  })()}
                 </div>
                 <div>
                   <Label>{t(lang, 'form.tipoCameraPreferito')}</Label>
@@ -297,7 +307,11 @@ export default function Candidatura() {
                   [t(lang, 'form.matricola'), form.matricola],
                 ]} />
                 <ReviewSection title={t(lang, 'form.stepPreferences')} items={[
-                  [t(lang, 'form.strutturaPreferita'), strutture?.find(s => s.id === form.struttura_preferita_id)?.nome || '-'],
+                  [t(lang, 'form.strutturaPreferita'), (() => {
+                    const sel = strutture?.find(s => s.id === form.struttura_preferita_id);
+                    if (!sel) return '-';
+                    return sel.indirizzo ? `${sel.nome} — ${sel.indirizzo}` : sel.nome;
+                  })()],
                   [t(lang, 'form.tipoCameraPreferito'), form.tipo_camera_preferito || '-'],
                   [t(lang, 'form.periodoInizio'), form.periodo_inizio],
                   [t(lang, 'form.periodoFine'), form.periodo_fine],
