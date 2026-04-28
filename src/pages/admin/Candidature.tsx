@@ -24,6 +24,7 @@ import { fmtDate } from '@/lib/exportXlsx';
 import {
   Search, FileText, Download, ArrowUp, ArrowDown, ArrowUpDown,
   PlayCircle, CheckCircle2, XCircle, RotateCcw, Mail, DoorOpen, Trash2, Archive,
+  ExternalLink, FileIcon,
 } from 'lucide-react';
 import { useStrutturaFilter } from '@/hooks/useStrutturaFilter';
 import { StrutturaSelect } from '@/components/admin/StrutturaSelect';
@@ -41,6 +42,24 @@ const STATO_COLORS: Record<string, string> = {
 const STATO_ORDER: Record<string, number> = {
   ricevuta: 0, in_valutazione: 1, approvata: 2, rifiutata: 3, ritirata: 4, sostituita: 5,
 };
+const TIPO_DOC_LABELS: Record<string, string> = {
+  documento_identita: 'Documento di identità',
+  certificato_iscrizione: 'Certificato di iscrizione',
+};
+
+// Estrae il path interno al bucket "documenti_studenti" da un URL pubblico/signed Supabase
+function extractStoragePath(url: string): string | null {
+  if (!url) return null;
+  const marker = '/documenti_studenti/';
+  const idx = url.indexOf(marker);
+  if (idx === -1) return null;
+  let path = url.substring(idx + marker.length);
+  // rimuove eventuali query string (es. ?token=...)
+  const q = path.indexOf('?');
+  if (q !== -1) path = path.substring(0, q);
+  try { path = decodeURIComponent(path); } catch {}
+  return path;
+}
 const PAGE_SIZE = 15;
 type SortKey = 'studente' | 'struttura' | 'anno' | 'stato' | 'data';
 
@@ -366,18 +385,21 @@ export default function Candidature() {
                   </div>
                 )}
 
-                {documenti && documenti.length > 0 && (
-                  <div>
-                    <p className="text-sm font-semibold mb-2">Documenti</p>
+                <div>
+                  <p className="text-sm font-semibold mb-2">Documenti caricati</p>
+                  {documenti && documenti.length > 0 ? (
                     <div className="space-y-2">
                       {documenti.map((d: any) => (
-                        <a key={d.id} href={d.url} target="_blank" rel="noopener" className="flex items-center gap-2 text-sm text-primary hover:underline">
-                          <Download className="w-3.5 h-3.5" /> {d.nome_file}
-                        </a>
+                        <DocumentoRow key={d.id} doc={d} />
                       ))}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <div className="bg-muted/30 rounded-lg p-3 text-[13px] text-muted-foreground flex items-center gap-2">
+                      <FileText className="w-4 h-4" />
+                      Nessun documento caricato
+                    </div>
+                  )}
+                </div>
 
                 <div>
                   <p className="text-sm font-semibold mb-2">Azioni</p>
@@ -472,6 +494,74 @@ function Section({ title, items }: { title: string; items: [string, string | nul
             <span className="font-medium">{value || '-'}</span>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function DocumentoRow({ doc }: { doc: any }) {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState<'open' | 'download' | null>(null);
+  const path = extractStoragePath(doc.url);
+  const label = TIPO_DOC_LABELS[doc.tipo] ?? (doc.tipo || 'Documento');
+
+  const getSignedUrl = async (download = false) => {
+    if (!path) throw new Error('Percorso file non valido');
+    const { data, error } = await supabase
+      .storage
+      .from('documenti_studenti')
+      .createSignedUrl(path, 60, download ? { download: doc.nome_file } : undefined);
+    if (error || !data?.signedUrl) throw error ?? new Error('Impossibile generare il link');
+    return data.signedUrl;
+  };
+
+  const handleOpen = async () => {
+    try {
+      setLoading('open');
+      const url = await getSignedUrl(false);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (e: any) {
+      toast({ title: 'Errore', description: e?.message ?? 'Impossibile aprire il file', variant: 'destructive' });
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleDownload = async () => {
+    try {
+      setLoading('download');
+      const url = await getSignedUrl(true);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.nome_file;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (e: any) {
+      toast({ title: 'Errore', description: e?.message ?? 'Impossibile scaricare il file', variant: 'destructive' });
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-3 bg-muted/30 rounded-lg p-3">
+      <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+        <FileIcon className="w-4 h-4 text-primary" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] font-medium truncate">{label}</p>
+        <p className="text-[11px] text-muted-foreground truncate">{doc.nome_file}</p>
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        <Button size="sm" variant="outline" onClick={handleOpen} disabled={loading !== null || !path}>
+          <ExternalLink className="w-3.5 h-3.5 mr-1" />
+          {loading === 'open' ? '...' : 'Apri'}
+        </Button>
+        <Button size="sm" onClick={handleDownload} disabled={loading !== null || !path}>
+          <Download className="w-3.5 h-3.5 mr-1" />
+          {loading === 'download' ? '...' : 'Scarica'}
+        </Button>
       </div>
     </div>
   );
