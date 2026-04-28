@@ -16,6 +16,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NATIONALITIES } from '@/lib/nationalities';
+import { UNIVERSITIES, COURSE_LEVEL_LABELS, type CourseLevel } from '@/lib/universities';
 
 const STEPS = ['stepPersonal', 'stepAcademic', 'stepPreferences', 'stepDocuments', 'stepReview'] as const;
 const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
@@ -30,7 +31,8 @@ export default function Candidatura() {
 
   const [form, setForm] = useState({
     nome: '', cognome: '', email: '', telefono: '', data_nascita: '', nazionalita: '', codice_fiscale: '',
-    universita: '', corso_di_studi: '', anno_di_corso: '', matricola: '',
+    universita: UNIVERSITIES.length === 1 ? UNIVERSITIES[0].name : '',
+    dipartimento: '', corso_di_studi: '', anno_di_corso: '', matricola: '',
     struttura_preferita_id: '', tipo_camera_preferito: '', periodo_inizio: '', periodo_fine: '',
     anno_accademico: '2025/2026', messaggio: '',
   });
@@ -48,10 +50,15 @@ export default function Candidatura() {
 
   const set = (key: string, value: string) => setForm(f => ({ ...f, [key]: value }));
 
+  const setUniversita = (value: string) =>
+    setForm(f => ({ ...f, universita: value, dipartimento: '', corso_di_studi: '' }));
+  const setDipartimento = (value: string) =>
+    setForm(f => ({ ...f, dipartimento: value, corso_di_studi: '' }));
+
   const validateStep = () => {
     const required: Record<number, string[]> = {
       0: ['nome', 'cognome', 'email', 'telefono', 'data_nascita', 'nazionalita', 'codice_fiscale'],
-      1: ['universita', 'corso_di_studi', 'anno_di_corso', 'matricola'],
+      1: ['universita', 'dipartimento', 'corso_di_studi', 'anno_di_corso', 'matricola'],
       2: ['periodo_inizio', 'periodo_fine', 'anno_accademico'],
       3: [],
     };
@@ -177,8 +184,9 @@ export default function Candidatura() {
             )}
             {step === 1 && (
               <div className="space-y-4">
-                <Field label={t(lang, 'form.universita')} value={form.universita} onChange={v => set('universita', v)} required />
-                <Field label={t(lang, 'form.corsoStudi')} value={form.corso_di_studi} onChange={v => set('corso_di_studi', v)} required />
+                <UniversitaField lang={lang} value={form.universita} onChange={setUniversita} />
+                <DipartimentoField lang={lang} universitaName={form.universita} value={form.dipartimento} onChange={setDipartimento} />
+                <CorsoField lang={lang} universitaName={form.universita} dipartimentoName={form.dipartimento} value={form.corso_di_studi} onChange={v => set('corso_di_studi', v)} />
                 <Field label={t(lang, 'form.annoCorso')} value={form.anno_di_corso} onChange={v => set('anno_di_corso', v)} required />
                 <Field label={t(lang, 'form.matricola')} value={form.matricola} onChange={v => set('matricola', v)} required />
               </div>
@@ -232,6 +240,7 @@ export default function Candidatura() {
                 ]} />
                 <ReviewSection title={t(lang, 'form.stepAcademic')} items={[
                   [t(lang, 'form.universita'), form.universita],
+                  [t(lang, 'form.dipartimento'), form.dipartimento],
                   [t(lang, 'form.corsoStudi'), form.corso_di_studi],
                   [t(lang, 'form.annoCorso'), form.anno_di_corso],
                   [t(lang, 'form.matricola'), form.matricola],
