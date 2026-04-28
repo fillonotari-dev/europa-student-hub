@@ -1,7 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { Building2, ArrowRight, GraduationCap } from 'lucide-react';
+import { ArrowRight, GraduationCap } from 'lucide-react';
+import logoStudentato from '@/assets/logo-studentato.svg';
 
 export default function Index() {
   const navigate = useNavigate();
@@ -12,9 +13,7 @@ export default function Index() {
       <header className="border-b bg-card">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <Building2 className="w-4 h-4 text-primary-foreground" />
-            </div>
+            <img src={logoStudentato} alt="Studentato Europa" className="w-8 h-8 object-contain" />
             <span className="text-lg font-bold text-primary">Studentato Europa</span>
           </div>
           <Button variant="outline" size="sm" onClick={() => navigate('/login')}>
