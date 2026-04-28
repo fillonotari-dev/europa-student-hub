@@ -25,6 +25,8 @@ import {
   Search, FileText, Download, ArrowUp, ArrowDown, ArrowUpDown,
   PlayCircle, CheckCircle2, XCircle, RotateCcw, Mail, DoorOpen, Trash2, Archive,
 } from 'lucide-react';
+import { useStrutturaFilter } from '@/hooks/useStrutturaFilter';
+import { StrutturaSelect } from '@/components/admin/StrutturaSelect';
 
 const STATI = ['ricevuta', 'in_valutazione', 'approvata', 'rifiutata', 'ritirata'] as const;
 const STATO_LABELS: Record<string, string> = {
@@ -43,6 +45,7 @@ const PAGE_SIZE = 15;
 type SortKey = 'studente' | 'struttura' | 'anno' | 'stato' | 'data';
 
 export default function Candidature() {
+  const { strutturaId, setStrutturaId, strutture, isAll } = useStrutturaFilter();
   const [search, setSearch] = useState('');
   const [filterStato, setFilterStato] = useState<string>('tutti');
   const [selected, setSelected] = useState<any>(null);
@@ -55,13 +58,14 @@ export default function Candidature() {
   const navigate = useNavigate();
 
   const { data: candidature } = useQuery({
-    queryKey: ['candidature', filterStato],
+    queryKey: ['candidature', filterStato, strutturaId],
     queryFn: async () => {
       let query = supabase
         .from('candidature')
         .select('*, studenti(nome, cognome, email, telefono, nazionalita), strutture(nome)')
         .order('created_at', { ascending: false });
       if (filterStato !== 'tutti') query = query.eq('stato', filterStato);
+      if (!isAll) query = query.eq('struttura_preferita_id', strutturaId);
       const { data } = await query;
       return data ?? [];
     },
@@ -231,6 +235,11 @@ export default function Candidature() {
             {STATI.map(s => <SelectItem key={s} value={s}>{STATO_LABELS[s]}</SelectItem>)}
           </SelectContent>
         </Select>
+        <StrutturaSelect
+          value={strutturaId}
+          onChange={(v) => { setStrutturaId(v); setPage(1); }}
+          strutture={strutture}
+        />
         <ExportButton
           filename="candidature"
           getRows={() => filtered.map((c: any) => ({

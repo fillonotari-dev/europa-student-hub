@@ -44,7 +44,7 @@ export default function Index() {
       {/* Footer */}
       <footer className="border-t bg-card py-4">
         <div className="max-w-5xl mx-auto px-4 text-center text-[13px] text-muted-foreground">
-          Studentato Europa · Via Turri 69, Reggio Emilia
+          Studentato Europa · Reggio Emilia
         </div>
       </footer>
     </div>

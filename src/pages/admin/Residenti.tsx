@@ -25,11 +25,14 @@ import {
   Search, Users as UsersIcon, ArrowUp, ArrowDown, ArrowUpDown,
   User, ArrowRightLeft, LogOut, Mail,
 } from 'lucide-react';
+import { useStrutturaFilter } from '@/hooks/useStrutturaFilter';
+import { StrutturaSelect } from '@/components/admin/StrutturaSelect';
 
 const PAGE_SIZE = 15;
 type SortKey = 'nome' | 'email' | 'nazionalita' | 'camera' | 'struttura';
 
 export default function Residenti() {
+  const { strutturaId, setStrutturaId, strutture, isAll } = useStrutturaFilter();
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('nome');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -147,6 +150,10 @@ export default function Residenti() {
 
   const filtered = (residenti ?? [])
     .filter((a: any) => {
+      if (isAll) return true;
+      return a.camere?.struttura_id === strutturaId;
+    })
+    .filter((a: any) => {
       if (!search) return true;
       const q = search.toLowerCase();
       const s = a.studenti;
@@ -213,6 +220,11 @@ export default function Residenti() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input placeholder="Cerca residente..." value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} className="pl-9" />
         </div>
+        <StrutturaSelect
+          value={strutturaId}
+          onChange={(v) => { setStrutturaId(v); setPage(1); }}
+          strutture={strutture}
+        />
         <ExportButton
           filename="residenti"
           getRows={() => filtered.map((a: any) => ({

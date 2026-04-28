@@ -12,21 +12,26 @@ import {
 import { Search } from 'lucide-react';
 import { ExportButton } from '@/components/admin/ExportButton';
 import { fmtDate } from '@/lib/exportXlsx';
+import { useStrutturaFilter } from '@/hooks/useStrutturaFilter';
+import { StrutturaSelect } from '@/components/admin/StrutturaSelect';
 
 const PAGE_SIZE = 20;
 
 export default function StoricoResidenti() {
+  const { strutturaId, setStrutturaId, strutture, isAll } = useStrutturaFilter();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
   const { data: rows = [] } = useQuery({
-    queryKey: ['storico-residenti'],
+    queryKey: ['storico-residenti', strutturaId],
     queryFn: async () => {
-      const { data } = await supabase
+      let q = supabase
         .from('assegnazioni')
-        .select('*, studenti(nome, cognome, email), camere(numero, piano, tipo, strutture(nome))')
+        .select('*, studenti(nome, cognome, email), camere!inner(numero, piano, tipo, struttura_id, strutture(nome))')
         .neq('stato', 'attiva')
         .order('data_fine', { ascending: false, nullsFirst: false });
+      if (!isAll) q = q.eq('camere.struttura_id', strutturaId);
+      const { data } = await q;
       return data ?? [];
     },
   });
@@ -53,7 +58,12 @@ export default function StoricoResidenti() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <StrutturaSelect
+          value={strutturaId}
+          onChange={(v) => { setStrutturaId(v); setPage(1); }}
+          strutture={strutture}
+        />
         <ExportButton
           filename="storico_residenti"
           getRows={() => filtered.map((r: any) => ({
