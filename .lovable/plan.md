@@ -1,38 +1,95 @@
-# Fix: Combobox del corso di studi si blocca dopo la prima apertura
+# Aggiunta struttura "Pieve" — piano completo
 
-## Problema osservato
-Nel form `/candidatura`, dopo aver aperto e chiuso senza selezionare il dropdown "Corso di studi" (e potenzialmente anche Università/Dipartimento), il bottone non si riapre più.
+## Quadro di partenza
 
-## Causa probabile
-Nel `Combobox` (in `src/pages/Candidatura.tsx`) i tre campi accademici condividono lo stesso pattern: `Popover` + `cmdk` con un array `options` ricostruito a ogni render e `CommandItem` con chiavi/`value` derivate da `group + label`. Due fattori si sommano:
+La tabella `strutture` è già dinamica: `Camere`, `Candidatura`, `Residenti`, `ExportButton` leggono tutto da DB. L'unica struttura attuale è "Turri" (`a0000000-…-0001`). I punti hardcoded sono pochi e ben circoscritti. Il lavoro si divide in 3 aree: **dati**, **UI multi-struttura**, **rifiniture**.
 
-1. Le `options` (e gli oggetti dentro) sono ricreati ad ogni render → `cmdk` può rimontare in stato inconsistente.
-2. Il `Button` trigger ha `type="button"` ma è dentro un `<form>` implicito di step (lo step si trova dentro un container con `motion.div` + `AnimatePresence`). Quando il Popover si chiude, Radix riporta il focus al trigger; se nel frattempo `AnimatePresence` ha già rimontato il nodo, il focus va su un nodo diverso e i click successivi sul nuovo bottone non aprono il Popover (event handlers interrotti dal focus-guard di Radix).
-3. Il warning in console "Function components cannot be given refs… Check the render method of `Field`" indica che Radix sta cercando di passare un `ref` al trigger ma `Button` viene wrappato dentro `Field` o un altro componente senza `forwardRef`. Per il `Combobox` corrente il trigger è `Button` direttamente, quindi questo riguarda altri campi — ma indica che ci sono problemi di forwarding ref nel file.
+---
 
-## Soluzioni da applicare
+## 1) Dati — Inserimenti DB
 
-### 1. Stabilizzare le `options` con `useMemo`
-In `UniversitaField`, `DipartimentoField`, `CorsoField` calcolare `options` con `useMemo` dipendente dai parametri. Questo evita che `cmdk` veda nuovi oggetti ogni render.
+### 1a. Inserire la struttura
 
-### 2. Modal Popover
-Passare `modal={false}` al `Popover` (default) ma aggiungere `onOpenChange` con cleanup esplicito; in alternativa usare `modal` per garantire che il focus management funzioni anche dentro `AnimatePresence`.
+Nuova riga in `strutture`:
 
-In pratica la fix robusta è:
-- Spostare il rendering degli step **fuori** da `AnimatePresence` per il sotto-albero che contiene Popover, oppure
-- Più semplice: aggiungere `onCloseAutoFocus={(e) => e.preventDefault()}` su `PopoverContent` del `Combobox`. Questo evita che Radix tenti di restituire il focus al trigger (che, in combinazione col rerender da `framer-motion`, causa il "blocco" del bottone).
+- `nome = 'Pieve'`
+- `indirizzo = <da fornire>`
+- `piani = <da fornire>`
+- `attiva = true` (così appare subito nel form di candidatura pubblica)
 
-### 3. CommandItem value unico
-Cambiare `value={o.searchKey || o.label}` in qualcosa di garantito unico (`${o.group ?? ''}-${o.value}`) e usare `keywords={[o.label, o.group]}` per la ricerca. Così `cmdk` non confonde item con label uguali in gruppi diversi.
+### 1b. Inserire le camere iniziali
 
-### 4. Reset interno del Combobox
-Quando il Popover si chiude senza selezione, resettare lo stato del `Command` (input di ricerca) usando una `key` sul `Command` legata a `open`, così alla prossima apertura il componente è "fresco".
+Per ogni camera: `numero`, `piano`, `tipo` (singola/doppia), `posti`, `stato = 'libera'`. Verranno seedate via insert tool, collegate alla nuova `struttura_id`.
 
-## File da modificare
-- `src/pages/Candidatura.tsx` — applicare i 4 punti sopra al solo componente `Combobox` (e di riflesso a `UniversitaField`/`DipartimentoField`/`CorsoField`). Nessun cambio a `NationalityField` se non riproduce il problema.
+### Info che mi servono da te prima di eseguire
 
-## Verifica
-Dopo la modifica, sul preview:
-1. Aprire dropdown Università → chiudere senza selezionare → riaprire (deve funzionare).
-2. Stessa prova su Dipartimento e Corso di studi.
-3. Verificare che la selezione di un corso popoli correttamente il form.
+1. **Indirizzo completo** della struttura Pieve.
+2. **Numero di piani**.
+3. **Elenco camere** (formato suggerito: una riga per camera con `numero | piano | tipo | posti | note opzionali`).
+
+---
+
+## 2) UI multi-struttura
+
+### 2a. Selettore globale di struttura nella Dashboard admin
+
+File: `src/pages/admin/Dashboard.tsx`
+
+Cambiamenti:
+
+- Aggiungere in cima un `Select` "Struttura: [Tutte | Turri | Pieve | …]" alimentato dalla query `strutture` (riuso del pattern già usato in `Camere.tsx`).
+- Tutte le metriche calcolate (`totalePosti`, `postiOccupati`, `occupazione`, `recentCandidature`, task items) vanno filtrate per la struttura selezionata, oppure aggregate se "Tutte".
+- Sostituire l'header hardcoded "Occupazione struttura Turri" con `Occupazione {nomeStrutturaSelezionata || 'totale'}`.
+- Lo stato del selettore può essere persistito in `localStorage` per coerenza tra sessioni.
+
+### 2b. Coerenza con altre pagine
+
+- `Camere.tsx`: già ha il filtro per struttura ✓ — nessun cambio.
+- `Residenti.tsx`: oggi non ha filtro per struttura; aggiungo lo stesso `Select` in cima per coerenza con Dashboard/Camere.
+- `Candidature.tsx` (admin): la struttura preferita è già una colonna ordinabile; aggiungo filtro per struttura preferita.
+- `Storico*` (Camere/Residenti): aggiungo lo stesso filtro per struttura.
+
+---
+
+## 3) Rifiniture testuali e di branding
+
+I riferimenti a "Studentato Europa" come **brand** restano invariati (è il nome dell'azienda, non della struttura). Verifico che nessun copy confonda "Europa" con "Turri":
+
+- `Index.tsx` riga 47: `Studentato Europa · Via Turri 69, Reggio Emilia` → cambio in `Studentato Europa · Reggio Emilia` (l'indirizzo specifico di una sola struttura non rappresenta più tutto).
+- `Candidatura.tsx`, `Login.tsx`, `AdminSidebar.tsx`: brand "Studentato Europa" → invariati ✓.
+- Subject email mailto in `Candidature.tsx` ("La tua candidatura - Studentato Europa") → invariato ✓.
+
+---
+
+## 4) Form pubblico di candidatura
+
+Nessun cambiamento di codice necessario: `src/pages/Candidatura.tsx` legge `strutture` con `attiva = true` e popola il `Select` "Struttura preferita" dinamicamente. Pieve apparirà automaticamente.
+
+---
+
+## File toccati
+
+- **DB (insert tool)**: nuove righe in `strutture` e `camere`.
+- `src/pages/admin/Dashboard.tsx` — selettore + metriche filtrabili.
+- `src/pages/admin/Residenti.tsx` — filtro struttura.
+- `src/pages/admin/Candidature.tsx` — filtro struttura preferita.
+- `src/pages/admin/storico/StoricoCamere.tsx`, `StoricoResidenti.tsx` — filtro struttura.
+- `src/pages/Index.tsx` — copy footer.
+
+## Cosa NON tocco (e perché)
+
+- Schema DB / RLS: nessuna modifica strutturale necessaria, è già pronto al multi-struttura.
+- Edge function `submit-candidatura`: già struttura-agnostica.
+- `Camere.tsx` (admin): già ha tutto.
+- Tipi `src/integrations/supabase/types.ts`: auto-generati.
+
+---
+
+## Domande aperte (rispondi prima dell'implementazione)
+
+1. Indirizzo completo di Pieve?
+2. Numero di piani?
+3. Elenco camere (numero, piano, tipo singola/doppia, posti)?
+4. Vuoi un'icona/etichetta visiva diversa per distinguere Pieve da Turri nelle liste, o basta il nome?
+
+-> usare dei placeholder per le informazioni di Pieve perché ancora non abbiamo tutte le informazioni
