@@ -39,6 +39,7 @@ export default function Candidatura() {
   const [files, setFiles] = useState<{ documento_identita: File | null; certificato_iscrizione: File | null }>({
     documento_identita: null, certificato_iscrizione: null,
   });
+  const [fileErrors, setFileErrors] = useState<{ documento_identita?: string; certificato_iscrizione?: string }>({});
 
   const { data: strutture } = useQuery({
     queryKey: ['strutture-pubbliche'],
@@ -114,13 +115,18 @@ export default function Candidatura() {
 
   const handleFile = (key: keyof typeof files, file: File | null) => {
     if (file && !ACCEPTED_TYPES.includes(file.type)) {
-      toast({ title: 'Formato non supportato', variant: 'destructive' });
+      const msg = t(lang, 'form.fileInvalidType');
+      setFileErrors(e => ({ ...e, [key]: msg }));
+      toast({ title: msg, variant: 'destructive' });
       return;
     }
     if (file && file.size > MAX_SIZE) {
-      toast({ title: 'File troppo grande (max 5 MB)', variant: 'destructive' });
+      const msg = t(lang, 'form.fileTooLarge');
+      setFileErrors(e => ({ ...e, [key]: msg }));
+      toast({ title: msg, variant: 'destructive' });
       return;
     }
+    setFileErrors(e => ({ ...e, [key]: undefined }));
     setFiles(f => ({ ...f, [key]: file }));
   };
 
@@ -266,8 +272,8 @@ export default function Candidatura() {
             )}
             {step === 3 && (
               <div className="space-y-4">
-                <FileUpload label={t(lang, 'form.documentoIdentita')} hint={t(lang, 'form.uploadHint')} file={files.documento_identita} onChange={f => handleFile('documento_identita', f)} required />
-                <FileUpload label={t(lang, 'form.certificatoIscrizione')} hint={t(lang, 'form.uploadHint')} file={files.certificato_iscrizione} onChange={f => handleFile('certificato_iscrizione', f)} required />
+                <FileUpload label={t(lang, 'form.documentoIdentita')} hint={t(lang, 'form.uploadHint')} file={files.documento_identita} error={fileErrors.documento_identita} onChange={f => handleFile('documento_identita', f)} required />
+                <FileUpload label={t(lang, 'form.certificatoIscrizione')} hint={t(lang, 'form.uploadHint')} file={files.certificato_iscrizione} error={fileErrors.certificato_iscrizione} onChange={f => handleFile('certificato_iscrizione', f)} required />
                 <div>
                   <Label>{t(lang, 'form.messaggio')}</Label>
                   <Textarea value={form.messaggio} onChange={e => set('messaggio', e.target.value)} placeholder={t(lang, 'form.messaggioPlaceholder')} className="mt-1.5" />
@@ -386,11 +392,11 @@ function NationalityField({ lang, label, value, onChange, required }: { lang: La
   );
 }
 
-function FileUpload({ label, hint, file, onChange, required }: { label: string; hint: string; file: File | null; onChange: (f: File | null) => void; required?: boolean }) {
+function FileUpload({ label, hint, file, error, onChange, required }: { label: string; hint: string; file: File | null; error?: string; onChange: (f: File | null) => void; required?: boolean }) {
   return (
     <div>
       <Label>{label}{required && <span className="text-destructive ml-0.5">*</span>}</Label>
-      <div className="mt-1.5 border-2 border-dashed rounded-lg p-4 text-center hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => document.getElementById(`file-${label}`)?.click()}>
+      <div className={cn('mt-1.5 border-2 border-dashed rounded-lg p-4 text-center hover:bg-muted/50 transition-colors cursor-pointer', error && 'border-destructive')} onClick={() => document.getElementById(`file-${label}`)?.click()}>
         <input id={`file-${label}`} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => onChange(e.target.files?.[0] || null)} />
         {file ? (
           <p className="text-[13px] text-foreground font-medium">{file.name}</p>
@@ -398,6 +404,7 @@ function FileUpload({ label, hint, file, onChange, required }: { label: string; 
           <p className="text-[13px] text-muted-foreground">{hint}</p>
         )}
       </div>
+      {error && <p className="text-[12px] text-destructive mt-1">{error}</p>}
     </div>
   );
 }
