@@ -1,4 +1,5 @@
-import { Building2, LayoutDashboard, FileText, Users, DoorOpen, LogOut, History, ChevronDown, Home } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, DoorOpen, LogOut, History, ChevronDown, Home } from 'lucide-react';
+import logoStudentato from '@/assets/logo-studentato.svg';
 import { NavLink } from '@/components/NavLink';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -42,9 +43,7 @@ export function AdminSidebar() {
           <div className="px-3 py-4 mb-2">
             {!collapsed && (
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                  <Building2 className="w-4 h-4 text-primary-foreground" />
-                </div>
+                <img src={logoStudentato} alt="Studentato Europa" className="w-8 h-8 object-contain" />
                 <div>
                   <p className="text-sm font-bold">Studentato Europa</p>
                   <p className="text-[11px] text-muted-foreground">Gestionale</p>
