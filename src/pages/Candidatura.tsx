@@ -372,3 +372,137 @@ function ReviewSection({ title, items }: { title: string; items: [string, string
     </div>
   );
 }
+
+type ComboboxOption = { value: string; label: string; group?: string; searchKey?: string };
+
+function Combobox({ lang, label, placeholder, value, onChange, options, disabled, required }: {
+  lang: Lang;
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: ComboboxOption[];
+  disabled?: boolean;
+  required?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const grouped = options.reduce<Record<string, ComboboxOption[]>>((acc, o) => {
+    const k = o.group || '__';
+    (acc[k] ||= []).push(o);
+    return acc;
+  }, {});
+  const groupKeys = Object.keys(grouped);
+  const selectedLabel = options.find(o => o.value === value)?.label;
+  return (
+    <div>
+      <Label>{label}{required && <span className="text-destructive ml-0.5">*</span>}</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            role="combobox"
+            disabled={disabled}
+            aria-expanded={open}
+            className={cn('mt-1.5 w-full justify-between font-normal', !value && 'text-muted-foreground')}
+          >
+            <span className="truncate text-left">{selectedLabel || placeholder}</span>
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+          <Command>
+            <CommandInput placeholder={t(lang, 'form.searchPlaceholder')} />
+            <CommandList>
+              <CommandEmpty>{t(lang, 'form.noResults')}</CommandEmpty>
+              {groupKeys.map(gk => (
+                <CommandGroup key={gk} heading={gk === '__' ? undefined : gk}>
+                  {grouped[gk].map(o => (
+                    <CommandItem
+                      key={`${gk}-${o.value}`}
+                      value={o.searchKey || o.label}
+                      onSelect={() => { onChange(o.value); setOpen(false); }}
+                    >
+                      <Check className={cn('mr-2 h-4 w-4', value === o.value ? 'opacity-100' : 'opacity-0')} />
+                      {o.label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ))}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+function UniversitaField({ lang, value, onChange }: { lang: Lang; value: string; onChange: (v: string) => void }) {
+  const options: ComboboxOption[] = UNIVERSITIES.map(u => ({ value: u.name, label: u.name }));
+  return (
+    <Combobox
+      lang={lang}
+      label={t(lang, 'form.universita')}
+      placeholder={t(lang, 'form.selectUniversita')}
+      value={value}
+      onChange={onChange}
+      options={options}
+      required
+    />
+  );
+}
+
+function DipartimentoField({ lang, universitaName, value, onChange }: { lang: Lang; universitaName: string; value: string; onChange: (v: string) => void }) {
+  const uni = UNIVERSITIES.find(u => u.name === universitaName);
+  const options: ComboboxOption[] = (uni?.departments ?? []).map(d => ({
+    value: d.name,
+    label: d.name,
+    group: d.sede,
+    searchKey: `${d.name} ${d.sede}`,
+  }));
+  return (
+    <Combobox
+      lang={lang}
+      label={t(lang, 'form.dipartimento')}
+      placeholder={t(lang, 'form.selectDipartimento')}
+      value={value}
+      onChange={onChange}
+      options={options}
+      disabled={!uni}
+      required
+    />
+  );
+}
+
+function CorsoField({ lang, universitaName, dipartimentoName, value, onChange }: { lang: Lang; universitaName: string; dipartimentoName: string; value: string; onChange: (v: string) => void }) {
+  const uni = UNIVERSITIES.find(u => u.name === universitaName);
+  const dip = uni?.departments.find(d => d.name === dipartimentoName);
+  const order: CourseLevel[] = ['ciclo_unico', 'triennale', 'professione_sanitaria', 'magistrale'];
+  const options: ComboboxOption[] = [];
+  if (dip) {
+    for (const lvl of order) {
+      const courses = dip.courses.filter(c => c.level === lvl);
+      const groupLabel = COURSE_LEVEL_LABELS[lvl][lang];
+      courses.forEach((c, i) => {
+        options.push({
+          value: c.name,
+          label: c.name,
+          group: groupLabel,
+          searchKey: `${c.name} ${groupLabel} ${i}`,
+        });
+      });
+    }
+  }
+  return (
+    <Combobox
+      lang={lang}
+      label={t(lang, 'form.corsoStudi')}
+      placeholder={t(lang, 'form.selectCorso')}
+      value={value}
+      onChange={onChange}
+      options={options}
+      disabled={!dip}
+      required
+    />
+  );
+}
