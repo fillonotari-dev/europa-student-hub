@@ -680,16 +680,28 @@ function DocumentiTab() {
       toast({ title: 'Compila label IT ed EN', variant: 'destructive' });
       return;
     }
-    if (!KEY_RE.test(form.chiave)) {
+    const ensureUniqueKey = (base: string, existing: string[]): string => {
+      if (!existing.includes(base)) return base;
+      let i = 2;
+      while (existing.includes(`${base}_${i}`)) i++;
+      return `${base}_${i}`;
+    };
+    const chiaveFinale = editing
+      ? form.chiave
+      : ensureUniqueKey(
+          slugify(form.label_it) || `documento_${Date.now()}`,
+          docs.map(d => d.chiave),
+        );
+    if (!KEY_RE.test(chiaveFinale)) {
       toast({
-        title: 'Chiave non valida',
-        description: 'Usa solo lettere minuscole, numeri e underscore. Deve iniziare per lettera.',
+        title: 'Label non valida',
+        description: 'La label italiana deve contenere almeno una lettera.',
         variant: 'destructive',
       });
       return;
     }
     const data: any = {
-      chiave: form.chiave,
+      chiave: chiaveFinale,
       label_it: form.label_it.trim(),
       label_en: form.label_en.trim(),
       descrizione_it: form.descrizione_it.trim() || null,
