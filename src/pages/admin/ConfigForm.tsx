@@ -745,7 +745,6 @@ function DocumentiTab() {
                 <tr className="text-left">
                   <th className="px-3 py-2 w-20">Ordine</th>
                   <th className="px-3 py-2">Label (IT)</th>
-                  <th className="px-3 py-2">Chiave</th>
                   <th className="px-3 py-2 text-center">Obbligatorio</th>
                   <th className="px-3 py-2 text-center">Attivo</th>
                   <th className="px-3 py-2 text-right w-32">Azioni</th>
@@ -769,7 +768,6 @@ function DocumentiTab() {
                       </div>
                     </td>
                     <td className="px-3 py-2 font-medium">{d.label_it}</td>
-                    <td className="px-3 py-2 text-muted-foreground font-mono text-[12px]">{d.chiave}</td>
                     <td className="px-3 py-2 text-center">
                       {d.obbligatorio ? <Badge>Sì</Badge> : <span className="text-muted-foreground">—</span>}
                     </td>
