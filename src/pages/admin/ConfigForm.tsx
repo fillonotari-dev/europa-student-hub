@@ -254,15 +254,28 @@ function CampiTab() {
 
   const needsOptions = form.tipo === 'select' || form.tipo === 'multiselect';
 
+  const ensureUniqueKey = (base: string, existing: string[]): string => {
+    if (!existing.includes(base)) return base;
+    let i = 2;
+    while (existing.includes(`${base}_${i}`)) i++;
+    return `${base}_${i}`;
+  };
+
   const submit = () => {
     if (!form.label_it.trim() || !form.label_en.trim()) {
       toast({ title: 'Compila label IT ed EN', variant: 'destructive' });
       return;
     }
-    if (!KEY_RE.test(form.chiave)) {
+    const chiaveFinale = editing
+      ? form.chiave
+      : ensureUniqueKey(
+          slugify(form.label_it) || `campo_${Date.now()}`,
+          campi.map(c => c.chiave),
+        );
+    if (!KEY_RE.test(chiaveFinale)) {
       toast({
-        title: 'Chiave non valida',
-        description: 'Usa solo lettere minuscole, numeri e underscore. Deve iniziare per lettera.',
+        title: 'Label non valida',
+        description: 'La label italiana deve contenere almeno una lettera.',
         variant: 'destructive',
       });
       return;
@@ -286,7 +299,7 @@ function CampiTab() {
     }
 
     const data: any = {
-      chiave: form.chiave,
+      chiave: chiaveFinale,
       tipo: form.tipo,
       label_it: form.label_it.trim(),
       label_en: form.label_en.trim(),
