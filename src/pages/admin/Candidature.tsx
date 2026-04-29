@@ -565,11 +565,11 @@ function Section({ title, items }: { title: string; items: [string, string | nul
   );
 }
 
-function DocumentoRow({ doc }: { doc: any }) {
+function DocumentoRow({ doc, labelMap }: { doc: any; labelMap?: Record<string, string> }) {
   const { toast } = useToast();
   const [loading, setLoading] = useState<'open' | 'download' | null>(null);
   const path = extractStoragePath(doc.url);
-  const label = TIPO_DOC_LABELS[doc.tipo] ?? (doc.tipo || 'Documento');
+  const label = (labelMap && labelMap[doc.tipo]) || TIPO_DOC_LABELS[doc.tipo] || doc.tipo || 'Documento';
 
   const getSignedUrl = async (download = false) => {
     if (!path) throw new Error('Percorso file non valido');
