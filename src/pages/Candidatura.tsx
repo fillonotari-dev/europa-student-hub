@@ -747,3 +747,100 @@ function CorsoField({ lang, universitaName, dipartimentoName, value, onChange }:
     />
   );
 }
+
+function CustomFieldRenderer({
+  lang, campo, value, onChange,
+}: {
+  lang: Lang;
+  campo: CampoCustom;
+  value: any;
+  onChange: (v: any) => void;
+}) {
+  const lab = labelOf(lang, campo.label_it, campo.label_en);
+  const desc = labelOf(lang, campo.descrizione_it ?? '', campo.descrizione_en ?? '');
+  const opts = campo.opzioni ?? [];
+
+  const renderControl = () => {
+    switch (campo.tipo) {
+      case 'text':
+        return <Input value={value ?? ''} onChange={e => onChange(e.target.value)} className="mt-1.5" maxLength={500} />;
+      case 'number':
+        return <Input type="number" value={value ?? ''} onChange={e => onChange(e.target.value)} className="mt-1.5" />;
+      case 'date':
+        return <Input type="date" value={value ?? ''} onChange={e => onChange(e.target.value)} className="mt-1.5" />;
+      case 'textarea':
+        return <Textarea value={value ?? ''} onChange={e => onChange(e.target.value)} className="mt-1.5" maxLength={2000} rows={3} />;
+      case 'boolean':
+        return (
+          <div className="mt-2 flex items-center gap-2">
+            <Switch checked={!!value} onCheckedChange={onChange} />
+            <span className="text-[13px] text-muted-foreground">{value ? t(lang, 'form.yes') : t(lang, 'form.no')}</span>
+          </div>
+        );
+      case 'select':
+        return (
+          <Select value={value ?? ''} onValueChange={onChange}>
+            <SelectTrigger className="mt-1.5"><SelectValue placeholder={t(lang, 'form.selectOption')} /></SelectTrigger>
+            <SelectContent>
+              {opts.map(o => (
+                <SelectItem key={o.value} value={o.value}>{labelOf(lang, o.label_it, o.label_en)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      case 'multiselect': {
+        const arr: string[] = Array.isArray(value) ? value : [];
+        const toggle = (val: string, on: boolean) => {
+          const next = on ? Array.from(new Set([...arr, val])) : arr.filter(x => x !== val);
+          onChange(next);
+        };
+        return (
+          <div className="mt-2 space-y-2">
+            {opts.length === 0 && <p className="text-[12px] text-muted-foreground">{t(lang, 'form.noOption')}</p>}
+            {opts.map(o => {
+              const checked = arr.includes(o.value);
+              return (
+                <label key={o.value} className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox checked={checked} onCheckedChange={(c) => toggle(o.value, !!c)} />
+                  <span className="text-[13px]">{labelOf(lang, o.label_it, o.label_en)}</span>
+                </label>
+              );
+            })}
+          </div>
+        );
+      }
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div>
+      <Label>
+        {lab}
+        {campo.obbligatorio && <span className="text-destructive ml-0.5">*</span>}
+      </Label>
+      {desc && <p className="text-[12px] text-muted-foreground mt-1">{desc}</p>}
+      {renderControl()}
+    </div>
+  );
+}
+
+function formatCustomValue(lang: Lang, campo: CampoCustom, value: any): string {
+  if (value === undefined || value === null || value === '') return '-';
+  if (campo.tipo === 'boolean') return value ? t(lang, 'form.yes') : t(lang, 'form.no');
+  if (campo.tipo === 'select') {
+    const o = (campo.opzioni ?? []).find(x => x.value === value);
+    return o ? labelOf(lang, o.label_it, o.label_en) : String(value);
+  }
+  if (campo.tipo === 'multiselect') {
+    if (!Array.isArray(value) || value.length === 0) return '-';
+    return value
+      .map(v => {
+        const o = (campo.opzioni ?? []).find(x => x.value === v);
+        return o ? labelOf(lang, o.label_it, o.label_en) : String(v);
+      })
+      .join(', ');
+  }
+  return String(value);
+}
