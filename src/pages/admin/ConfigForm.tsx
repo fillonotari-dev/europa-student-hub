@@ -254,15 +254,28 @@ function CampiTab() {
 
   const needsOptions = form.tipo === 'select' || form.tipo === 'multiselect';
 
+  const ensureUniqueKey = (base: string, existing: string[]): string => {
+    if (!existing.includes(base)) return base;
+    let i = 2;
+    while (existing.includes(`${base}_${i}`)) i++;
+    return `${base}_${i}`;
+  };
+
   const submit = () => {
     if (!form.label_it.trim() || !form.label_en.trim()) {
       toast({ title: 'Compila label IT ed EN', variant: 'destructive' });
       return;
     }
-    if (!KEY_RE.test(form.chiave)) {
+    const chiaveFinale = editing
+      ? form.chiave
+      : ensureUniqueKey(
+          slugify(form.label_it) || `campo_${Date.now()}`,
+          campi.map(c => c.chiave),
+        );
+    if (!KEY_RE.test(chiaveFinale)) {
       toast({
-        title: 'Chiave non valida',
-        description: 'Usa solo lettere minuscole, numeri e underscore. Deve iniziare per lettera.',
+        title: 'Label non valida',
+        description: 'La label italiana deve contenere almeno una lettera.',
         variant: 'destructive',
       });
       return;
@@ -286,7 +299,7 @@ function CampiTab() {
     }
 
     const data: any = {
-      chiave: form.chiave,
+      chiave: chiaveFinale,
       tipo: form.tipo,
       label_it: form.label_it.trim(),
       label_en: form.label_en.trim(),
@@ -344,7 +357,6 @@ function CampiTab() {
                 <tr className="text-left">
                   <th className="px-3 py-2 w-20">Ordine</th>
                   <th className="px-3 py-2">Label (IT)</th>
-                  <th className="px-3 py-2">Chiave</th>
                   <th className="px-3 py-2">Tipo</th>
                   <th className="px-3 py-2 text-center">Obbligatorio</th>
                   <th className="px-3 py-2 text-center">Attivo</th>
@@ -373,7 +385,6 @@ function CampiTab() {
                       </div>
                     </td>
                     <td className="px-3 py-2 font-medium">{c.label_it}</td>
-                    <td className="px-3 py-2 text-muted-foreground font-mono text-[12px]">{c.chiave}</td>
                     <td className="px-3 py-2">
                       <Badge variant="secondary">{TIPO_LABELS[c.tipo]}</Badge>
                     </td>
@@ -425,19 +436,6 @@ function CampiTab() {
                 <Label>Label (inglese)<span className="text-destructive ml-0.5">*</span></Label>
                 <Input value={form.label_en} onChange={e => setForm(f => ({ ...f, label_en: e.target.value }))} className="mt-1.5" maxLength={120} />
               </div>
-            </div>
-            <div>
-              <Label>Chiave<span className="text-destructive ml-0.5">*</span></Label>
-              <Input
-                value={form.chiave}
-                onChange={e => setForm(f => ({ ...f, chiave: e.target.value, chiaveAuto: false }))}
-                className="mt-1.5 font-mono"
-                disabled={!!editing}
-                maxLength={60}
-              />
-              <p className="text-[12px] text-muted-foreground mt-1">
-                Identificatore tecnico (snake_case). {editing ? 'Non modificabile dopo la creazione.' : 'Generato automaticamente dalla label.'}
-              </p>
             </div>
             <div>
               <Label>Tipo<span className="text-destructive ml-0.5">*</span></Label>
@@ -680,16 +678,28 @@ function DocumentiTab() {
       toast({ title: 'Compila label IT ed EN', variant: 'destructive' });
       return;
     }
-    if (!KEY_RE.test(form.chiave)) {
+    const ensureUniqueKey = (base: string, existing: string[]): string => {
+      if (!existing.includes(base)) return base;
+      let i = 2;
+      while (existing.includes(`${base}_${i}`)) i++;
+      return `${base}_${i}`;
+    };
+    const chiaveFinale = editing
+      ? form.chiave
+      : ensureUniqueKey(
+          slugify(form.label_it) || `documento_${Date.now()}`,
+          docs.map(d => d.chiave),
+        );
+    if (!KEY_RE.test(chiaveFinale)) {
       toast({
-        title: 'Chiave non valida',
-        description: 'Usa solo lettere minuscole, numeri e underscore. Deve iniziare per lettera.',
+        title: 'Label non valida',
+        description: 'La label italiana deve contenere almeno una lettera.',
         variant: 'destructive',
       });
       return;
     }
     const data: any = {
-      chiave: form.chiave,
+      chiave: chiaveFinale,
       label_it: form.label_it.trim(),
       label_en: form.label_en.trim(),
       descrizione_it: form.descrizione_it.trim() || null,
@@ -735,7 +745,6 @@ function DocumentiTab() {
                 <tr className="text-left">
                   <th className="px-3 py-2 w-20">Ordine</th>
                   <th className="px-3 py-2">Label (IT)</th>
-                  <th className="px-3 py-2">Chiave</th>
                   <th className="px-3 py-2 text-center">Obbligatorio</th>
                   <th className="px-3 py-2 text-center">Attivo</th>
                   <th className="px-3 py-2 text-right w-32">Azioni</th>
@@ -759,7 +768,6 @@ function DocumentiTab() {
                       </div>
                     </td>
                     <td className="px-3 py-2 font-medium">{d.label_it}</td>
-                    <td className="px-3 py-2 text-muted-foreground font-mono text-[12px]">{d.chiave}</td>
                     <td className="px-3 py-2 text-center">
                       {d.obbligatorio ? <Badge>Sì</Badge> : <span className="text-muted-foreground">—</span>}
                     </td>
@@ -805,19 +813,6 @@ function DocumentiTab() {
                 <Label>Label (inglese)<span className="text-destructive ml-0.5">*</span></Label>
                 <Input value={form.label_en} onChange={e => setForm(f => ({ ...f, label_en: e.target.value }))} className="mt-1.5" maxLength={120} />
               </div>
-            </div>
-            <div>
-              <Label>Chiave<span className="text-destructive ml-0.5">*</span></Label>
-              <Input
-                value={form.chiave}
-                onChange={e => setForm(f => ({ ...f, chiave: e.target.value, chiaveAuto: false }))}
-                className="mt-1.5 font-mono"
-                disabled={!!editing}
-                maxLength={60}
-              />
-              <p className="text-[12px] text-muted-foreground mt-1">
-                Identificatore tecnico (snake_case). {editing ? 'Non modificabile dopo la creazione.' : 'Generato automaticamente dalla label.'}
-              </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
