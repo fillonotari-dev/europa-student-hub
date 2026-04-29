@@ -86,7 +86,7 @@ export default function Candidatura() {
     const required: Record<number, string[]> = {
       0: ['nome', 'cognome', 'email', 'telefono', 'data_nascita', 'nazionalita', 'codice_fiscale'],
       1: ['universita', 'dipartimento', 'corso_di_studi', 'anno_di_corso', 'matricola'],
-      2: ['periodo_inizio', 'periodo_fine', 'anno_accademico'],
+      2: ['anno_accademico'],
       3: ['_documenti'],
     };
     const fields = required[step] || [];
@@ -265,12 +265,9 @@ export default function Candidatura() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label={t(lang, 'form.periodoInizio')} value={form.periodo_inizio} onChange={v => set('periodo_inizio', v)} type="date" required />
-                  <Field label={t(lang, 'form.periodoFine')} value={form.periodo_fine} onChange={v => set('periodo_fine', v)} type="date" required />
-                </div>
                 <div>
                   <Label>{t(lang, 'form.annoAccademico')}<span className="text-destructive ml-0.5">*</span></Label>
+                  <p className="mt-1 text-[12px] text-muted-foreground">{t(lang, 'form.annoAccademicoHint')}</p>
                   <Select value={form.anno_accademico} onValueChange={v => set('anno_accademico', v)}>
                     <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -313,8 +310,6 @@ export default function Candidatura() {
                     return sel.indirizzo ? `${sel.nome} — ${sel.indirizzo}` : sel.nome;
                   })()],
                   [t(lang, 'form.tipoCameraPreferito'), form.tipo_camera_preferito || '-'],
-                  [t(lang, 'form.periodoInizio'), form.periodo_inizio],
-                  [t(lang, 'form.periodoFine'), form.periodo_fine],
                   [t(lang, 'form.annoAccademico'), form.anno_accademico],
                 ]} />
                 {(files.documento_identita || files.certificato_iscrizione) && (
