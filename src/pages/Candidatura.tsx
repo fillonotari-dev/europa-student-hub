@@ -34,7 +34,7 @@ export default function Candidatura() {
     universita: UNIVERSITIES.length === 1 ? UNIVERSITIES[0].name : '',
     dipartimento: '', corso_di_studi: '', anno_di_corso: '', matricola: '',
     struttura_preferita_id: '', tipo_camera_preferito: '', periodo_inizio: '', periodo_fine: '',
-    anno_accademico: '2025/2026', messaggio: '',
+    anno_accademico: '', messaggio: '',
   });
   const [files, setFiles] = useState<{ documento_identita: File | null; certificato_iscrizione: File | null }>({
     documento_identita: null, certificato_iscrizione: null,
@@ -67,7 +67,7 @@ export default function Candidatura() {
   const anniAccademici = useMemo(() => {
     const now = new Date();
     const startYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
-    return Array.from({ length: 3 }, (_, i) => `${startYear + i}/${startYear + i + 1}`);
+    return Array.from({ length: 3 }, (_, i) => `${startYear + i}/${startYear + i + 1}`).filter(a => a !== '2025/2026');
   }, []);
 
   const set = (key: string, value: string) => setForm(f => ({ ...f, [key]: value }));
