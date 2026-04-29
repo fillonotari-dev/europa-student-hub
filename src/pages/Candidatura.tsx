@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -18,9 +20,35 @@ import { cn } from '@/lib/utils';
 import { NATIONALITIES } from '@/lib/nationalities';
 import { UNIVERSITIES, COURSE_LEVEL_LABELS, type CourseLevel } from '@/lib/universities';
 
-const STEPS = ['stepPersonal', 'stepAcademic', 'stepPreferences', 'stepDocuments', 'stepReview'] as const;
+const BASE_STEPS = ['stepPersonal', 'stepAcademic', 'stepPreferences', 'stepDocuments'] as const;
 const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 const MAX_SIZE = 5 * 1024 * 1024;
+
+type CampoOpzione = { value: string; label_it: string; label_en: string };
+type CampoCustom = {
+  id: string;
+  chiave: string;
+  tipo: 'text' | 'textarea' | 'number' | 'date' | 'boolean' | 'select' | 'multiselect';
+  label_it: string;
+  label_en: string;
+  descrizione_it: string | null;
+  descrizione_en: string | null;
+  opzioni: CampoOpzione[] | null;
+  obbligatorio: boolean;
+  ordine: number;
+};
+type DocumentoCustom = {
+  id: string;
+  chiave: string;
+  label_it: string;
+  label_en: string;
+  descrizione_it: string | null;
+  descrizione_en: string | null;
+  obbligatorio: boolean;
+  ordine: number;
+};
+
+const labelOf = (lang: Lang, it: string, en: string) => (lang === 'it' ? it : en);
 
 export default function Candidatura() {
   const [lang, setLang] = useState<Lang>('it');
@@ -40,6 +68,9 @@ export default function Candidatura() {
     documento_identita: null, certificato_iscrizione: null,
   });
   const [fileErrors, setFileErrors] = useState<{ documento_identita?: string; certificato_iscrizione?: string }>({});
+  const [customAnswers, setCustomAnswers] = useState<Record<string, any>>({});
+  const [customFiles, setCustomFiles] = useState<Record<string, File | null>>({});
+  const [customFileErrors, setCustomFileErrors] = useState<Record<string, string | undefined>>({});
 
   const { data: strutture } = useQuery({
     queryKey: ['strutture-pubbliche'],
@@ -48,6 +79,40 @@ export default function Candidatura() {
       return data ?? [];
     },
   });
+
+  const { data: campiCustom = [] } = useQuery({
+    queryKey: ['form-campi-custom-public'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('form_campi_custom')
+        .select('*')
+        .eq('attivo', true)
+        .order('ordine');
+      return (data ?? []) as unknown as CampoCustom[];
+    },
+  });
+
+  const { data: documentiCustom = [] } = useQuery({
+    queryKey: ['form-documenti-custom-public'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('form_documenti_custom')
+        .select('*')
+        .eq('attivo', true)
+        .order('ordine');
+      return (data ?? []) as unknown as DocumentoCustom[];
+    },
+  });
+
+  const hasInfoExtra = campiCustom.length > 0 || documentiCustom.length > 0;
+  const STEPS = useMemo(
+    () =>
+      hasInfoExtra
+        ? [...BASE_STEPS, 'stepInfoAggiuntive', 'stepReview']
+        : [...BASE_STEPS, 'stepReview'],
+    [hasInfoExtra]
+  );
+  const stepKey = STEPS[step];
 
   // Tipi camera disponibili per la struttura selezionata (lettura real-time dal DB)
   const { data: tipiCameraDisponibili } = useQuery({
@@ -83,13 +148,14 @@ export default function Candidatura() {
     setForm(f => ({ ...f, dipartimento: value, corso_di_studi: '' }));
 
   const validateStep = () => {
-    const required: Record<number, string[]> = {
-      0: ['nome', 'cognome', 'email', 'telefono', 'data_nascita', 'nazionalita', 'codice_fiscale'],
-      1: ['universita', 'dipartimento', 'corso_di_studi', 'matricola'],
-      2: ['periodo_inizio', 'periodo_fine', 'anno_accademico'],
-      3: ['_documenti'],
+    const requiredByKey: Record<string, string[]> = {
+      stepPersonal: ['nome', 'cognome', 'email', 'telefono', 'data_nascita', 'nazionalita', 'codice_fiscale'],
+      stepAcademic: ['universita', 'dipartimento', 'corso_di_studi', 'matricola'],
+      stepPreferences: ['periodo_inizio', 'periodo_fine', 'anno_accademico'],
+      stepDocuments: ['_documenti'],
+      stepInfoAggiuntive: ['_info_extra'],
     };
-    const fields = required[step] || [];
+    const fields = requiredByKey[stepKey] || [];
     for (const f of fields) {
       if (f === '_documenti') {
         if (!files.documento_identita || !files.certificato_iscrizione) {
@@ -98,12 +164,33 @@ export default function Candidatura() {
         }
         continue;
       }
+      if (f === '_info_extra') {
+        for (const c of campiCustom) {
+          if (!c.obbligatorio) continue;
+          const v = customAnswers[c.chiave];
+          const empty =
+            v === undefined || v === null || v === '' ||
+            (Array.isArray(v) && v.length === 0);
+          if (empty) {
+            toast({ title: `${labelOf(lang, c.label_it, c.label_en)}: ${t(lang, 'form.required')}`, variant: 'destructive' });
+            return false;
+          }
+        }
+        for (const d of documentiCustom) {
+          if (!d.obbligatorio) continue;
+          if (!customFiles[d.chiave]) {
+            toast({ title: `${labelOf(lang, d.label_it, d.label_en)}: ${t(lang, 'form.required')}`, variant: 'destructive' });
+            return false;
+          }
+        }
+        continue;
+      }
       if (!(form as any)[f]) {
         toast({ title: t(lang, 'form.required'), variant: 'destructive' });
         return false;
       }
     }
-    if (step === 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+    if (stepKey === 'stepPersonal' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
       toast({ title: t(lang, 'form.invalidEmail'), variant: 'destructive' });
       return false;
     }
@@ -112,6 +199,13 @@ export default function Candidatura() {
 
   const next = () => { if (validateStep()) setStep(s => Math.min(s + 1, STEPS.length - 1)); };
   const prev = () => setStep(s => Math.max(s - 1, 0));
+
+  const validateFile = (file: File | null): string | null => {
+    if (!file) return null;
+    if (!ACCEPTED_TYPES.includes(file.type)) return t(lang, 'form.fileInvalidType');
+    if (file.size > MAX_SIZE) return t(lang, 'form.fileTooLarge');
+    return null;
+  };
 
   const handleFile = (key: keyof typeof files, file: File | null) => {
     if (file && !ACCEPTED_TYPES.includes(file.type)) {
@@ -130,6 +224,17 @@ export default function Candidatura() {
     setFiles(f => ({ ...f, [key]: file }));
   };
 
+  const handleCustomFile = (chiave: string, file: File | null) => {
+    const err = validateFile(file);
+    if (err) {
+      setCustomFileErrors(e => ({ ...e, [chiave]: err }));
+      toast({ title: err, variant: 'destructive' });
+      return;
+    }
+    setCustomFileErrors(e => ({ ...e, [chiave]: undefined }));
+    setCustomFiles(f => ({ ...f, [chiave]: file }));
+  };
+
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
@@ -145,8 +250,23 @@ export default function Candidatura() {
         uploadedDocs.push({ tipo, nome_file: file.name, url: urlData.publicUrl });
       }
 
+      // Documenti custom
+      for (const [chiave, file] of Object.entries(customFiles)) {
+        if (!file) continue;
+        const path = `${tempId}/${chiave}/${file.name}`;
+        const { error } = await supabase.storage.from('documenti_studenti').upload(path, file);
+        if (error) throw error;
+        const { data: urlData } = supabase.storage.from('documenti_studenti').getPublicUrl(path);
+        uploadedDocs.push({ tipo: chiave, nome_file: file.name, url: urlData.publicUrl });
+      }
+
       const { error } = await supabase.functions.invoke('submit-candidatura', {
-        body: { ...form, documenti: uploadedDocs, struttura_preferita_id: form.struttura_preferita_id || null },
+        body: {
+          ...form,
+          documenti: uploadedDocs,
+          struttura_preferita_id: form.struttura_preferita_id || null,
+          risposte_custom: customAnswers,
+        },
       });
       if (error) throw error;
       setSuccess(true);
