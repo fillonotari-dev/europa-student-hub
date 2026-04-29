@@ -156,7 +156,7 @@ function CampiTab() {
         .order('ordine')
         .order('created_at');
       if (error) throw error;
-      return (data ?? []) as Campo[];
+      return (data ?? []) as unknown as Campo[];
     },
   });
 
@@ -583,7 +583,7 @@ function DocumentiTab() {
         .order('ordine')
         .order('created_at');
       if (error) throw error;
-      return (data ?? []) as Documento[];
+      return (data ?? []) as unknown as Documento[];
     },
   });
 
