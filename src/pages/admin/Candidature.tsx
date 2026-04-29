@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -98,6 +98,45 @@ export default function Candidature() {
       return data ?? [];
     },
   });
+
+  // Configurazione campi/documenti custom (per label e export)
+  const { data: campiCustomAll = [] } = useQuery({
+    queryKey: ['form-campi-custom-all'],
+    queryFn: async () => {
+      const { data } = await supabase.from('form_campi_custom').select('*').order('ordine');
+      return (data ?? []) as any[];
+    },
+  });
+  const { data: documentiCustomAll = [] } = useQuery({
+    queryKey: ['form-documenti-custom-all'],
+    queryFn: async () => {
+      const { data } = await supabase.from('form_documenti_custom').select('*').order('ordine');
+      return (data ?? []) as any[];
+    },
+  });
+
+  const docLabelMap = useMemo(() => {
+    const m: Record<string, string> = { ...TIPO_DOC_LABELS };
+    for (const d of documentiCustomAll) m[d.chiave] = d.label_it;
+    return m;
+  }, [documentiCustomAll]);
+
+  const formatCustomAnswer = (campo: any, value: any): string => {
+    if (value === undefined || value === null || value === '') return '-';
+    if (campo.tipo === 'boolean') return value ? 'Sì' : 'No';
+    if (campo.tipo === 'select') {
+      const o = (campo.opzioni ?? []).find((x: any) => x.value === value);
+      return o ? o.label_it : String(value);
+    }
+    if (campo.tipo === 'multiselect') {
+      if (!Array.isArray(value) || value.length === 0) return '-';
+      return value.map(v => {
+        const o = (campo.opzioni ?? []).find((x: any) => x.value === v);
+        return o ? o.label_it : String(v);
+      }).join(', ');
+    }
+    return String(value);
+  };
 
   const updateStato = useMutation({
     mutationFn: async ({ id, stato, note }: { id: string; stato: string; note?: string }) => {
@@ -261,23 +300,30 @@ export default function Candidature() {
         />
         <ExportButton
           filename="candidature"
-          getRows={() => filtered.map((c: any) => ({
-            'Nome': c.studenti?.nome ?? '',
-            'Cognome': c.studenti?.cognome ?? '',
-            'Email': c.studenti?.email ?? '',
-            'Telefono': c.studenti?.telefono ?? '',
-            'Nazionalità': c.studenti?.nazionalita ?? '',
-            'Struttura preferita': c.strutture?.nome ?? '',
-            'Università': c.universita_snapshot ?? '',
-            'Corso': c.corso_snapshot ?? '',
-            'Anno corso': c.anno_corso_snapshot ?? '',
-            'Matricola': c.matricola_snapshot ?? '',
-            'Stato': STATO_LABELS[c.stato] ?? c.stato,
-            'Anno accademico': c.anno_accademico ?? '',
-            'Periodo inizio': fmtDate(c.periodo_inizio),
-            'Periodo fine': fmtDate(c.periodo_fine),
-            'Data candidatura': fmtDate(c.created_at),
-          }))}
+          getRows={() => filtered.map((c: any) => {
+            const base: Record<string, any> = {
+              'Nome': c.studenti?.nome ?? '',
+              'Cognome': c.studenti?.cognome ?? '',
+              'Email': c.studenti?.email ?? '',
+              'Telefono': c.studenti?.telefono ?? '',
+              'Nazionalità': c.studenti?.nazionalita ?? '',
+              'Struttura preferita': c.strutture?.nome ?? '',
+              'Università': c.universita_snapshot ?? '',
+              'Corso': c.corso_snapshot ?? '',
+              'Anno corso': c.anno_corso_snapshot ?? '',
+              'Matricola': c.matricola_snapshot ?? '',
+              'Stato': STATO_LABELS[c.stato] ?? c.stato,
+              'Anno accademico': c.anno_accademico ?? '',
+              'Periodo inizio': fmtDate(c.periodo_inizio),
+              'Periodo fine': fmtDate(c.periodo_fine),
+              'Data candidatura': fmtDate(c.created_at),
+            };
+            const risp = (c.risposte_custom ?? {}) as Record<string, any>;
+            for (const cc of campiCustomAll) {
+              base[cc.label_it] = formatCustomAnswer(cc, risp[cc.chiave]);
+            }
+            return base;
+          })}
         />
       </div>
 
@@ -385,12 +431,39 @@ export default function Candidature() {
                   </div>
                 )}
 
+                {(() => {
+                  const risp = (selected.risposte_custom ?? {}) as Record<string, any>;
+                  const knownKeys = new Set(campiCustomAll.map((c: any) => c.chiave));
+                  const orphanKeys = Object.keys(risp).filter(k => !knownKeys.has(k));
+                  const hasContent = campiCustomAll.length > 0 || orphanKeys.length > 0;
+                  if (!hasContent) return null;
+                  return (
+                    <div>
+                      <p className="text-sm font-semibold mb-2">Informazioni aggiuntive</p>
+                      <div className="bg-muted/30 rounded-lg p-3 space-y-2">
+                        {campiCustomAll.map((c: any) => (
+                          <div key={c.id} className="flex justify-between gap-3 text-[13px]">
+                            <span className="text-muted-foreground">{c.label_it}</span>
+                            <span className="font-medium text-right">{formatCustomAnswer(c, risp[c.chiave])}</span>
+                          </div>
+                        ))}
+                        {orphanKeys.map(k => (
+                          <div key={k} className="flex justify-between gap-3 text-[13px]">
+                            <span className="text-muted-foreground font-mono text-[12px]">{k}</span>
+                            <span className="font-medium text-right">{String(risp[k] ?? '-')}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <div>
                   <p className="text-sm font-semibold mb-2">Documenti caricati</p>
                   {documenti && documenti.length > 0 ? (
                     <div className="space-y-2">
                       {documenti.map((d: any) => (
-                        <DocumentoRow key={d.id} doc={d} />
+                        <DocumentoRow key={d.id} doc={d} labelMap={docLabelMap} />
                       ))}
                     </div>
                   ) : (
@@ -499,11 +572,11 @@ function Section({ title, items }: { title: string; items: [string, string | nul
   );
 }
 
-function DocumentoRow({ doc }: { doc: any }) {
+function DocumentoRow({ doc, labelMap }: { doc: any; labelMap?: Record<string, string> }) {
   const { toast } = useToast();
   const [loading, setLoading] = useState<'open' | 'download' | null>(null);
   const path = extractStoragePath(doc.url);
-  const label = TIPO_DOC_LABELS[doc.tipo] ?? (doc.tipo || 'Documento');
+  const label = (labelMap && labelMap[doc.tipo]) || TIPO_DOC_LABELS[doc.tipo] || doc.tipo || 'Documento';
 
   const getSignedUrl = async (download = false) => {
     if (!path) throw new Error('Percorso file non valido');

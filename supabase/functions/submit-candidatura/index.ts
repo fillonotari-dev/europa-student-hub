@@ -20,17 +20,57 @@ Deno.serve(async (req) => {
       nome, cognome, email, telefono, data_nascita, nazionalita, codice_fiscale,
       universita, dipartimento, corso_di_studi, anno_di_corso, matricola,
       struttura_preferita_id, tipo_camera_preferito, periodo_inizio, periodo_fine,
-      anno_accademico, messaggio, documenti
+      anno_accademico, messaggio, documenti, risposte_custom
     } = body;
 
     const corsoCompleto = dipartimento ? `${corso_di_studi} — ${dipartimento}` : corso_di_studi;
 
     // Validate required fields
-    if (!nome || !cognome || !email || !universita || !corso_di_studi || !anno_di_corso || !matricola || !anno_accademico) {
+    if (!nome || !cognome || !email || !universita || !corso_di_studi || !matricola || !anno_accademico) {
       return new Response(JSON.stringify({ error: "Campi obbligatori mancanti" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Validate custom required fields and documents
+    const safeRisposte = (risposte_custom && typeof risposte_custom === "object" && !Array.isArray(risposte_custom))
+      ? risposte_custom as Record<string, unknown>
+      : {};
+
+    const { data: campiAttivi } = await supabase
+      .from("form_campi_custom")
+      .select("chiave, obbligatorio, tipo, label_it")
+      .eq("attivo", true);
+
+    for (const c of campiAttivi ?? []) {
+      if (!c.obbligatorio) continue;
+      const v = safeRisposte[c.chiave];
+      const empty =
+        v === undefined || v === null || v === "" ||
+        (Array.isArray(v) && v.length === 0);
+      if (empty) {
+        return new Response(JSON.stringify({ error: `Campo obbligatorio mancante: ${c.label_it}` }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    const { data: docsAttivi } = await supabase
+      .from("form_documenti_custom")
+      .select("chiave, obbligatorio, label_it")
+      .eq("attivo", true);
+
+    const docTipiCaricati = new Set((Array.isArray(documenti) ? documenti : []).map((d: any) => d?.tipo));
+    for (const d of docsAttivi ?? []) {
+      if (!d.obbligatorio) continue;
+      if (!docTipiCaricati.has(d.chiave)) {
+        return new Response(JSON.stringify({ error: `Documento obbligatorio mancante: ${d.label_it}` }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // Check if student exists by email
@@ -97,6 +137,7 @@ Deno.serve(async (req) => {
         corso_snapshot: corsoCompleto,
         anno_corso_snapshot: anno_di_corso,
         matricola_snapshot: matricola,
+        risposte_custom: safeRisposte,
       })
       .select("id")
       .single();
