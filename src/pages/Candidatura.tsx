@@ -19,6 +19,7 @@ import { Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NATIONALITIES } from '@/lib/nationalities';
 import { UNIVERSITIES, COURSE_LEVEL_LABELS, type CourseLevel } from '@/lib/universities';
+import logoStudentato from '@/assets/logo-studentato.svg';
 
 const BASE_STEPS = ['stepPersonal', 'stepAcademic', 'stepPreferences', 'stepDocuments'] as const;
 const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
@@ -299,9 +300,12 @@ export default function Candidatura() {
       {/* Header */}
       <header className="border-b bg-card">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-primary">Studentato Europa</h1>
-            <p className="text-[13px] text-muted-foreground">{t(lang, 'form.subtitle')}</p>
+          <div className="flex items-center gap-3">
+            <img src={logoStudentato} alt="Studentato Europa" className="w-8 h-8 object-contain shrink-0" />
+            <div>
+              <h1 className="text-lg font-bold text-primary">Studentato Europa</h1>
+              <p className="text-[13px] text-muted-foreground">{t(lang, 'form.subtitle')}</p>
+            </div>
           </div>
           <button onClick={() => setLang(l => l === 'it' ? 'en' : 'it')} className="flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-md hover:bg-muted">
             <Globe className="w-4 h-4" />
