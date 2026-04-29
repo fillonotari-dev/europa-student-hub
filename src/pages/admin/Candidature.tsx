@@ -300,23 +300,30 @@ export default function Candidature() {
         />
         <ExportButton
           filename="candidature"
-          getRows={() => filtered.map((c: any) => ({
-            'Nome': c.studenti?.nome ?? '',
-            'Cognome': c.studenti?.cognome ?? '',
-            'Email': c.studenti?.email ?? '',
-            'Telefono': c.studenti?.telefono ?? '',
-            'Nazionalità': c.studenti?.nazionalita ?? '',
-            'Struttura preferita': c.strutture?.nome ?? '',
-            'Università': c.universita_snapshot ?? '',
-            'Corso': c.corso_snapshot ?? '',
-            'Anno corso': c.anno_corso_snapshot ?? '',
-            'Matricola': c.matricola_snapshot ?? '',
-            'Stato': STATO_LABELS[c.stato] ?? c.stato,
-            'Anno accademico': c.anno_accademico ?? '',
-            'Periodo inizio': fmtDate(c.periodo_inizio),
-            'Periodo fine': fmtDate(c.periodo_fine),
-            'Data candidatura': fmtDate(c.created_at),
-          }))}
+          getRows={() => filtered.map((c: any) => {
+            const base: Record<string, any> = {
+              'Nome': c.studenti?.nome ?? '',
+              'Cognome': c.studenti?.cognome ?? '',
+              'Email': c.studenti?.email ?? '',
+              'Telefono': c.studenti?.telefono ?? '',
+              'Nazionalità': c.studenti?.nazionalita ?? '',
+              'Struttura preferita': c.strutture?.nome ?? '',
+              'Università': c.universita_snapshot ?? '',
+              'Corso': c.corso_snapshot ?? '',
+              'Anno corso': c.anno_corso_snapshot ?? '',
+              'Matricola': c.matricola_snapshot ?? '',
+              'Stato': STATO_LABELS[c.stato] ?? c.stato,
+              'Anno accademico': c.anno_accademico ?? '',
+              'Periodo inizio': fmtDate(c.periodo_inizio),
+              'Periodo fine': fmtDate(c.periodo_fine),
+              'Data candidatura': fmtDate(c.created_at),
+            };
+            const risp = (c.risposte_custom ?? {}) as Record<string, any>;
+            for (const cc of campiCustomAll) {
+              base[cc.label_it] = formatCustomAnswer(cc, risp[cc.chiave]);
+            }
+            return base;
+          })}
         />
       </div>
 
