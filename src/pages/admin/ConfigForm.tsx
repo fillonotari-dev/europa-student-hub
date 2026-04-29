@@ -357,7 +357,6 @@ function CampiTab() {
                 <tr className="text-left">
                   <th className="px-3 py-2 w-20">Ordine</th>
                   <th className="px-3 py-2">Label (IT)</th>
-                  <th className="px-3 py-2">Chiave</th>
                   <th className="px-3 py-2">Tipo</th>
                   <th className="px-3 py-2 text-center">Obbligatorio</th>
                   <th className="px-3 py-2 text-center">Attivo</th>
@@ -386,7 +385,6 @@ function CampiTab() {
                       </div>
                     </td>
                     <td className="px-3 py-2 font-medium">{c.label_it}</td>
-                    <td className="px-3 py-2 text-muted-foreground font-mono text-[12px]">{c.chiave}</td>
                     <td className="px-3 py-2">
                       <Badge variant="secondary">{TIPO_LABELS[c.tipo]}</Badge>
                     </td>
