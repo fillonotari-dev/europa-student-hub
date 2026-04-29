@@ -99,6 +99,45 @@ export default function Candidature() {
     },
   });
 
+  // Configurazione campi/documenti custom (per label e export)
+  const { data: campiCustomAll = [] } = useQuery({
+    queryKey: ['form-campi-custom-all'],
+    queryFn: async () => {
+      const { data } = await supabase.from('form_campi_custom').select('*').order('ordine');
+      return (data ?? []) as any[];
+    },
+  });
+  const { data: documentiCustomAll = [] } = useQuery({
+    queryKey: ['form-documenti-custom-all'],
+    queryFn: async () => {
+      const { data } = await supabase.from('form_documenti_custom').select('*').order('ordine');
+      return (data ?? []) as any[];
+    },
+  });
+
+  const docLabelMap = useMemo(() => {
+    const m: Record<string, string> = { ...TIPO_DOC_LABELS };
+    for (const d of documentiCustomAll) m[d.chiave] = d.label_it;
+    return m;
+  }, [documentiCustomAll]);
+
+  const formatCustomAnswer = (campo: any, value: any): string => {
+    if (value === undefined || value === null || value === '') return '-';
+    if (campo.tipo === 'boolean') return value ? 'Sì' : 'No';
+    if (campo.tipo === 'select') {
+      const o = (campo.opzioni ?? []).find((x: any) => x.value === value);
+      return o ? o.label_it : String(value);
+    }
+    if (campo.tipo === 'multiselect') {
+      if (!Array.isArray(value) || value.length === 0) return '-';
+      return value.map(v => {
+        const o = (campo.opzioni ?? []).find((x: any) => x.value === v);
+        return o ? o.label_it : String(v);
+      }).join(', ');
+    }
+    return String(value);
+  };
+
   const updateStato = useMutation({
     mutationFn: async ({ id, stato, note }: { id: string; stato: string; note?: string }) => {
       const { data: old } = await supabase.from('candidature').select('stato').eq('id', id).single();
