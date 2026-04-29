@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileText, Users, DoorOpen, LogOut, History, ChevronDown, Home } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, DoorOpen, LogOut, History, ChevronDown, Home, SlidersHorizontal } from 'lucide-react';
 import logoStudentato from '@/assets/logo-studentato.svg';
 import { NavLink } from '@/components/NavLink';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -16,6 +16,7 @@ const items = [
   { title: 'Residenti', url: '/admin/residenti', icon: Users },
   { title: 'Camere', url: '/admin/camere', icon: DoorOpen },
   { title: 'Strutture', url: '/admin/strutture', icon: Home },
+  { title: 'Configurazione form', url: '/admin/config-form', icon: SlidersHorizontal },
 ];
 
 const storicoItems = [

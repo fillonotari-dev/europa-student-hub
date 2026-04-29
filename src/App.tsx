@@ -13,6 +13,7 @@ import Candidature from "./pages/admin/Candidature";
 import Residenti from "./pages/admin/Residenti";
 import Camere from "./pages/admin/Camere";
 import Strutture from "./pages/admin/Strutture";
+import ConfigForm from "./pages/admin/ConfigForm";
 import StoricoLayout from "./pages/admin/storico/StoricoLayout";
 import StoricoCandidature from "./pages/admin/storico/StoricoCandidature";
 import StoricoResidenti from "./pages/admin/storico/StoricoResidenti";
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="residenti" element={<Residenti />} />
             <Route path="camere" element={<Camere />} />
             <Route path="strutture" element={<Strutture />} />
+            <Route path="config-form" element={<ConfigForm />} />
             <Route path="storico" element={<StoricoLayout />}>
               <Route index element={<Navigate to="candidature" replace />} />
               <Route path="candidature" element={<StoricoCandidature />} />
