@@ -440,19 +440,6 @@ function CampiTab() {
               </div>
             </div>
             <div>
-              <Label>Chiave<span className="text-destructive ml-0.5">*</span></Label>
-              <Input
-                value={form.chiave}
-                onChange={e => setForm(f => ({ ...f, chiave: e.target.value, chiaveAuto: false }))}
-                className="mt-1.5 font-mono"
-                disabled={!!editing}
-                maxLength={60}
-              />
-              <p className="text-[12px] text-muted-foreground mt-1">
-                Identificatore tecnico (snake_case). {editing ? 'Non modificabile dopo la creazione.' : 'Generato automaticamente dalla label.'}
-              </p>
-            </div>
-            <div>
               <Label>Tipo<span className="text-destructive ml-0.5">*</span></Label>
               <Select value={form.tipo} onValueChange={(v: CampoTipo) => setForm(f => ({ ...f, tipo: v }))}>
                 <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
