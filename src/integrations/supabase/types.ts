@@ -137,6 +137,7 @@ export type Database = {
           note_admin: string | null
           periodo_fine: string | null
           periodo_inizio: string | null
+          risposte_custom: Json
           stato: string | null
           struttura_preferita_id: string | null
           studente_id: string
@@ -155,6 +156,7 @@ export type Database = {
           note_admin?: string | null
           periodo_fine?: string | null
           periodo_inizio?: string | null
+          risposte_custom?: Json
           stato?: string | null
           struttura_preferita_id?: string | null
           studente_id: string
@@ -173,6 +175,7 @@ export type Database = {
           note_admin?: string | null
           periodo_fine?: string | null
           periodo_inizio?: string | null
+          risposte_custom?: Json
           stato?: string | null
           struttura_preferita_id?: string | null
           studente_id?: string
@@ -244,6 +247,96 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      form_campi_custom: {
+        Row: {
+          attivo: boolean
+          chiave: string
+          created_at: string
+          descrizione_en: string | null
+          descrizione_it: string | null
+          id: string
+          label_en: string
+          label_it: string
+          obbligatorio: boolean
+          opzioni: Json | null
+          ordine: number
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          attivo?: boolean
+          chiave: string
+          created_at?: string
+          descrizione_en?: string | null
+          descrizione_it?: string | null
+          id?: string
+          label_en: string
+          label_it: string
+          obbligatorio?: boolean
+          opzioni?: Json | null
+          ordine?: number
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          attivo?: boolean
+          chiave?: string
+          created_at?: string
+          descrizione_en?: string | null
+          descrizione_it?: string | null
+          id?: string
+          label_en?: string
+          label_it?: string
+          obbligatorio?: boolean
+          opzioni?: Json | null
+          ordine?: number
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      form_documenti_custom: {
+        Row: {
+          attivo: boolean
+          chiave: string
+          created_at: string
+          descrizione_en: string | null
+          descrizione_it: string | null
+          id: string
+          label_en: string
+          label_it: string
+          obbligatorio: boolean
+          ordine: number
+          updated_at: string
+        }
+        Insert: {
+          attivo?: boolean
+          chiave: string
+          created_at?: string
+          descrizione_en?: string | null
+          descrizione_it?: string | null
+          id?: string
+          label_en: string
+          label_it: string
+          obbligatorio?: boolean
+          ordine?: number
+          updated_at?: string
+        }
+        Update: {
+          attivo?: boolean
+          chiave?: string
+          created_at?: string
+          descrizione_en?: string | null
+          descrizione_it?: string | null
+          id?: string
+          label_en?: string
+          label_it?: string
+          obbligatorio?: boolean
+          ordine?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       log_stato_candidature: {
         Row: {

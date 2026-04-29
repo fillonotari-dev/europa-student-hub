@@ -1,76 +1,114 @@
-# Piano: sezione "Strutture" in area admin
+## Configurazione campi e documenti extra del form di candidatura
 
-## Obiettivo
-Dare all'admin una sezione dedicata per **vedere** le strutture ricettive (Turri, Pieve e future) e **modificare** le loro informazioni anagrafiche, con metriche aggregate sulle camere.
+L'admin potrà aggiungere/modificare/disattivare campi e documenti extra che appaiono in coda al form di candidatura, senza toccare i campi core (anagrafici, accademici, preferenze, documenti standard).
 
-## Stato attuale
-- Tabella `strutture` già presente (campi: `nome`, `indirizzo`, `piani`, `attiva`, `created_at`, `updated_at`).
-- Due strutture esistenti:
-  - **Turri** — Via Turri 69, Reggio Emilia — 4 piani — 29 camere (tutte doppie, 58 posti)
-  - **Pieve** — "Da definire" — 1 piano — 0 camere
-- RLS già configurata: admin ha accesso completo, anonimi solo lettura.
-- Le strutture vengono già usate in: filtro globale (`useStrutturaFilter`), candidatura pubblica, gestione camere.
+### 1. Database
 
-## Ha senso permettere la modifica?
-**Sì**, ma in modo controllato. Motivazioni:
-- Pieve ha indirizzo placeholder ("Da definire") che va aggiornato senza dover passare da una migrazione.
-- I `piani` di Pieve sono provvisori (1) e potrebbero cambiare quando si definisce la planimetria reale.
-- Permette in futuro di aggiungere nuove strutture o disattivarne una senza intervento tecnico.
+Due nuove tabelle + colonna su `candidature`.
 
-**Limitazioni consigliate** (per evitare incidenti):
-- Nessuna eliminazione hard: si può solo **disattivare** (`attiva = false`). Una struttura disattivata sparisce dai filtri e dalla candidatura pubblica ma resta per lo storico.
-- Nessuna creazione di nuove strutture nella prima iterazione (solo edit di quelle esistenti). Si può aggiungere dopo se serve.
-- Il campo `nome` è modificabile ma con un avviso (compare in candidatura pubblica e storico).
+**`form_campi_custom`** — campi extra configurabili
+- `id` (uuid, pk)
+- `chiave` (text, unique) — identificatore stabile usato come chiave nel JSON delle risposte (es. `preferenze_alimentari`)
+- `tipo` (text) — uno tra: `text`, `textarea`, `number`, `date`, `boolean`, `select`, `multiselect`
+- `label_it`, `label_en` (text)
+- `descrizione_it`, `descrizione_en` (text, nullable) — testo di aiuto sotto il campo
+- `opzioni` (jsonb, nullable) — array di `{ value, label_it, label_en }` per `select`/`multiselect`
+- `obbligatorio` (boolean, default false)
+- `attivo` (boolean, default true)
+- `ordine` (integer, default 0)
+- `created_at`, `updated_at`
 
-## Cosa costruire
+**`form_documenti_custom`** — documenti extra configurabili
+- `id` (uuid, pk)
+- `chiave` (text, unique) — usata come `tipo` nella tabella `documenti` esistente
+- `label_it`, `label_en` (text)
+- `descrizione_it`, `descrizione_en` (text, nullable)
+- `obbligatorio` (boolean, default false)
+- `attivo` (boolean, default true)
+- `ordine` (integer, default 0)
+- `created_at`, `updated_at`
 
-### 1. Voce sidebar "Strutture"
-Aggiungere in `AdminSidebar.tsx` tra "Camere" e "Storico":
-- Icona `Building2` (lucide), label "Strutture", url `/admin/strutture`.
+**Nuova colonna su `candidature`**
+- `risposte_custom` (jsonb, default `{}`) — mappa `chiave -> valore` per i campi extra di quella candidatura
 
-### 2. Pagina elenco `/admin/strutture`
-Lista a card (una per struttura), in stile coerente con Dashboard. Per ciascuna struttura mostra:
-- Nome (es. "Turri")
-- Indirizzo
-- Numero di piani
-- Badge stato: "Attiva" / "Disattivata"
-- Metriche aggregate live da DB: numero camere totali, posti totali, posti occupati, camere singole/doppie
-- Bottone "Modifica" che apre un dialog
+**RLS**
+- Admin: full access su entrambe le tabelle (pattern `has_role(auth.uid(), 'admin')`)
+- Anon: SELECT su `attivo = true` per entrambe (necessario perché il form di candidatura è pubblico)
 
-### 3. Dialog di modifica
-Form con i campi:
-- **Nome** (text, obbligatorio) — con piccolo warning "Modificare il nome cambia anche come appare nel form pubblico di candidatura"
-- **Indirizzo** (text)
-- **Piani** (number, ≥ 1)
-- **Attiva** (switch) — con conferma se si sta disattivando una struttura che ha camere occupate o candidature pendenti
+### 2. Form pubblico — `src/pages/Candidatura.tsx`
 
-Salvataggio via `update` su `strutture`, invalidazione query (`strutture-filter`, `strutture-list`, eventuali metriche dashboard).
+- Nuova `useQuery` per leggere campi e documenti custom attivi (ordinati per `ordine`).
+- Se almeno un campo o documento custom è attivo, viene aggiunto uno step **"Informazioni aggiuntive"** subito prima di "Riepilogo".
+- Componente `CustomFieldRenderer` che switcha sul `tipo` e renderizza:
+  - `text`/`number`/`date` → `Input`
+  - `textarea` → `Textarea`
+  - `boolean` → `Switch` o `Checkbox`
+  - `select` → `Select` shadcn
+  - `multiselect` → lista di `Checkbox` (semplice e accessibile)
+- I documenti custom usano lo stesso `FileUpload` già presente.
+- Validazione step: campi/documenti `obbligatorio = true` devono essere compilati.
+- Riepilogo: nuova `ReviewSection` che elenca tutti i valori extra con label nella lingua corrente.
+- Submit: i valori vengono inviati alla edge function come `risposte_custom: { chiave: valore }`; i documenti custom vengono caricati nel bucket esistente con `tipo = chiave_documento`.
 
-### 4. Pagina dettaglio (opzionale, stessa rotta con tab interno)
-Cliccando su una card si apre `/admin/strutture/:id` con:
-- Header con nome + bottone Modifica
-- Sezione "Anagrafica" (campi sopra in sola lettura)
-- Sezione "Camere" — tabella ridotta delle camere di quella struttura, con link alla pagina Camere filtrata
-- Sezione "Residenti attivi" — conteggio + link a Residenti filtrati
+### 3. Edge function — `supabase/functions/submit-candidatura/index.ts`
 
-Nella prima iterazione **possiamo limitarci alla lista con dialog di modifica** (più semplice, copre il bisogno principale). La pagina dettaglio si può aggiungere dopo se utile.
+- Accetta nuovo campo `risposte_custom` nel body.
+- Validazione server-side: per ogni campo custom `attivo = true` e `obbligatorio = true`, verifica che la chiave sia presente in `risposte_custom`. Se manca, ritorna 400.
+- Salva `risposte_custom` nella riga di `candidature` insieme agli altri snapshot.
+- I documenti custom passano già attraverso il loop `documenti` esistente (con `tipo = chiave`).
 
-## Dettagli tecnici
+### 4. Nuova pagina admin — `src/pages/admin/ConfigForm.tsx`
 
-- Nuova rotta in `src/App.tsx`: `<Route path="strutture" element={<Strutture />} />` dentro `AdminLayout`.
-- Nuovo file `src/pages/admin/Strutture.tsx` — pagina con `useQuery(['strutture-list'])` che fetcha tutte le strutture (anche non attive) e in parallelo aggrega `camere` e `assegnazioni` per le metriche.
-- Mutation `useMutation` per update con `supabase.from('strutture').update(...).eq('id', ...)`.
-- `AdminSidebar.tsx` — aggiungere voce nell'array `items`.
-- Nessuna modifica DB necessaria (schema già adatto). Nessuna nuova policy RLS necessaria.
-- Riutilizzare componenti esistenti: `Card`, `Dialog`, `Switch`, `Input`, `Label`, `Badge`, `Button`.
+Una pagina con due tab (`Tabs` shadcn): **Campi extra** e **Documenti extra**.
 
-## Cosa NON facciamo (per ora)
-- Creazione di nuove strutture dall'UI
-- Eliminazione hard
-- Upload di foto/planimetrie
-- Gestione contatti/responsabili struttura
+Ogni tab ha:
+- Tabella con: ordine (drag handle o frecce su/giù), chiave, label IT, tipo (solo per campi), obbligatorio, attivo (switch inline), azioni (modifica, elimina).
+- Pulsante "Aggiungi" che apre un `Dialog` con form (label IT/EN, chiave auto-generata da label IT, tipo, obbligatorio, descrizioni opzionali, opzioni per select/multiselect).
+- Validazione: la `chiave` deve essere snake_case alfanumerico; non può essere modificata dopo la creazione (per non rompere i `risposte_custom` storici).
+- Eliminazione con `AlertDialog` di conferma. Avviso se il campo è già stato usato in candidature esistenti (eliminazione comunque permessa: i dati storici restano nel JSON ma non vengono più mostrati con label "amichevole" — solo la chiave).
+- Riordino tramite frecce su/giù (semplice, niente drag-and-drop per ora) che aggiorna `ordine`.
 
-Se vuoi includere uno di questi punti, dimmelo e li aggiungo al piano.
+Pattern UI coerente con `Strutture.tsx`: card list, header con titolo + bottone aggiungi, `useQuery` + `useMutation`, `toast` su success/error, validazione con `zod`.
 
-## Domanda aperta
-Vuoi che includa anche la **pagina di dettaglio** `/admin/strutture/:id` (punto 4) in questa iterazione, o partiamo solo con elenco + dialog di modifica?
+### 5. Vista admin candidatura dettaglio — `src/pages/admin/Candidature.tsx`
+
+- Quando si apre una candidatura, oltre alle sezioni esistenti, viene mostrata una sezione **"Informazioni aggiuntive"** che itera su `form_campi_custom` (anche disattivati) e mostra label IT + valore da `risposte_custom`. Per chiavi presenti nel JSON ma non più in tabella, mostra la chiave grezza.
+- I documenti custom appaiono già nella sezione "Documenti caricati" esistente (dato che usano la stessa tabella `documenti`); estendiamo la mappa `TIPO_DOC_LABELS` leggendo `form_documenti_custom` per avere label corrette.
+
+### 6. Export XLSX
+
+In `src/pages/admin/Candidature.tsx`, l'export XLSX viene esteso per includere una colonna per ogni campo custom attivo, con il valore preso da `risposte_custom`. Per `multiselect` i valori vengono uniti con `, `.
+
+### 7. Sidebar e routing
+
+- Aggiungere voce **"Configurazione form"** in `AdminSidebar` (icona `Settings2` o `SlidersHorizontal` di lucide), in fondo prima di "Storico".
+- Registrare la route `/admin/config-form` in `src/App.tsx`.
+
+### 8. Dettagli tecnici
+
+- `risposte_custom` resta JSON snapshot: cancellare un campo dalla configurazione **non** rompe le candidature passate, ma l'admin perde la label "amichevole" per quel campo nelle candidature storiche (mostriamo la chiave). Documentato nell'avviso di eliminazione.
+- I tipi `select` e `multiselect` usano array di opzioni in `opzioni`. Quando si elimina un'opzione mai usata, ok; se è già usata, viene mostrato un warning.
+- La edge function valida sempre lato server l'obbligatorietà, indipendentemente da quello che fa il client.
+- Le validazioni di formato (es. lunghezza max 1000 char per text/textarea, max 100 per chiave) sono codificate sia in zod (admin) sia nella edge function.
+
+### File creati / modificati
+
+```text
+NEW  src/pages/admin/ConfigForm.tsx
+NEW  migration: form_campi_custom, form_documenti_custom, candidature.risposte_custom + RLS
+EDIT src/pages/Candidatura.tsx                        (step + render + submit dei campi custom)
+EDIT supabase/functions/submit-candidatura/index.ts   (accetta + valida + salva risposte_custom)
+EDIT src/pages/admin/Candidature.tsx                  (sezione "Informazioni aggiuntive" + label doc custom + export esteso)
+EDIT src/components/admin/AdminSidebar.tsx            (voce "Configurazione form")
+EDIT src/App.tsx                                      (route /admin/config-form)
+EDIT src/i18n/translations.ts                         (chiavi: stepInfoAggiuntive, infoAggiuntive)
+```
+
+### Cosa rimane fuori (per ora)
+
+- Riordino drag-and-drop (usiamo frecce su/giù).
+- Logica condizionale tra campi (es. "mostra X solo se Y = sì").
+- Modifica dei campi core (anagrafici, accademici, ecc.) — per design.
+- Eliminare/riordinare i 2 documenti standard (`documento_identita`, `certificato_iscrizione`) — per design restano fissi.
+
+Se domani serve uno di questi, è un'estensione naturale di questa base.
