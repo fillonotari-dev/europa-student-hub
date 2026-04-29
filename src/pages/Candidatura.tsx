@@ -85,8 +85,8 @@ export default function Candidatura() {
   const validateStep = () => {
     const required: Record<number, string[]> = {
       0: ['nome', 'cognome', 'email', 'telefono', 'data_nascita', 'nazionalita', 'codice_fiscale'],
-      1: ['universita', 'dipartimento', 'corso_di_studi', 'anno_di_corso', 'matricola'],
-      2: ['anno_accademico'],
+      1: ['universita', 'dipartimento', 'corso_di_studi', 'matricola'],
+      2: ['periodo_inizio', 'periodo_fine', 'anno_accademico'],
       3: ['_documenti'],
     };
     const fields = required[step] || [];
@@ -226,7 +226,6 @@ export default function Candidatura() {
                 <UniversitaField lang={lang} value={form.universita} onChange={setUniversita} />
                 <DipartimentoField lang={lang} universitaName={form.universita} value={form.dipartimento} onChange={setDipartimento} />
                 <CorsoField lang={lang} universitaName={form.universita} dipartimentoName={form.dipartimento} value={form.corso_di_studi} onChange={v => set('corso_di_studi', v)} />
-                <Field label={t(lang, 'form.annoCorso')} value={form.anno_di_corso} onChange={v => set('anno_di_corso', v)} required />
                 <Field label={t(lang, 'form.matricola')} value={form.matricola} onChange={v => set('matricola', v)} required />
               </div>
             )}
@@ -265,6 +264,10 @@ export default function Candidatura() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label={t(lang, 'form.periodoInizio')} value={form.periodo_inizio} onChange={v => set('periodo_inizio', v)} type="date" required />
+                  <Field label={t(lang, 'form.periodoFine')} value={form.periodo_fine} onChange={v => set('periodo_fine', v)} type="date" required />
+                </div>
                 <div>
                   <Label>{t(lang, 'form.annoAccademico')}<span className="text-destructive ml-0.5">*</span></Label>
                   <p className="mt-1 text-[12px] text-muted-foreground">{t(lang, 'form.annoAccademicoHint')}</p>
@@ -300,7 +303,6 @@ export default function Candidatura() {
                   [t(lang, 'form.universita'), form.universita],
                   [t(lang, 'form.dipartimento'), form.dipartimento],
                   [t(lang, 'form.corsoStudi'), form.corso_di_studi],
-                  [t(lang, 'form.annoCorso'), form.anno_di_corso],
                   [t(lang, 'form.matricola'), form.matricola],
                 ]} />
                 <ReviewSection title={t(lang, 'form.stepPreferences')} items={[
@@ -310,6 +312,8 @@ export default function Candidatura() {
                     return sel.indirizzo ? `${sel.nome} — ${sel.indirizzo}` : sel.nome;
                   })()],
                   [t(lang, 'form.tipoCameraPreferito'), form.tipo_camera_preferito || '-'],
+                  [t(lang, 'form.periodoInizio'), form.periodo_inizio],
+                  [t(lang, 'form.periodoFine'), form.periodo_fine],
                   [t(lang, 'form.annoAccademico'), form.anno_accademico],
                 ]} />
                 {(files.documento_identita || files.certificato_iscrizione) && (
