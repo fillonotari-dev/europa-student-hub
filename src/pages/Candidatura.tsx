@@ -328,7 +328,7 @@ export default function Candidatura() {
       <div className="max-w-2xl mx-auto px-4 py-6">
         <AnimatePresence mode="wait">
           <motion.div key={step} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
-            {step === 0 && (
+            {stepKey === 'stepPersonal' && (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <Field label={t(lang, 'form.nome')} value={form.nome} onChange={v => set('nome', v)} required />
@@ -341,7 +341,7 @@ export default function Candidatura() {
                 <Field label={t(lang, 'form.codiceFiscale')} value={form.codice_fiscale} onChange={v => set('codice_fiscale', v)} required />
               </div>
             )}
-            {step === 1 && (
+            {stepKey === 'stepAcademic' && (
               <div className="space-y-4">
                 <UniversitaField lang={lang} value={form.universita} onChange={setUniversita} />
                 <DipartimentoField lang={lang} universitaName={form.universita} value={form.dipartimento} onChange={setDipartimento} />
@@ -349,7 +349,7 @@ export default function Candidatura() {
                 <Field label={t(lang, 'form.matricola')} value={form.matricola} onChange={v => set('matricola', v)} required />
               </div>
             )}
-            {step === 2 && (
+            {stepKey === 'stepPreferences' && (
               <div className="space-y-4">
                 <div>
                   <Label>{t(lang, 'form.strutturaPreferita')}</Label>
@@ -400,7 +400,7 @@ export default function Candidatura() {
                 </div>
               </div>
             )}
-            {step === 3 && (
+            {stepKey === 'stepDocuments' && (
               <div className="space-y-4">
                 <FileUpload label={t(lang, 'form.documentoIdentita')} hint={t(lang, 'form.uploadHint')} file={files.documento_identita} error={fileErrors.documento_identita} onChange={f => handleFile('documento_identita', f)} required />
                 <FileUpload label={t(lang, 'form.certificatoIscrizione')} hint={t(lang, 'form.uploadHint')} file={files.certificato_iscrizione} error={fileErrors.certificato_iscrizione} onChange={f => handleFile('certificato_iscrizione', f)} required />
@@ -410,7 +410,31 @@ export default function Candidatura() {
                 </div>
               </div>
             )}
-            {step === 4 && (
+            {stepKey === 'stepInfoAggiuntive' && (
+              <div className="space-y-4">
+                {campiCustom.map(c => (
+                  <CustomFieldRenderer
+                    key={c.id}
+                    lang={lang}
+                    campo={c}
+                    value={customAnswers[c.chiave]}
+                    onChange={(v) => setCustomAnswers(a => ({ ...a, [c.chiave]: v }))}
+                  />
+                ))}
+                {documentiCustom.map(d => (
+                  <FileUpload
+                    key={d.id}
+                    label={`${labelOf(lang, d.label_it, d.label_en)}${d.descrizione_it || d.descrizione_en ? ` — ${labelOf(lang, d.descrizione_it ?? '', d.descrizione_en ?? '')}` : ''}`}
+                    hint={t(lang, 'form.uploadHint')}
+                    file={customFiles[d.chiave] ?? null}
+                    error={customFileErrors[d.chiave]}
+                    onChange={(f) => handleCustomFile(d.chiave, f)}
+                    required={d.obbligatorio}
+                  />
+                ))}
+              </div>
+            )}
+            {stepKey === 'stepReview' && (
               <div className="space-y-6">
                 <ReviewSection title={t(lang, 'form.stepPersonal')} items={[
                   [t(lang, 'form.nome'), `${form.nome} ${form.cognome}`],
@@ -441,6 +465,21 @@ export default function Candidatura() {
                     [t(lang, 'form.documentoIdentita'), files.documento_identita?.name || '-'],
                     [t(lang, 'form.certificatoIscrizione'), files.certificato_iscrizione?.name || '-'],
                   ]} />
+                )}
+                {hasInfoExtra && (campiCustom.length > 0 || Object.values(customFiles).some(Boolean)) && (
+                  <ReviewSection
+                    title={t(lang, 'form.infoAggiuntive')}
+                    items={[
+                      ...campiCustom.map<[string, string]>(c => [
+                        labelOf(lang, c.label_it, c.label_en),
+                        formatCustomValue(lang, c, customAnswers[c.chiave]),
+                      ]),
+                      ...documentiCustom.map<[string, string]>(d => [
+                        labelOf(lang, d.label_it, d.label_en),
+                        customFiles[d.chiave]?.name ?? '-',
+                      ]),
+                    ]}
+                  />
                 )}
               </div>
             )}
