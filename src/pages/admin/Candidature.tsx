@@ -424,12 +424,39 @@ export default function Candidature() {
                   </div>
                 )}
 
+                {(() => {
+                  const risp = (selected.risposte_custom ?? {}) as Record<string, any>;
+                  const knownKeys = new Set(campiCustomAll.map((c: any) => c.chiave));
+                  const orphanKeys = Object.keys(risp).filter(k => !knownKeys.has(k));
+                  const hasContent = campiCustomAll.length > 0 || orphanKeys.length > 0;
+                  if (!hasContent) return null;
+                  return (
+                    <div>
+                      <p className="text-sm font-semibold mb-2">Informazioni aggiuntive</p>
+                      <div className="bg-muted/30 rounded-lg p-3 space-y-2">
+                        {campiCustomAll.map((c: any) => (
+                          <div key={c.id} className="flex justify-between gap-3 text-[13px]">
+                            <span className="text-muted-foreground">{c.label_it}</span>
+                            <span className="font-medium text-right">{formatCustomAnswer(c, risp[c.chiave])}</span>
+                          </div>
+                        ))}
+                        {orphanKeys.map(k => (
+                          <div key={k} className="flex justify-between gap-3 text-[13px]">
+                            <span className="text-muted-foreground font-mono text-[12px]">{k}</span>
+                            <span className="font-medium text-right">{String(risp[k] ?? '-')}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <div>
                   <p className="text-sm font-semibold mb-2">Documenti caricati</p>
                   {documenti && documenti.length > 0 ? (
                     <div className="space-y-2">
                       {documenti.map((d: any) => (
-                        <DocumentoRow key={d.id} doc={d} />
+                        <DocumentoRow key={d.id} doc={d} labelMap={docLabelMap} />
                       ))}
                     </div>
                   ) : (
