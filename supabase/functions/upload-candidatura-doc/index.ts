@@ -91,6 +91,6 @@ Deno.serve(async (req) => {
     return jsonResponse({ path, nome_file: filename });
   } catch (error) {
     console.error("upload-candidatura-doc error:", error);
-    return jsonResponse({ error: (error as Error).message ?? "Errore" }, 500);
+    return jsonResponse({ error: "Errore durante il caricamento. Riprova più tardi." }, 500);
   }
 });
