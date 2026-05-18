@@ -367,9 +367,8 @@ export default function Candidatura() {
             {stepKey === 'stepAcademic' && (
               <div className="space-y-4">
                 <UniversitaField lang={lang} value={form.universita} onChange={setUniversita} />
-                <DipartimentoField lang={lang} universitaName={form.universita} value={form.dipartimento} onChange={setDipartimento} />
-                <CorsoField lang={lang} universitaName={form.universita} dipartimentoName={form.dipartimento} value={form.corso_di_studi} onChange={v => set('corso_di_studi', v)} />
-                <Field label={t(lang, 'form.matricola')} value={form.matricola} onChange={v => set('matricola', v)} required />
+                <Field label={t(lang, 'form.corsoStudi')} value={form.corso_di_studi} onChange={v => set('corso_di_studi', v)} required />
+                <Field label={t(lang, 'form.annoCorso')} value={form.anno_di_corso} onChange={v => set('anno_di_corso', v)} />
                 <div>
                   <Label>{t(lang, 'form.tipoStudente')}</Label>
                   <Select value={form.tipo_studente} onValueChange={v => set('tipo_studente', v)}>
@@ -391,6 +390,11 @@ export default function Candidatura() {
                     />
                   )}
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label={t(lang, 'form.periodoInizio')} value={form.periodo_inizio} onChange={v => set('periodo_inizio', v)} type="date" required />
+                  <Field label={t(lang, 'form.periodoFine')} value={form.periodo_fine} onChange={v => set('periodo_fine', v)} type="date" required />
+                </div>
+                <Field label={t(lang, 'form.dataArrivoPrevista')} value={form.data_arrivo_prevista} onChange={v => set('data_arrivo_prevista', v)} type="date" />
               </div>
             )}
             {stepKey === 'stepPreferences' && (
@@ -428,21 +432,6 @@ export default function Candidatura() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label={t(lang, 'form.periodoInizio')} value={form.periodo_inizio} onChange={v => set('periodo_inizio', v)} type="date" required />
-                  <Field label={t(lang, 'form.periodoFine')} value={form.periodo_fine} onChange={v => set('periodo_fine', v)} type="date" required />
-                </div>
-                <div>
-                  <Label>{t(lang, 'form.annoAccademico')}<span className="text-destructive ml-0.5">*</span></Label>
-                  <p className="mt-1 text-[12px] text-muted-foreground">{t(lang, 'form.annoAccademicoHint')}</p>
-                  <Select value={form.anno_accademico} onValueChange={v => set('anno_accademico', v)}>
-                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {anniAccademici.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Field label={t(lang, 'form.dataArrivoPrevista')} value={form.data_arrivo_prevista} onChange={v => set('data_arrivo_prevista', v)} type="date" />
                 <div>
                   <Label>{t(lang, 'form.preferenzeNote')}</Label>
                   <Textarea value={form.preferenze_note} onChange={e => set('preferenze_note', e.target.value)} placeholder={t(lang, 'form.preferenzeNotePlaceholder')} className="mt-1.5" maxLength={1000} />
@@ -477,10 +466,8 @@ export default function Candidatura() {
               <div className="space-y-4">
                 <FileUpload label={t(lang, 'form.documentoIdentita')} hint={t(lang, 'form.uploadHint')} file={files.documento_identita} error={fileErrors.documento_identita} onChange={f => handleFile('documento_identita', f)} required />
                 <FileUpload label={t(lang, 'form.certificatoIscrizione')} hint={t(lang, 'form.uploadHint')} file={files.certificato_iscrizione} error={fileErrors.certificato_iscrizione} onChange={f => handleFile('certificato_iscrizione', f)} required />
-                <div>
-                  <Label>{t(lang, 'form.messaggio')}</Label>
-                  <Textarea value={form.messaggio} onChange={e => set('messaggio', e.target.value)} placeholder={t(lang, 'form.messaggioPlaceholder')} className="mt-1.5" />
-                </div>
+                <FileUpload label={t(lang, 'form.documentoGarante')} hint={t(lang, 'form.uploadHint')} file={files.documento_garante} error={fileErrors.documento_garante} onChange={f => handleFile('documento_garante', f)} />
+                <FileUpload label={t(lang, 'form.documentoAggiuntivo')} hint={t(lang, 'form.uploadHint')} file={files.documento_aggiuntivo} error={fileErrors.documento_aggiuntivo} onChange={f => handleFile('documento_aggiuntivo', f)} />
               </div>
             )}
             {stepKey === 'stepDichiarazioni' && (
@@ -489,6 +476,7 @@ export default function Candidatura() {
                 <DeclCheckbox checked={dichiarazioni.veridicita} onCheckedChange={v => setDichiarazioni(d => ({ ...d, veridicita: v }))} label={t(lang, 'form.dichVeridicita')} />
                 <DeclCheckbox checked={dichiarazioni.privacy} onCheckedChange={v => setDichiarazioni(d => ({ ...d, privacy: v }))} label={t(lang, 'form.dichPrivacy')} />
                 <DeclCheckbox checked={dichiarazioni.info_struttura} onCheckedChange={v => setDichiarazioni(d => ({ ...d, info_struttura: v }))} label={t(lang, 'form.dichInfoStruttura')} />
+                <DeclCheckbox checked={dichiarazioni.contatto} onCheckedChange={v => setDichiarazioni(d => ({ ...d, contatto: v }))} label={t(lang, 'form.dichContatto')} />
               </div>
             )}
             {stepKey === 'stepInfoAggiuntive' && (
