@@ -540,6 +540,17 @@ export default function Camere() {
                 {selectedCamera.stato !== 'occupata' && selectedCamera.stato !== 'manutenzione' && studentiApprovati && studentiApprovati.length > 0 && (
                   <div>
                     <p className="text-sm font-semibold mb-2">Assegna studente approvato</p>
+                    {candidaturaParam && (() => {
+                      const cand = studentiApprovati.find((sa: any) => sa.id === candidaturaParam);
+                      if (!cand || !cand.struttura_preferita_id) return null;
+                      if (cand.struttura_preferita_id === selectedCamera.struttura_id) return null;
+                      return (
+                        <div className="mb-3 rounded-lg border border-warning/30 bg-warning/10 p-2.5 text-[12px] text-foreground">
+                          <strong>Attenzione:</strong> la struttura preferita di questa candidatura è
+                          {' '}<strong>{(cand as any).strutture?.nome ?? 'un\'altra'}</strong>, diversa da quella della camera selezionata. Puoi procedere comunque, ma verifica con lo studente.
+                        </div>
+                      );
+                    })()}
                     <div className="space-y-2">
                       {studentiApprovati
                         .filter((sa: any) => !candidaturaParam || sa.id === candidaturaParam)
