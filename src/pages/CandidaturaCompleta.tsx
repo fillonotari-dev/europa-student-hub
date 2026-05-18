@@ -15,13 +15,13 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import logoStudentato from '@/assets/logo-studentato.svg';
 
-const STEPS = ['stepLifestyle', 'stepGarante', 'stepDocAggiuntivi', 'stepDichiarazioni', 'stepReview'] as const;
+const ALL_STEPS = ['stepLifestyle', 'stepGarante', 'stepDocAggiuntivi', 'stepDichiarazioni', 'stepReview'] as const;
 const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 const MAX_SIZE = 5 * 1024 * 1024;
 
 type TokenState =
   | { status: 'loading' }
-  | { status: 'valid'; nome: string; cognome: string; candidaturaId: string }
+  | { status: 'valid'; nome: string; cognome: string; candidaturaId: string; docsPresent: { documento_garante: boolean; documento_aggiuntivo: boolean } }
   | { status: 'invalid'; reason: 'not_found' | 'expired' | 'already_completed' | 'error' };
 
 export default function CandidaturaCompleta() {
@@ -72,7 +72,16 @@ export default function CandidaturaCompleta() {
           setTokenState({ status: 'invalid', reason });
           return;
         }
-        setTokenState({ status: 'valid', nome: data.nome, cognome: data.cognome, candidaturaId: data.candidatura_id });
+        setTokenState({
+          status: 'valid',
+          nome: data.nome,
+          cognome: data.cognome,
+          candidaturaId: data.candidatura_id,
+          docsPresent: {
+            documento_garante: !!data?.documenti_presenti?.documento_garante,
+            documento_aggiuntivo: !!data?.documenti_presenti?.documento_aggiuntivo,
+          },
+        });
       } catch {
         if (!cancelled) setTokenState({ status: 'invalid', reason: 'error' });
       }
@@ -80,7 +89,15 @@ export default function CandidaturaCompleta() {
     return () => { cancelled = true; };
   }, [token]);
 
-  const stepKey = STEPS[step];
+  const STEPS = useMemo(() => {
+    if (tokenState.status !== 'valid') return ALL_STEPS as readonly string[];
+    const dp = tokenState.docsPresent;
+    if (dp.documento_garante && dp.documento_aggiuntivo) {
+      return ALL_STEPS.filter(s => s !== 'stepDocAggiuntivi');
+    }
+    return ALL_STEPS as readonly string[];
+  }, [tokenState]);
+  const stepKey = STEPS[step] as typeof ALL_STEPS[number];
 
   const validateStep = (): boolean => {
     if (stepKey === 'stepGarante') {
