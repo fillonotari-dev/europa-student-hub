@@ -87,11 +87,19 @@ export default function Candidature() {
   const [linkData, setLinkData] = useState<{ url: string; scade_il: string } | null>(null);
   const [linkLoading, setLinkLoading] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [statoConfirm, setStatoConfirm] = useState<{ c: any; nextStato: string } | null>(null);
+  const [regenConfirm, setRegenConfirm] = useState<any>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
   const generateLink = async (c: any) => {
+    // Se esiste già un token attivo, chiediamo conferma prima di rigenerare.
+    if (c.token_scade_il && new Date(c.token_scade_il) > new Date() && !regenConfirm) {
+      setRegenConfirm(c);
+      return;
+    }
+    setRegenConfirm(null);
     setLinkTarget(c);
     setLinkData(null);
     setLinkLoading(true);
@@ -126,6 +134,33 @@ export default function Candidature() {
       return data ?? [];
     },
   });
+
+  // Set di candidature con assegnazione attiva (per warning sui cambi stato).
+  const { data: candidatureConAssegnazione } = useQuery({
+    queryKey: ['candidature-con-assegnazione-attiva'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('assegnazioni')
+        .select('candidatura_id')
+        .eq('stato', 'attiva');
+      return new Set((data ?? []).map((a: any) => a.candidatura_id));
+    },
+  });
+
+  const hasAssegnazioneAttiva = (c: any) => !!candidatureConAssegnazione?.has(c.id);
+
+  const requestStatoChange = (c: any, nextStato: string) => {
+    // Cambio stato "rischioso" su candidatura con assegnazione attiva.
+    const rischioso = hasAssegnazioneAttiva(c) &&
+      (nextStato === 'rifiutata' || nextStato === 'ritirata' || nextStato === 'in_valutazione');
+    // Approvazione senza form completo: chiediamo conferma esplicita.
+    const approvaIncompleta = nextStato === 'approvata' && c.versione_form !== 'completa';
+    if (rischioso || approvaIncompleta) {
+      setStatoConfirm({ c, nextStato });
+      return;
+    }
+    updateStato.mutate({ id: c.id, stato: nextStato });
+  };
 
   const { data: documenti } = useQuery({
     queryKey: ['documenti', selected?.id],
