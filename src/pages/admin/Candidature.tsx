@@ -30,18 +30,23 @@ import {
 import { useStrutturaFilter } from '@/hooks/useStrutturaFilter';
 import { StrutturaSelect } from '@/components/admin/StrutturaSelect';
 
-const STATI = ['ricevuta', 'in_valutazione', 'approvata', 'rifiutata', 'ritirata'] as const;
+const STATI = ['ricevuta', 'in_completamento', 'completata', 'in_valutazione', 'approvata', 'rifiutata', 'ritirata'] as const;
 const STATO_LABELS: Record<string, string> = {
-  ricevuta: 'Ricevuta', in_valutazione: 'In valutazione', approvata: 'Approvata',
+  ricevuta: 'Ricevuta', in_completamento: 'In completamento', completata: 'Completata',
+  in_valutazione: 'In valutazione', approvata: 'Approvata',
   rifiutata: 'Rifiutata', ritirata: 'Ritirata', sostituita: 'Sostituita',
 };
 const STATO_COLORS: Record<string, string> = {
-  ricevuta: 'bg-primary/10 text-primary', in_valutazione: 'bg-warning/10 text-warning',
+  ricevuta: 'bg-primary/10 text-primary',
+  in_completamento: 'bg-accent/20 text-foreground',
+  completata: 'bg-success/10 text-success',
+  in_valutazione: 'bg-warning/10 text-warning',
   approvata: 'bg-success/10 text-success', rifiutata: 'bg-destructive/10 text-destructive',
   ritirata: 'bg-muted text-muted-foreground', sostituita: 'bg-muted text-muted-foreground',
 };
 const STATO_ORDER: Record<string, number> = {
-  ricevuta: 0, in_valutazione: 1, approvata: 2, rifiutata: 3, ritirata: 4, sostituita: 5,
+  ricevuta: 0, in_completamento: 1, completata: 2, in_valutazione: 3,
+  approvata: 4, rifiutata: 5, ritirata: 6, sostituita: 7,
 };
 const TIPO_DOC_LABELS: Record<string, string> = {
   documento_identita: 'Documento di identità',
