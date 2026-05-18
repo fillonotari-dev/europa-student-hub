@@ -624,6 +624,20 @@ function DocumentiTab() {
     },
   });
 
+  const { data: docUsage = {} } = useQuery({
+    queryKey: ['form-documenti-usage'],
+    queryFn: async () => {
+      const { data } = await supabase.from('documenti').select('tipo');
+      const counts: Record<string, number> = {};
+      for (const row of (data ?? [])) {
+        const k = (row as any).tipo;
+        if (!k) continue;
+        counts[k] = (counts[k] ?? 0) + 1;
+      }
+      return counts;
+    },
+  });
+
   const upsert = useMutation({
     mutationFn: async (payload: { id?: string; data: any }) => {
       if (payload.id) {
@@ -653,6 +667,16 @@ function DocumentiTab() {
       qc.invalidateQueries({ queryKey: ['form-documenti-custom-public'] });
     },
   });
+
+  const handleToggleAttivo = (d: Documento, attivo: boolean) => {
+    const n = docUsage[d.chiave] ?? 0;
+    if (!attivo && n > 0) {
+      if (!window.confirm(`Disattivare "${d.label_it}"?\n\nEsistono ${n} file già caricati. Resteranno disponibili nella scheda candidatura ma il documento non sarà più richiesto nei nuovi form.`)) {
+        return;
+      }
+    }
+    toggleAttivo.mutate({ id: d.id, attivo });
+  };
 
   const move = useMutation({
     mutationFn: async ({ a, b }: { a: Documento; b: Documento }) => {
@@ -813,7 +837,7 @@ function DocumentiTab() {
                     <td className="px-3 py-2 text-center">
                       <Switch
                         checked={d.attivo}
-                        onCheckedChange={(v) => toggleAttivo.mutate({ id: d.id, attivo: v })}
+                        onCheckedChange={(v) => handleToggleAttivo(d, v)}
                       />
                     </td>
                     <td className="px-3 py-2 text-right">
@@ -887,9 +911,21 @@ function DocumentiTab() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare il documento?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Il documento "{deleteTarget?.label_it}" verrà rimosso dal form. I file già caricati nelle candidature
-              esistenti restano salvati e accessibili dalla scheda candidatura.
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-[13px]">
+                <p>
+                  Il documento "<strong>{deleteTarget?.label_it}</strong>" verrà rimosso dal form.
+                </p>
+                {deleteTarget && (docUsage[deleteTarget.chiave] ?? 0) > 0 && (
+                  <p className="rounded-md border border-warning/30 bg-warning/10 p-2">
+                    Esistono <strong>{docUsage[deleteTarget.chiave]} file già caricati</strong> con questo tipo:
+                    resteranno salvati e visibili nella scheda candidatura, ma diventeranno orfani rispetto alla configurazione.
+                  </p>
+                )}
+                <p className="text-muted-foreground">
+                  In alternativa puoi <strong>disattivare</strong> il documento: non sarà più richiesto nei nuovi form ma i file resteranno collegati.
+                </p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
