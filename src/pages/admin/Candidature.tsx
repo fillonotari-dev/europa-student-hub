@@ -629,8 +629,17 @@ export default function Candidature() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare la candidatura?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleteTarget?.studenti?.nome} {deleteTarget?.studenti?.cognome}. L'operazione è irreversibile e fallirà se esiste un'assegnazione collegata.
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p><strong>{deleteTarget?.studenti?.nome} {deleteTarget?.studenti?.cognome}</strong></p>
+                <p>L'operazione è irreversibile. Verrà eliminata la candidatura, ma:</p>
+                <ul className="list-disc pl-5 text-[13px] space-y-1">
+                  <li>i <strong>documenti caricati</strong> resteranno in archivio fino a pulizia manuale</li>
+                  <li>lo <strong>storico cambi di stato</strong> resta nei log</li>
+                  <li>l'eliminazione <strong>fallirà</strong> se esiste un'assegnazione collegata</li>
+                </ul>
+                <p className="text-[13px] text-muted-foreground">Per ritirare una candidatura senza perdere i dati, usa "Segna come ritirata".</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -640,6 +649,63 @@ export default function Candidature() {
               onClick={() => deleteTarget && deleteCandidatura.mutate(deleteTarget.id)}
             >
               Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Conferma cambio stato rischioso */}
+      <AlertDialog open={!!statoConfirm} onOpenChange={open => { if (!open) setStatoConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confermare il cambio di stato?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-[13px]">
+                {statoConfirm && hasAssegnazioneAttiva(statoConfirm.c) && (
+                  <p>
+                    Esiste già un'<strong>assegnazione attiva</strong> per questa candidatura.
+                    Cambiare stato a "{STATO_LABELS[statoConfirm.nextStato]}" non chiude l'assegnazione:
+                    lo studente resterà residente. Per concludere il soggiorno vai in <strong>Residenti</strong>.
+                  </p>
+                )}
+                {statoConfirm && statoConfirm.nextStato === 'approvata' && statoConfirm.c.versione_form !== 'completa' && (
+                  <p>
+                    Lo studente <strong>non ha ancora compilato il form completo</strong> (stile di vita, garante,
+                    documenti aggiuntivi). Confermi di volerlo approvare comunque?
+                  </p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (statoConfirm) updateStato.mutate({ id: statoConfirm.c.id, stato: statoConfirm.nextStato });
+                setStatoConfirm(null);
+              }}
+            >
+              Procedi
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Conferma rigenerazione link */}
+      <AlertDialog open={!!regenConfirm} onOpenChange={open => { if (!open) setRegenConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Rigenerare il link?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esiste già un link valido fino al{' '}
+              <strong>{regenConfirm?.token_scade_il && new Date(regenConfirm.token_scade_il).toLocaleDateString('it-IT')}</strong>.
+              Rigenerandolo, il <strong>vecchio link smetterà di funzionare</strong> e dovrai inviare il nuovo allo studente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => regenConfirm && generateLink(regenConfirm)}>
+              Rigenera link
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
