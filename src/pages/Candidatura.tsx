@@ -18,7 +18,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NATIONALITIES } from '@/lib/nationalities';
-import { UNIVERSITIES, COURSE_LEVEL_LABELS, type CourseLevel } from '@/lib/universities';
+import { UNIVERSITIES } from '@/lib/universities';
 import logoStudentato from '@/assets/logo-studentato.svg';
 
 const BASE_STEPS = ['stepPersonal', 'stepAcademic', 'stepPreferences', 'stepDocuments', 'stepDichiarazioni'] as const;
@@ -62,19 +62,19 @@ export default function Candidatura() {
     nome: '', cognome: '', email: '', telefono: '', data_nascita: '', nazionalita: '', codice_fiscale: '',
     indirizzo_residenza: '', documento_identita_n: '',
     universita: UNIVERSITIES.length === 1 ? UNIVERSITIES[0].name : '',
-    dipartimento: '', corso_di_studi: '', anno_di_corso: '', matricola: '',
+    corso_di_studi: '', anno_di_corso: '',
     tipo_studente: '', tipo_studente_altro: '',
     struttura_preferita_id: '', tipo_camera_preferito: '', periodo_inizio: '', periodo_fine: '',
-    anno_accademico: '', messaggio: '',
+    messaggio: '',
     data_arrivo_prevista: '', come_conosciuto: '', come_conosciuto_altro: '', preferenze_note: '',
   });
-  const [files, setFiles] = useState<{ documento_identita: File | null; certificato_iscrizione: File | null }>({
-    documento_identita: null, certificato_iscrizione: null,
+  const [files, setFiles] = useState<{ documento_identita: File | null; certificato_iscrizione: File | null; documento_garante: File | null; documento_aggiuntivo: File | null }>({
+    documento_identita: null, certificato_iscrizione: null, documento_garante: null, documento_aggiuntivo: null,
   });
   const [dichiarazioni, setDichiarazioni] = useState({
-    veridicita: false, privacy: false, info_struttura: false,
+    veridicita: false, privacy: false, info_struttura: false, contatto: false,
   });
-  const [fileErrors, setFileErrors] = useState<{ documento_identita?: string; certificato_iscrizione?: string }>({});
+  const [fileErrors, setFileErrors] = useState<{ documento_identita?: string; certificato_iscrizione?: string; documento_garante?: string; documento_aggiuntivo?: string }>({});
   const [customAnswers, setCustomAnswers] = useState<Record<string, any>>({});
   const [customFiles, setCustomFiles] = useState<Record<string, File | null>>({});
   const [customFileErrors, setCustomFileErrors] = useState<Record<string, string | undefined>>({});
@@ -135,13 +135,6 @@ export default function Candidatura() {
     },
   });
 
-  // Genera anni accademici (corrente + 2 successivi)
-  const anniAccademici = useMemo(() => {
-    const now = new Date();
-    const startYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
-    return Array.from({ length: 3 }, (_, i) => `${startYear + i}/${startYear + i + 1}`).filter(a => a !== '2025/2026');
-  }, []);
-
   const set = (key: string, value: string) => setForm(f => ({ ...f, [key]: value }));
 
   // Reset tipo camera se non più disponibile per la struttura selezionata
@@ -150,15 +143,13 @@ export default function Candidatura() {
   };
 
   const setUniversita = (value: string) =>
-    setForm(f => ({ ...f, universita: value, dipartimento: '', corso_di_studi: '' }));
-  const setDipartimento = (value: string) =>
-    setForm(f => ({ ...f, dipartimento: value, corso_di_studi: '' }));
+    setForm(f => ({ ...f, universita: value }));
 
   const validateStep = () => {
     const requiredByKey: Record<string, string[]> = {
       stepPersonal: ['nome', 'cognome', 'email', 'telefono', 'data_nascita', 'nazionalita', 'codice_fiscale', 'indirizzo_residenza'],
-      stepAcademic: ['universita', 'dipartimento', 'corso_di_studi', 'matricola'],
-      stepPreferences: ['periodo_inizio', 'periodo_fine', 'anno_accademico'],
+      stepAcademic: ['universita', 'corso_di_studi', 'periodo_inizio', 'periodo_fine'],
+      stepPreferences: [],
       stepDocuments: ['_documenti'],
       stepInfoAggiuntive: ['_info_extra'],
       stepDichiarazioni: ['_dichiarazioni'],
@@ -173,7 +164,7 @@ export default function Candidatura() {
         continue;
       }
       if (f === '_dichiarazioni') {
-        if (!dichiarazioni.veridicita || !dichiarazioni.privacy || !dichiarazioni.info_struttura) {
+        if (!dichiarazioni.veridicita || !dichiarazioni.privacy || !dichiarazioni.info_struttura || !dichiarazioni.contatto) {
           toast({ title: t(lang, 'form.required'), variant: 'destructive' });
           return false;
         }
