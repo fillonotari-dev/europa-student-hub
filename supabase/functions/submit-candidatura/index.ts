@@ -120,6 +120,33 @@ Deno.serve(async (req) => {
       ? risposte_custom as Record<string, unknown>
       : {};
 
+    // Enforce limits on risposte_custom to prevent DB bloat
+    const RISPOSTE_KEYS_MAX = 50;
+    const RISPOSTE_STR_MAX = 5000;
+    const RISPOSTE_ARR_MAX = 50;
+    const risposteKeys = Object.keys(safeRisposte);
+    if (risposteKeys.length > RISPOSTE_KEYS_MAX) return bad("Troppi campi personalizzati");
+    for (const k of risposteKeys) {
+      if (!DOC_KEY_RE.test(k)) return bad("Chiave risposta non valida");
+      const v = safeRisposte[k];
+      if (v === null || v === undefined || typeof v === "boolean" || typeof v === "number") continue;
+      if (typeof v === "string") {
+        if (v.length > RISPOSTE_STR_MAX) return bad(`Risposta troppo lunga: ${k}`);
+        continue;
+      }
+      if (Array.isArray(v)) {
+        if (v.length > RISPOSTE_ARR_MAX) return bad(`Troppi valori per: ${k}`);
+        for (const item of v) {
+          if (item === null || typeof item === "boolean" || typeof item === "number") continue;
+          if (typeof item !== "string" || item.length > RISPOSTE_STR_MAX) {
+            return bad(`Valore non valido in: ${k}`);
+          }
+        }
+        continue;
+      }
+      return bad(`Tipo risposta non supportato: ${k}`);
+    }
+
     const { data: campiAttivi } = await supabase
       .from("form_campi_custom")
       .select("chiave, obbligatorio, tipo, label_it")
