@@ -242,23 +242,30 @@ export default function Candidatura() {
       const tempId = crypto.randomUUID();
       const uploadedDocs: { tipo: string; nome_file: string; url: string }[] = [];
 
+      const uploadViaFunction = async (tipo: string, file: File) => {
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('tipo', tipo);
+        fd.append('temp_id', tempId);
+        const { data, error } = await supabase.functions.invoke('upload-candidatura-doc', {
+          body: fd,
+        });
+        if (error) throw new Error(error.message || 'Errore upload documento');
+        const path = (data as any)?.path as string | undefined;
+        const nome = (data as any)?.nome_file as string | undefined;
+        if (!path) throw new Error('Risposta upload non valida');
+        uploadedDocs.push({ tipo, nome_file: nome ?? file.name, url: path });
+      };
+
       for (const [tipo, file] of Object.entries(files)) {
         if (!file) continue;
-        const path = `${tempId}/${tipo}/${file.name}`;
-        const { error } = await supabase.storage.from('documenti_studenti').upload(path, file);
-        if (error) throw error;
-        const { data: urlData } = supabase.storage.from('documenti_studenti').getPublicUrl(path);
-        uploadedDocs.push({ tipo, nome_file: file.name, url: urlData.publicUrl });
+        await uploadViaFunction(tipo, file);
       }
 
       // Documenti custom
       for (const [chiave, file] of Object.entries(customFiles)) {
         if (!file) continue;
-        const path = `${tempId}/${chiave}/${file.name}`;
-        const { error } = await supabase.storage.from('documenti_studenti').upload(path, file);
-        if (error) throw error;
-        const { data: urlData } = supabase.storage.from('documenti_studenti').getPublicUrl(path);
-        uploadedDocs.push({ tipo: chiave, nome_file: file.name, url: urlData.publicUrl });
+        await uploadViaFunction(chiave, file);
       }
 
       const { error } = await supabase.functions.invoke('submit-candidatura', {

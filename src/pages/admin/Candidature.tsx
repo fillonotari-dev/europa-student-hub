@@ -52,8 +52,13 @@ function extractStoragePath(url: string): string | null {
   if (!url) return null;
   const marker = '/documenti_studenti/';
   const idx = url.indexOf(marker);
-  if (idx === -1) return null;
-  let path = url.substring(idx + marker.length);
+  let path: string;
+  if (idx === -1) {
+    // Nuovo formato: salviamo direttamente il path interno al bucket
+    path = url;
+  } else {
+    path = url.substring(idx + marker.length);
+  }
   // rimuove eventuali query string (es. ?token=...)
   const q = path.indexOf('?');
   if (q !== -1) path = path.substring(0, q);
