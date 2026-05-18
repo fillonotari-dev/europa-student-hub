@@ -65,14 +65,17 @@ Deno.serve(async (req) => {
     const vEmailRaw = str(email, 255);
     const vUniversita = str(universita, 200);
     const vCorso = str(corso_di_studi, 200);
-    const vMatricola = str(matricola, 50);
-    const vAnnoAcc = str(anno_accademico, 9);
-    if (!vNome || !vCognome || !vEmailRaw || !vUniversita || !vCorso || !vMatricola || !vAnnoAcc) {
+    if (!vNome || !vCognome || !vEmailRaw || !vUniversita || !vCorso) {
       return bad("Campi obbligatori mancanti o troppo lunghi");
     }
     const vEmail = vEmailRaw.toLowerCase();
     if (!EMAIL_RE.test(vEmail)) return bad("Email non valida");
-    if (!ANNO_ACC_RE.test(vAnnoAcc)) return bad("Anno accademico non valido");
+
+    // anno_accademico: optional in PDF — compute server-side from current date
+    const _now = new Date();
+    const _startYear = _now.getUTCMonth() >= 8 ? _now.getUTCFullYear() : _now.getUTCFullYear() - 1;
+    const vAnnoAccComputed = `${_startYear}/${_startYear + 1}`;
+    const vMatricola: string | null = null;
 
     // Optional fields
     const vTelefono = optStr(telefono, 30);
@@ -105,7 +108,7 @@ Deno.serve(async (req) => {
     if (!dichiarazioni || typeof dichiarazioni !== "object" || Array.isArray(dichiarazioni)) {
       return bad("Dichiarazioni mancanti");
     }
-    const requiredDecl = ["veridicita", "privacy", "info_struttura"];
+    const requiredDecl = ["veridicita", "privacy", "info_struttura", "contatto"];
     for (const k of requiredDecl) {
       if ((dichiarazioni as any)[k] !== true) return bad("Devi accettare tutte le dichiarazioni");
     }
@@ -113,6 +116,7 @@ Deno.serve(async (req) => {
       veridicita: !!(dichiarazioni as any).veridicita,
       privacy: !!(dichiarazioni as any).privacy,
       info_struttura: !!(dichiarazioni as any).info_struttura,
+      contatto: !!(dichiarazioni as any).contatto,
       firmate_il: new Date().toISOString(),
     };
 
@@ -253,7 +257,7 @@ Deno.serve(async (req) => {
       .from("candidature")
       .select("id")
       .eq("studente_id", studenteId)
-      .eq("anno_accademico", vAnnoAcc)
+      .eq("anno_accademico", vAnnoAccComputed)
       .not("stato", "in", '("sostituita","ritirata","rifiutata")')
       .maybeSingle();
 
@@ -278,7 +282,7 @@ Deno.serve(async (req) => {
         tipo_camera_preferito: vTipoCamera,
         periodo_inizio: periodo_inizio || null,
         periodo_fine: periodo_fine || null,
-        anno_accademico: vAnnoAcc,
+        anno_accademico: vAnnoAccComputed,
         messaggio: vMessaggio,
         universita_snapshot: vUniversita,
         corso_snapshot: corsoCompleto,
