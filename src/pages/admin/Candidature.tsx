@@ -308,27 +308,27 @@ export default function Candidature() {
           </DropdownMenuItem>
         )}
         {stato === 'ricevuta' && (
-          <DropdownMenuItem onClick={() => updateStato.mutate({ id: c.id, stato: 'in_valutazione' })}>
+          <DropdownMenuItem onClick={() => requestStatoChange(c, 'in_valutazione')}>
             <PlayCircle className="w-4 h-4 mr-2" /> Prendi in carico
           </DropdownMenuItem>
         )}
         {stato === 'in_valutazione' && (
           <>
-            <DropdownMenuItem onClick={() => updateStato.mutate({ id: c.id, stato: 'approvata' })}>
+            <DropdownMenuItem onClick={() => requestStatoChange(c, 'approvata')}>
               <CheckCircle2 className="w-4 h-4 mr-2" /> Approva
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => updateStato.mutate({ id: c.id, stato: 'rifiutata' })}>
+            <DropdownMenuItem onClick={() => requestStatoChange(c, 'rifiutata')}>
               <XCircle className="w-4 h-4 mr-2" /> Rifiuta
             </DropdownMenuItem>
           </>
         )}
         {(stato === 'approvata' || stato === 'rifiutata') && (
-          <DropdownMenuItem onClick={() => updateStato.mutate({ id: c.id, stato: 'in_valutazione' })}>
+          <DropdownMenuItem onClick={() => requestStatoChange(c, 'in_valutazione')}>
             <RotateCcw className="w-4 h-4 mr-2" /> Rimetti in valutazione
           </DropdownMenuItem>
         )}
         {stato !== 'ritirata' && stato !== 'sostituita' && (
-          <DropdownMenuItem onClick={() => updateStato.mutate({ id: c.id, stato: 'ritirata' })}>
+          <DropdownMenuItem onClick={() => requestStatoChange(c, 'ritirata')}>
             <Archive className="w-4 h-4 mr-2" /> Segna come ritirata
           </DropdownMenuItem>
         )}
