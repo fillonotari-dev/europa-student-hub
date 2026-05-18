@@ -589,6 +589,53 @@ export default function Candidature() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Completion link modal */}
+      <Dialog open={!!linkTarget} onOpenChange={open => { if (!open) { setLinkTarget(null); setLinkData(null); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Invia form completo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {linkLoading && <p className="text-sm text-muted-foreground">Generazione link in corso...</p>}
+            {linkData && linkTarget && (
+              <>
+                <p className="text-[13px] text-muted-foreground">
+                  Copia il link e invialo via email a <strong>{linkTarget.studenti?.email}</strong>. Scade il{' '}
+                  {new Date(linkData.scade_il).toLocaleDateString('it-IT')}.
+                </p>
+                <div className="flex gap-2">
+                  <Input readOnly value={linkData.url} className="font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(linkData.url);
+                      setLinkCopied(true);
+                      setTimeout(() => setLinkCopied(false), 2000);
+                    }}
+                  >
+                    {linkCopied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  </Button>
+                </div>
+                {linkTarget.studenti?.email && (
+                  <Button asChild className="w-full" variant="outline">
+                    <a
+                      href={`mailto:${linkTarget.studenti.email}?subject=${encodeURIComponent('Completa la tua candidatura - Studentato Europa')}&body=${encodeURIComponent(
+                        `Ciao ${linkTarget.studenti?.nome ?? ''},\n\nla tua candidatura è stata pre-approvata. Per completarla, compila il form al seguente link (valido fino al ${new Date(linkData.scade_il).toLocaleDateString('it-IT')}):\n\n${linkData.url}\n\nGrazie,\nStudentato Europa`
+                      )}`}
+                    >
+                      <Mail className="w-4 h-4 mr-2" /> Apri client email
+                    </a>
+                  </Button>
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  Per sicurezza il link viene mostrato solo una volta. Se lo perdi, puoi rigenerarlo.
+                </p>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
