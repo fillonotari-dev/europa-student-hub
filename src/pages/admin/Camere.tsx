@@ -632,8 +632,16 @@ export default function Camere() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Imposta in manutenzione</AlertDialogTitle>
-            <AlertDialogDescription>
-              La camera {maintenanceTarget?.numero} non sarà disponibile per nuove assegnazioni. Le assegnazioni esistenti restano invariate.
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-[13px]">
+                <p>La camera {maintenanceTarget?.numero} non sarà disponibile per nuove assegnazioni.</p>
+                {maintenanceTarget && occCount(maintenanceTarget.id) > 0 && (
+                  <p className="rounded-md bg-warning/10 text-warning border border-warning/30 p-2">
+                    Attenzione: ci sono <strong>{occCount(maintenanceTarget.id)} residenti attivi</strong> in questa stanza.
+                    Resteranno formalmente in camera ma essa risulterà non assegnabile. Per liberarli, gestisci le assegnazioni dalla pagina Residenti.
+                  </p>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div>
@@ -672,8 +680,15 @@ export default function Camere() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare la camera {deleteTarget?.numero}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Operazione non reversibile. Sarà rimossa anche dallo storico assegnazioni concluse.
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-[13px]">
+                <p>Operazione irreversibile.</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>La camera scompare da elenco, filtri e statistiche.</li>
+                  <li>Lo <strong>storico assegnazioni concluse</strong> resta nel database ma perderà il riferimento (camera mostrata come "—" nello storico).</li>
+                </ul>
+                <p className="text-muted-foreground">Per disabilitarla temporaneamente conviene usare "Imposta in manutenzione".</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
