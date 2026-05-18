@@ -334,9 +334,23 @@ export default function Strutture() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Disattivare la struttura?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Questa struttura ha posti occupati o candidature pendenti. Disattivandola, sparirà dal form pubblico e dai filtri,
-              ma i dati storici resteranno consultabili. Vuoi procedere?
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-[13px]">
+                <p>Questa struttura ha attività in corso:</p>
+                {confirmDeactivate && (
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li><strong>{metricsByStruttura[confirmDeactivate.id]?.occupati ?? 0}</strong> posti occupati</li>
+                    <li><strong>{metricsByStruttura[confirmDeactivate.id]?.candidaturePendenti ?? 0}</strong> candidature in attesa</li>
+                  </ul>
+                )}
+                <p>Disattivandola:</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>sparisce dal <strong>form pubblico</strong> e dai filtri admin</li>
+                  <li>le <strong>candidature pendenti</strong> resteranno collegate a questa struttura</li>
+                  <li>i <strong>residenti attivi</strong> non vengono toccati: restano in camera</li>
+                  <li>i dati <strong>storici</strong> restano consultabili</li>
+                </ul>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
