@@ -1,72 +1,136 @@
-## Problema
+## Obiettivo
 
-Il bucket `documenti_studenti` è **già privato** (`public: false`), ma:
+Sdoppiare il processo in due fasi:
 
-1. Il form pubblico chiama `getPublicUrl()` e salva quell'URL in `documenti.url`. Se per errore il bucket venisse messo "public" in futuro, tutti i documenti diventerebbero accessibili a chiunque conosca l'URL. È fragile.
-2. La policy di INSERT per `anon` è troppo permissiva: chiunque su internet può caricare qualsiasi file (di qualsiasi peso/tipo) in qualsiasi path del bucket. È un vettore di abuso (storage flooding, upload di file arbitrari).
+1. **Form pubblico "Pre-screening"** su `/candidatura` → blocchi **1 Dati personali**, **2 Percorso universitario**, **3 Preferenze alloggio**, **6 Documenti base**, **7 Dichiarazioni**.
+2. **Form esteso "Completamento"** su `/candidatura/completa/:token` → aggiunge **4 Stile di vita**, **5 Contatto emergenza/garante** e versione completa di **6 Documenti** (garante, ulteriori). Inviato manualmente dall'admin solo ai candidati pre-approvati.
 
-Lato admin va già bene: usa `createSignedUrl()` con scadenza 60s.
+Una sola entità `candidature` continua a rappresentare la pratica end-to-end: il completamento arricchisce la stessa riga, non ne crea una nuova.
 
-## Soluzione
-
-Spostare l'upload dei documenti **dentro una edge function** che gira con la `service_role` e fa da gatekeeper. Il browser non parla più direttamente con Storage: invia il file alla function, che valida (tipo MIME, dimensione, chiave documento), salva sotto un path controllato e ritorna il path al client. Poi `submit-candidatura` salva quel path in `documenti.url`. Gli admin continuano a generare signed URL on-demand.
-
-Vantaggi:
-- Eliminiamo del tutto la policy INSERT per `anon` su Storage → la finding "Unrestricted Storage Upload" è risolta.
-- Nessun `getPublicUrl()` viene più chiamato → la finding "Public Bucket" è risolta anche nel caso peggiore (bucket toggle umano).
-- Validazione server-side reale (tipo file, dimensione max, chiave documento valida — solo `documento_identita`, `certificato_iscrizione` o una chiave presente in `form_documenti_custom` attiva).
-
-## Piano
-
-### 1. Nuova edge function `upload-candidatura-doc`
-
-`supabase/functions/upload-candidatura-doc/index.ts`
-
-- Accetta `multipart/form-data` con `file`, `tipo` (chiave documento), `temp_id` (UUID generato dal client per raggruppare i file della stessa candidatura).
-- Validazione:
-  - `temp_id` deve essere un UUID valido.
-  - `tipo` ∈ {`documento_identita`, `certificato_iscrizione`} oppure presente in `form_documenti_custom` con `attivo = true`.
-  - `file.size` ≤ 10 MB.
-  - `file.type` ∈ {`application/pdf`, `image/jpeg`, `image/png`, `image/webp`}.
-- Salva con la `service_role` su path `pending/{temp_id}/{tipo}/{nome_file_sanificato}`.
-- Ritorna `{ path, nome_file }`.
-- CORS aperto (form pubblico). Nessun JWT richiesto (`verify_jwt = false`).
-
-### 2. `src/pages/Candidatura.tsx`
-
-- Rimuovere le due chiamate a `supabase.storage.from(...).upload()` + `getPublicUrl()`.
-- Sostituirle con `fetch` (o `supabase.functions.invoke` con `FormData`) verso `upload-candidatura-doc`.
-- `uploadedDocs` ora contiene `{ tipo, nome_file, url: path }` — `url` diventa il **path interno** al bucket, non più un URL.
-
-### 3. `src/pages/admin/Candidature.tsx`
-
-- `extractStoragePath()` viene semplificato (o reso retro-compatibile): se `doc.url` non contiene `/documenti_studenti/`, lo trattiamo già come path. Manteniamo la compat per i record storici.
-- Nessun'altra modifica: `createSignedUrl(path, 60)` continua a funzionare.
-
-### 4. Migration: stringere le RLS di Storage
-
-```sql
-DROP POLICY "Public upload documenti" ON storage.objects;
-DROP POLICY "Auth upload documenti" ON storage.objects;
-```
-
-Nessuna policy INSERT resta per `anon`/`authenticated`: solo la `service_role` (bypassa RLS) potrà scrivere, ed è esattamente quello che fa la nuova edge function. Le policy SELECT/DELETE admin restano invariate.
-
-### 5. (Opzionale, consigliato) Backfill dati storici
-
-Per le candidature già esistenti, `documenti.url` contiene URL pubblici come `https://…/object/public/documenti_studenti/<path>`. La funzione `extractStoragePath` li gestisce già, quindi gli admin riescono comunque ad aprirli via signed URL. Nessuna migration dati richiesta.
-
-### File toccati
+## Flusso UX
 
 ```text
-NEW  supabase/functions/upload-candidatura-doc/index.ts
-NEW  migration: drop delle 2 policy INSERT anon/auth su storage.objects
-EDIT src/pages/Candidatura.tsx                 (upload via edge function, salva path)
-EDIT src/pages/admin/Candidature.tsx           (extractStoragePath retro-compat con path puro)
+Studente             Sito pubblico            Admin                Studente
+   │                       │                    │                     │
+   │── compila form base ─▶│                    │                     │
+   │                       │── nuova candidatura (stato: ricevuta)    │
+   │                       │                    │                     │
+   │                       │     admin rivede candidatura             │
+   │                       │                    │── "Invia form completo"
+   │                       │                    │   genera token + link
+   │                       │                    │── email con link ──▶│
+   │                       │                                          │
+   │                       │◀── apre /candidatura/completa/:token ────│
+   │                       │    compila blocchi 4-5 + doc aggiuntivi  │
+   │                       │── stato: completata ────────────────────▶│
+   │                       │                                          │
+   │                       │     admin valuta → accettata/rifiutata   │
 ```
 
-### Cosa NON cambia
+### Stati candidatura (aggiornati)
 
-- Bucket resta privato (già lo è).
-- Flusso UX per lo studente identico: stessa progress bar di upload, stessi messaggi di errore.
-- Vista admin identica: stesso bottone "apri/scarica" con signed URL 60s.
+`ricevuta` → (admin invia link) → `in_completamento` → (studente compila) → `completata` → `accettata` / `rifiutata` / `ritirata` / `sostituita`.
+
+Le candidature possono anche andare direttamente da `ricevuta` a `rifiutata` se non passano il pre-screening (skip del completamento).
+
+### UI Admin
+
+- Nella tabella **Candidature** (stato `ricevuta`): azione **"Invia form completo"** → genera token, mostra modale con link copiabile e pulsante "Apri client email" (`mailto:` precompilato in italiano/inglese a seconda di `lang_preferita` se disponibile, altrimenti italiano).
+- Badge visivo per distinguere candidature `ricevuta` (solo pre-screening) da `completata` (pronte per valutazione).
+- Vista dettaglio candidatura: due sezioni separate, "Dati pre-screening" sempre presenti, "Dati completi" mostrate solo se valorizzate, con timestamp di compilazione.
+- Azione **"Rigenera link"** se il token è scaduto/perso.
+
+### UI Studente
+
+- `/candidatura` (pubblico): step ridotti — `Personali → Accademico → Preferenze → Documenti base → Dichiarazioni → Revisione`. Schermata di successo aggiornata: "Riceverai una mail se la tua candidatura passa al passo successivo".
+- `/candidatura/completa/:token` (link diretto): step → `Stile di vita → Garante → Documenti aggiuntivi → Dichiarazioni → Revisione`. Header mostra "Ciao Mario, completa la tua candidatura". Riusa gli stessi componenti `Field`, upload via edge function già esistente.
+- Token scaduto/non valido → schermata d'errore con istruzioni per contattare la direzione.
+
+## Modello dati
+
+### Migrazione 1 — nuovi campi su `candidature`
+
+```text
+versione_form         text default 'pre_screening'   -- 'pre_screening' | 'completa'
+completata_il         timestamptz null
+completamento_token   text null unique               -- 32+ char random, hashato
+token_scade_il        timestamptz null
+dichiarazioni         jsonb default '{}'             -- block 7 checkboxes
+-- block 3 estensioni
+data_arrivo_prevista  date null
+come_conosciuto       text null                      -- 'instagram'|'google'|...
+come_conosciuto_altro text null
+preferenze_note       text null                      -- "preferenze o esigenze particolari"
+indirizzo_residenza   text null                      -- block 1
+documento_identita_n  text null                      -- block 1
+tipo_studente         text null                      -- 'universitario'|'erasmus'|'master'|'altro'
+tipo_studente_altro   text null
+-- block 4
+lingue_parlate        text null
+orari                 text null                      -- 'mattiniero'|'serale'|'variabile'
+personalita           text null
+personalita_altro     text null
+ordine_pulizia        text null
+fumatore              boolean null
+presentazione         text null
+-- block 5
+garante_nome          text null
+garante_relazione     text null
+garante_telefono      text null
+garante_email         text null
+```
+
+I campi di blocco 4-5 restano `null` finché lo studente non compila il form completo. Niente check constraint con `now()` — eventuale validazione token via trigger o nella edge function.
+
+### Migrazione 2 — RLS
+
+- `candidature`: aggiungere policy `anon UPDATE` filtrata su `completamento_token = current_setting('request.jwt.claims', true)::jsonb->>'token'` **NO** — meglio gestire tutto via edge function `complete-candidatura` con service role (come già fatto per `submit-candidatura`). Nessuna nuova policy RLS aperta.
+- `documenti`: invariate (edge function service-role).
+
+### Migrazione 3 — `form_documenti_custom`
+
+Aggiungere colonna `fase text default 'pre_screening'` (`'pre_screening'` | `'completa'`) per permettere all'admin di decidere in quale fase richiedere ciascun documento custom. Stessa cosa su `form_campi_custom`. Default retro-compatibile.
+
+## Edge functions
+
+### Nuova `generate-completion-link` (auth: admin)
+
+Input: `candidatura_id`. Genera token sicuro (32 byte base64url), salva su `candidature` con scadenza `now() + 14 days`, cambia stato in `in_completamento`, scrive in `log_stato_candidature`. Output: `{ url, scade_il }`.
+
+### Nuova `complete-candidatura` (auth: pubblica, valida via token)
+
+Input: `token`, payload blocchi 4-5 + dichiarazioni + documenti. Validazione: token esiste, non scaduto, stato == `in_completamento`. Aggiorna candidatura, imposta `completata_il`, stato `completata`, scrive log. Stessa validazione strict del payload come `submit-candidatura`.
+
+### Modifica `submit-candidatura`
+
+- Salva solo i campi del form ridotto.
+- Stato iniziale resta `ricevuta`.
+- `dichiarazioni` (blocco 7) ora obbligatorie anche nel form pubblico.
+
+### Nuova `get-completion-form` (auth: pubblica)
+
+Input: `token`. Restituisce dati minimi per prefill (nome studente, lingua preferita) e validità token. Nessun PII sensibile.
+
+## Frontend — file principali
+
+- `src/pages/Candidatura.tsx` → rimuovere step "Stile di vita"/"Garante" (non presenti oggi, quindi solo aggiungere il nuovo step **Dichiarazioni** prima della revisione). Aggiungere campi blocco 1 extra (indirizzo, doc identità n.) e blocco 3 extra (data arrivo, come conosciuto, preferenze particolari, tipo studente).
+- `src/pages/CandidaturaCompleta.tsx` (nuovo) → step blocchi 4, 5, doc aggiuntivi, dichiarazioni se non già firmate, revisione.
+- `src/App.tsx` → nuova route `/candidatura/completa/:token`.
+- `src/pages/admin/Candidature.tsx` → azione "Invia form completo" + badge stato + link copia/mailto.
+- `src/components/admin/CompletionLinkModal.tsx` (nuovo) → modale che mostra link, scadenza, bottone copia, bottone mailto con template IT/EN.
+- `src/i18n/translations.ts` → nuove chiavi per i blocchi 4-5-7, mail templates, schermate token.
+- `src/pages/admin/ConfigForm.tsx` → selettore "fase" per campi e documenti custom.
+
+## Considerazioni
+
+- **Email**: l'invio è manuale via `mailto:` (no infrastruttura email da configurare ora). Possiamo automatizzarlo dopo con Resend se necessario.
+- **Sicurezza token**: salviamo l'hash (sha256) del token, non il valore in chiaro, e mostriamo il valore solo una volta nella modale. Scadenza 14 giorni configurabile.
+- **Migrazione dati esistenti**: candidature esistenti rimangono `versione_form='pre_screening'`. Nessun backfill richiesto.
+- **Storico/export XLSX**: estendere `exportXlsx.ts` con le nuove colonne (lasciate vuote se non compilate).
+- **Dichiarazioni blocco 7**: 4 checkbox obbligatorie sia nel form pubblico (le prime 3 + privacy) sia nel form completo (riconferma con timestamp). Il consenso al contatto può essere chiesto solo nel form completo.
+
+## Cosa NON viene fatto in questa iterazione
+
+- Invio email automatico (resta `mailto:`).
+- Firma digitale del PDF generato (rimaniamo su checkbox + dichiarazione con timestamp/IP).
+- Rinnovo automatico token scaduti.

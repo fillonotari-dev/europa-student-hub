@@ -53,7 +53,10 @@ Deno.serve(async (req) => {
       nome, cognome, email, telefono, data_nascita, nazionalita, codice_fiscale,
       universita, dipartimento, corso_di_studi, anno_di_corso, matricola,
       struttura_preferita_id, tipo_camera_preferito, periodo_inizio, periodo_fine,
-      anno_accademico, messaggio, documenti, risposte_custom
+      anno_accademico, messaggio, documenti, risposte_custom,
+      indirizzo_residenza, documento_identita_n, tipo_studente, tipo_studente_altro,
+      data_arrivo_prevista, come_conosciuto, come_conosciuto_altro, preferenze_note,
+      dichiarazioni,
     } = body;
 
     // Required strings with length limits
@@ -82,6 +85,37 @@ Deno.serve(async (req) => {
     if ([vTelefono, vNazionalita, vCodiceFiscale, vDipartimento, vAnnoCorso, vTipoCamera, vMessaggio].includes(undefined as any)) {
       return bad("Campo opzionale non valido");
     }
+
+    // Optional fields — pre_screening extension (blocco 1 + 3)
+    const vIndirizzo = optStr(indirizzo_residenza, 500);
+    const vDocIdN = optStr(documento_identita_n, 64);
+    const vTipoStud = optStr(tipo_studente, 30);
+    const vTipoStudAltro = optStr(tipo_studente_altro, 200);
+    const vComeConosc = optStr(come_conosciuto, 30);
+    const vComeConoscAltro = optStr(come_conosciuto_altro, 200);
+    const vPrefNote = optStr(preferenze_note, 1000);
+    if ([vIndirizzo, vDocIdN, vTipoStud, vTipoStudAltro, vComeConosc, vComeConoscAltro, vPrefNote].includes(undefined as any)) {
+      return bad("Campo opzionale non valido");
+    }
+    if (data_arrivo_prevista !== undefined && data_arrivo_prevista !== null && data_arrivo_prevista !== "") {
+      if (typeof data_arrivo_prevista !== "string" || !DATE_RE.test(data_arrivo_prevista)) return bad("Data arrivo non valida");
+    }
+
+    // Declarations (block 7) — required on public form too
+    if (!dichiarazioni || typeof dichiarazioni !== "object" || Array.isArray(dichiarazioni)) {
+      return bad("Dichiarazioni mancanti");
+    }
+    const requiredDecl = ["veridicita", "privacy", "info_struttura"];
+    for (const k of requiredDecl) {
+      if ((dichiarazioni as any)[k] !== true) return bad("Devi accettare tutte le dichiarazioni");
+    }
+    const dichiarazioniSafe = {
+      veridicita: !!(dichiarazioni as any).veridicita,
+      privacy: !!(dichiarazioni as any).privacy,
+      info_struttura: !!(dichiarazioni as any).info_struttura,
+      firmate_il: new Date().toISOString(),
+    };
+
     if (data_nascita !== undefined && data_nascita !== null && data_nascita !== "") {
       if (typeof data_nascita !== "string" || !DATE_RE.test(data_nascita)) return bad("Data di nascita non valida");
     }
@@ -251,6 +285,16 @@ Deno.serve(async (req) => {
         anno_corso_snapshot: vAnnoCorso,
         matricola_snapshot: vMatricola,
         risposte_custom: safeRisposte,
+        versione_form: "pre_screening",
+        indirizzo_residenza: vIndirizzo,
+        documento_identita_n: vDocIdN,
+        tipo_studente: vTipoStud,
+        tipo_studente_altro: vTipoStudAltro,
+        data_arrivo_prevista: data_arrivo_prevista || null,
+        come_conosciuto: vComeConosc,
+        come_conosciuto_altro: vComeConoscAltro,
+        preferenze_note: vPrefNote,
+        dichiarazioni: dichiarazioniSafe,
       })
       .select("id")
       .single();

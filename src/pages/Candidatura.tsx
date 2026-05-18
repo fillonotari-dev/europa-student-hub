@@ -21,7 +21,7 @@ import { NATIONALITIES } from '@/lib/nationalities';
 import { UNIVERSITIES, COURSE_LEVEL_LABELS, type CourseLevel } from '@/lib/universities';
 import logoStudentato from '@/assets/logo-studentato.svg';
 
-const BASE_STEPS = ['stepPersonal', 'stepAcademic', 'stepPreferences', 'stepDocuments'] as const;
+const BASE_STEPS = ['stepPersonal', 'stepAcademic', 'stepPreferences', 'stepDocuments', 'stepDichiarazioni'] as const;
 const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 const MAX_SIZE = 5 * 1024 * 1024;
 
@@ -60,13 +60,19 @@ export default function Candidatura() {
 
   const [form, setForm] = useState({
     nome: '', cognome: '', email: '', telefono: '', data_nascita: '', nazionalita: '', codice_fiscale: '',
+    indirizzo_residenza: '', documento_identita_n: '',
     universita: UNIVERSITIES.length === 1 ? UNIVERSITIES[0].name : '',
     dipartimento: '', corso_di_studi: '', anno_di_corso: '', matricola: '',
+    tipo_studente: '', tipo_studente_altro: '',
     struttura_preferita_id: '', tipo_camera_preferito: '', periodo_inizio: '', periodo_fine: '',
     anno_accademico: '', messaggio: '',
+    data_arrivo_prevista: '', come_conosciuto: '', come_conosciuto_altro: '', preferenze_note: '',
   });
   const [files, setFiles] = useState<{ documento_identita: File | null; certificato_iscrizione: File | null }>({
     documento_identita: null, certificato_iscrizione: null,
+  });
+  const [dichiarazioni, setDichiarazioni] = useState({
+    veridicita: false, privacy: false, info_struttura: false,
   });
   const [fileErrors, setFileErrors] = useState<{ documento_identita?: string; certificato_iscrizione?: string }>({});
   const [customAnswers, setCustomAnswers] = useState<Record<string, any>>({});
@@ -150,16 +156,24 @@ export default function Candidatura() {
 
   const validateStep = () => {
     const requiredByKey: Record<string, string[]> = {
-      stepPersonal: ['nome', 'cognome', 'email', 'telefono', 'data_nascita', 'nazionalita', 'codice_fiscale'],
+      stepPersonal: ['nome', 'cognome', 'email', 'telefono', 'data_nascita', 'nazionalita', 'codice_fiscale', 'indirizzo_residenza'],
       stepAcademic: ['universita', 'dipartimento', 'corso_di_studi', 'matricola'],
       stepPreferences: ['periodo_inizio', 'periodo_fine', 'anno_accademico'],
       stepDocuments: ['_documenti'],
       stepInfoAggiuntive: ['_info_extra'],
+      stepDichiarazioni: ['_dichiarazioni'],
     };
     const fields = requiredByKey[stepKey] || [];
     for (const f of fields) {
       if (f === '_documenti') {
         if (!files.documento_identita || !files.certificato_iscrizione) {
+          toast({ title: t(lang, 'form.required'), variant: 'destructive' });
+          return false;
+        }
+        continue;
+      }
+      if (f === '_dichiarazioni') {
+        if (!dichiarazioni.veridicita || !dichiarazioni.privacy || !dichiarazioni.info_struttura) {
           toast({ title: t(lang, 'form.required'), variant: 'destructive' });
           return false;
         }
@@ -274,6 +288,11 @@ export default function Candidatura() {
           documenti: uploadedDocs,
           struttura_preferita_id: form.struttura_preferita_id || null,
           risposte_custom: customAnswers,
+          dichiarazioni: {
+            veridicita: dichiarazioni.veridicita,
+            privacy: dichiarazioni.privacy,
+            info_struttura: dichiarazioni.info_struttura,
+          },
         },
       });
       if (error) throw error;
@@ -350,6 +369,8 @@ export default function Candidatura() {
                 <Field label={t(lang, 'form.dataNascita')} value={form.data_nascita} onChange={v => set('data_nascita', v)} type="date" required />
                 <NationalityField lang={lang} label={t(lang, 'form.nazionalita')} value={form.nazionalita} onChange={v => set('nazionalita', v)} required />
                 <Field label={t(lang, 'form.codiceFiscale')} value={form.codice_fiscale} onChange={v => set('codice_fiscale', v)} required />
+                <Field label={t(lang, 'form.indirizzoResidenza')} value={form.indirizzo_residenza} onChange={v => set('indirizzo_residenza', v)} required />
+                <Field label={t(lang, 'form.documentoIdentitaN')} value={form.documento_identita_n} onChange={v => set('documento_identita_n', v)} />
               </div>
             )}
             {stepKey === 'stepAcademic' && (
@@ -358,6 +379,27 @@ export default function Candidatura() {
                 <DipartimentoField lang={lang} universitaName={form.universita} value={form.dipartimento} onChange={setDipartimento} />
                 <CorsoField lang={lang} universitaName={form.universita} dipartimentoName={form.dipartimento} value={form.corso_di_studi} onChange={v => set('corso_di_studi', v)} />
                 <Field label={t(lang, 'form.matricola')} value={form.matricola} onChange={v => set('matricola', v)} required />
+                <div>
+                  <Label>{t(lang, 'form.tipoStudente')}</Label>
+                  <Select value={form.tipo_studente} onValueChange={v => set('tipo_studente', v)}>
+                    <SelectTrigger className="mt-1.5"><SelectValue placeholder={t(lang, 'form.selectOption')} /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="universitario">{t(lang, 'form.tipoStudenteUniversitario')}</SelectItem>
+                      <SelectItem value="erasmus">{t(lang, 'form.tipoStudenteErasmus')}</SelectItem>
+                      <SelectItem value="master">{t(lang, 'form.tipoStudenteMaster')}</SelectItem>
+                      <SelectItem value="altro">{t(lang, 'form.tipoStudenteAltro')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {form.tipo_studente === 'altro' && (
+                    <Input
+                      className="mt-2"
+                      placeholder={t(lang, 'form.tipoStudenteAltroPlaceholder')}
+                      value={form.tipo_studente_altro}
+                      onChange={e => set('tipo_studente_altro', e.target.value)}
+                      maxLength={200}
+                    />
+                  )}
+                </div>
               </div>
             )}
             {stepKey === 'stepPreferences' && (
@@ -409,6 +451,35 @@ export default function Candidatura() {
                     </SelectContent>
                   </Select>
                 </div>
+                <Field label={t(lang, 'form.dataArrivoPrevista')} value={form.data_arrivo_prevista} onChange={v => set('data_arrivo_prevista', v)} type="date" />
+                <div>
+                  <Label>{t(lang, 'form.preferenzeNote')}</Label>
+                  <Textarea value={form.preferenze_note} onChange={e => set('preferenze_note', e.target.value)} placeholder={t(lang, 'form.preferenzeNotePlaceholder')} className="mt-1.5" maxLength={1000} />
+                </div>
+                <div>
+                  <Label>{t(lang, 'form.comeConosciuto')}</Label>
+                  <Select value={form.come_conosciuto} onValueChange={v => set('come_conosciuto', v)}>
+                    <SelectTrigger className="mt-1.5"><SelectValue placeholder={t(lang, 'form.selectOption')} /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="instagram">{t(lang, 'form.comeConosciutoInstagram')}</SelectItem>
+                      <SelectItem value="google">{t(lang, 'form.comeConosciutoGoogle')}</SelectItem>
+                      <SelectItem value="universita">{t(lang, 'form.comeConosciutoUniversita')}</SelectItem>
+                      <SelectItem value="esn">{t(lang, 'form.comeConosciutoEsn')}</SelectItem>
+                      <SelectItem value="amici">{t(lang, 'form.comeConosciutoAmici')}</SelectItem>
+                      <SelectItem value="sito">{t(lang, 'form.comeConosciutoSito')}</SelectItem>
+                      <SelectItem value="altro">{t(lang, 'form.comeConosciutoAltro')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {form.come_conosciuto === 'altro' && (
+                    <Input
+                      className="mt-2"
+                      placeholder={t(lang, 'form.tipoStudenteAltroPlaceholder')}
+                      value={form.come_conosciuto_altro}
+                      onChange={e => set('come_conosciuto_altro', e.target.value)}
+                      maxLength={200}
+                    />
+                  )}
+                </div>
               </div>
             )}
             {stepKey === 'stepDocuments' && (
@@ -419,6 +490,14 @@ export default function Candidatura() {
                   <Label>{t(lang, 'form.messaggio')}</Label>
                   <Textarea value={form.messaggio} onChange={e => set('messaggio', e.target.value)} placeholder={t(lang, 'form.messaggioPlaceholder')} className="mt-1.5" />
                 </div>
+              </div>
+            )}
+            {stepKey === 'stepDichiarazioni' && (
+              <div className="space-y-4">
+                <p className="text-[13px] text-muted-foreground">{t(lang, 'form.dichiarazioniIntro')}</p>
+                <DeclCheckbox checked={dichiarazioni.veridicita} onCheckedChange={v => setDichiarazioni(d => ({ ...d, veridicita: v }))} label={t(lang, 'form.dichVeridicita')} />
+                <DeclCheckbox checked={dichiarazioni.privacy} onCheckedChange={v => setDichiarazioni(d => ({ ...d, privacy: v }))} label={t(lang, 'form.dichPrivacy')} />
+                <DeclCheckbox checked={dichiarazioni.info_struttura} onCheckedChange={v => setDichiarazioni(d => ({ ...d, info_struttura: v }))} label={t(lang, 'form.dichInfoStruttura')} />
               </div>
             )}
             {stepKey === 'stepInfoAggiuntive' && (
@@ -854,4 +933,13 @@ function formatCustomValue(lang: Lang, campo: CampoCustom, value: any): string {
       .join(', ');
   }
   return String(value);
+}
+
+function DeclCheckbox({ checked, onCheckedChange, label }: { checked: boolean; onCheckedChange: (v: boolean) => void; label: string }) {
+  return (
+    <label className="flex items-start gap-3 cursor-pointer border rounded-lg p-3 hover:bg-muted/40 transition-colors">
+      <Checkbox checked={checked} onCheckedChange={(c) => onCheckedChange(!!c)} className="mt-0.5" />
+      <span className="text-[13px] leading-relaxed">{label}</span>
+    </label>
+  );
 }

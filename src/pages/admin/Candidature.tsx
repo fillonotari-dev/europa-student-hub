@@ -25,6 +25,7 @@ import {
   Search, FileText, Download, ArrowUp, ArrowDown, ArrowUpDown,
   PlayCircle, CheckCircle2, XCircle, RotateCcw, Mail, DoorOpen, Trash2, Archive,
   ExternalLink, FileIcon,
+  Send, Copy, CheckCircle,
 } from 'lucide-react';
 import { useStrutturaFilter } from '@/hooks/useStrutturaFilter';
 import { StrutturaSelect } from '@/components/admin/StrutturaSelect';
@@ -77,9 +78,35 @@ export default function Candidature() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [linkTarget, setLinkTarget] = useState<any>(null);
+  const [linkData, setLinkData] = useState<{ url: string; scade_il: string } | null>(null);
+  const [linkLoading, setLinkLoading] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+
+  const generateLink = async (c: any) => {
+    setLinkTarget(c);
+    setLinkData(null);
+    setLinkLoading(true);
+    setLinkCopied(false);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-completion-link', {
+        body: { candidatura_id: c.id },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const url = `${window.location.origin}/candidatura/completa/${(data as any).token}`;
+      setLinkData({ url, scade_il: (data as any).scade_il });
+      queryClient.invalidateQueries({ queryKey: ['candidature'] });
+    } catch (e: any) {
+      toast({ title: 'Errore', description: e?.message ?? 'Impossibile generare il link', variant: 'destructive' });
+      setLinkTarget(null);
+    } finally {
+      setLinkLoading(false);
+    }
+  };
 
   const { data: candidature } = useQuery({
     queryKey: ['candidature', filterStato, strutturaId],
@@ -235,6 +262,11 @@ export default function Candidature() {
     return (
       <RowActions>
         <DropdownMenuLabel>Cambia stato</DropdownMenuLabel>
+        {c.versione_form !== 'completa' && (
+          <DropdownMenuItem onClick={() => generateLink(c)}>
+            <Send className="w-4 h-4 mr-2" /> Invia form completo
+          </DropdownMenuItem>
+        )}
         {stato === 'ricevuta' && (
           <DropdownMenuItem onClick={() => updateStato.mutate({ id: c.id, stato: 'in_valutazione' })}>
             <PlayCircle className="w-4 h-4 mr-2" /> Prendi in carico
@@ -352,6 +384,11 @@ export default function Candidature() {
                   <td className="px-4 py-3">
                     <p className="text-sm font-medium">{c.studenti?.nome} {c.studenti?.cognome}</p>
                     <p className="text-[11px] text-muted-foreground">{c.studenti?.email}</p>
+                    {c.versione_form === 'completa' && (
+                      <span className="inline-block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-success/10 text-success">
+                        Form completo
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm">{c.strutture?.nome || '-'}</td>
                   <td className="px-4 py-3 text-sm">{c.anno_accademico}</td>
@@ -557,6 +594,53 @@ export default function Candidature() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Completion link modal */}
+      <Dialog open={!!linkTarget} onOpenChange={open => { if (!open) { setLinkTarget(null); setLinkData(null); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Invia form completo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {linkLoading && <p className="text-sm text-muted-foreground">Generazione link in corso...</p>}
+            {linkData && linkTarget && (
+              <>
+                <p className="text-[13px] text-muted-foreground">
+                  Copia il link e invialo via email a <strong>{linkTarget.studenti?.email}</strong>. Scade il{' '}
+                  {new Date(linkData.scade_il).toLocaleDateString('it-IT')}.
+                </p>
+                <div className="flex gap-2">
+                  <Input readOnly value={linkData.url} className="font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(linkData.url);
+                      setLinkCopied(true);
+                      setTimeout(() => setLinkCopied(false), 2000);
+                    }}
+                  >
+                    {linkCopied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  </Button>
+                </div>
+                {linkTarget.studenti?.email && (
+                  <Button asChild className="w-full" variant="outline">
+                    <a
+                      href={`mailto:${linkTarget.studenti.email}?subject=${encodeURIComponent('Completa la tua candidatura - Studentato Europa')}&body=${encodeURIComponent(
+                        `Ciao ${linkTarget.studenti?.nome ?? ''},\n\nla tua candidatura è stata pre-approvata. Per completarla, compila il form al seguente link (valido fino al ${new Date(linkData.scade_il).toLocaleDateString('it-IT')}):\n\n${linkData.url}\n\nGrazie,\nStudentato Europa`
+                      )}`}
+                    >
+                      <Mail className="w-4 h-4 mr-2" /> Apri client email
+                    </a>
+                  </Button>
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  Per sicurezza il link viene mostrato solo una volta. Se lo perdi, puoi rigenerarlo.
+                </p>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

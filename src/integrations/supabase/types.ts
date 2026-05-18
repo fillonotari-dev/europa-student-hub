@@ -129,59 +129,131 @@ export type Database = {
         Row: {
           anno_accademico: string | null
           anno_corso_snapshot: string | null
+          come_conosciuto: string | null
+          come_conosciuto_altro: string | null
+          completamento_token_hash: string | null
+          completata_il: string | null
           corso_snapshot: string | null
           created_at: string | null
+          data_arrivo_prevista: string | null
+          dichiarazioni: Json
+          documento_identita_n: string | null
+          fumatore: boolean | null
+          garante_email: string | null
+          garante_nome: string | null
+          garante_relazione: string | null
+          garante_telefono: string | null
           id: string
+          indirizzo_residenza: string | null
+          lingue_parlate: string | null
           matricola_snapshot: string | null
           messaggio: string | null
           note_admin: string | null
+          orari: string | null
+          ordine_pulizia: string | null
           periodo_fine: string | null
           periodo_inizio: string | null
+          personalita: string | null
+          personalita_altro: string | null
+          preferenze_note: string | null
+          presentazione: string | null
           risposte_custom: Json
           stato: string | null
           struttura_preferita_id: string | null
           studente_id: string
           tipo_camera_preferito: string | null
+          tipo_studente: string | null
+          tipo_studente_altro: string | null
+          token_scade_il: string | null
           universita_snapshot: string | null
           updated_at: string | null
+          versione_form: string
         }
         Insert: {
           anno_accademico?: string | null
           anno_corso_snapshot?: string | null
+          come_conosciuto?: string | null
+          come_conosciuto_altro?: string | null
+          completamento_token_hash?: string | null
+          completata_il?: string | null
           corso_snapshot?: string | null
           created_at?: string | null
+          data_arrivo_prevista?: string | null
+          dichiarazioni?: Json
+          documento_identita_n?: string | null
+          fumatore?: boolean | null
+          garante_email?: string | null
+          garante_nome?: string | null
+          garante_relazione?: string | null
+          garante_telefono?: string | null
           id?: string
+          indirizzo_residenza?: string | null
+          lingue_parlate?: string | null
           matricola_snapshot?: string | null
           messaggio?: string | null
           note_admin?: string | null
+          orari?: string | null
+          ordine_pulizia?: string | null
           periodo_fine?: string | null
           periodo_inizio?: string | null
+          personalita?: string | null
+          personalita_altro?: string | null
+          preferenze_note?: string | null
+          presentazione?: string | null
           risposte_custom?: Json
           stato?: string | null
           struttura_preferita_id?: string | null
           studente_id: string
           tipo_camera_preferito?: string | null
+          tipo_studente?: string | null
+          tipo_studente_altro?: string | null
+          token_scade_il?: string | null
           universita_snapshot?: string | null
           updated_at?: string | null
+          versione_form?: string
         }
         Update: {
           anno_accademico?: string | null
           anno_corso_snapshot?: string | null
+          come_conosciuto?: string | null
+          come_conosciuto_altro?: string | null
+          completamento_token_hash?: string | null
+          completata_il?: string | null
           corso_snapshot?: string | null
           created_at?: string | null
+          data_arrivo_prevista?: string | null
+          dichiarazioni?: Json
+          documento_identita_n?: string | null
+          fumatore?: boolean | null
+          garante_email?: string | null
+          garante_nome?: string | null
+          garante_relazione?: string | null
+          garante_telefono?: string | null
           id?: string
+          indirizzo_residenza?: string | null
+          lingue_parlate?: string | null
           matricola_snapshot?: string | null
           messaggio?: string | null
           note_admin?: string | null
+          orari?: string | null
+          ordine_pulizia?: string | null
           periodo_fine?: string | null
           periodo_inizio?: string | null
+          personalita?: string | null
+          personalita_altro?: string | null
+          preferenze_note?: string | null
+          presentazione?: string | null
           risposte_custom?: Json
           stato?: string | null
           struttura_preferita_id?: string | null
           studente_id?: string
           tipo_camera_preferito?: string | null
+          tipo_studente?: string | null
+          tipo_studente_altro?: string | null
+          token_scade_il?: string | null
           universita_snapshot?: string | null
           updated_at?: string | null
+          versione_form?: string
         }
         Relationships: [
           {
@@ -255,6 +327,7 @@ export type Database = {
           created_at: string
           descrizione_en: string | null
           descrizione_it: string | null
+          fase: string
           id: string
           label_en: string
           label_it: string
@@ -270,6 +343,7 @@ export type Database = {
           created_at?: string
           descrizione_en?: string | null
           descrizione_it?: string | null
+          fase?: string
           id?: string
           label_en: string
           label_it: string
@@ -285,6 +359,7 @@ export type Database = {
           created_at?: string
           descrizione_en?: string | null
           descrizione_it?: string | null
+          fase?: string
           id?: string
           label_en?: string
           label_it?: string
@@ -303,6 +378,7 @@ export type Database = {
           created_at: string
           descrizione_en: string | null
           descrizione_it: string | null
+          fase: string
           id: string
           label_en: string
           label_it: string
@@ -316,6 +392,7 @@ export type Database = {
           created_at?: string
           descrizione_en?: string | null
           descrizione_it?: string | null
+          fase?: string
           id?: string
           label_en: string
           label_it: string
@@ -329,6 +406,7 @@ export type Database = {
           created_at?: string
           descrizione_en?: string | null
           descrizione_it?: string | null
+          fase?: string
           id?: string
           label_en?: string
           label_it?: string
