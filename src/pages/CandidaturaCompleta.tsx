@@ -342,8 +342,12 @@ export default function CandidaturaCompleta() {
 
             {stepKey === 'stepDocAggiuntivi' && (
               <div className="space-y-4">
-                <FileUpload label={t(lang, 'form.documentoGarante')} hint={t(lang, 'form.uploadHint')} file={files.documento_garante} error={fileErrors.documento_garante} onChange={f => handleFile('documento_garante', f)} />
-                <FileUpload label={t(lang, 'form.documentoAggiuntivo')} hint={t(lang, 'form.uploadHint')} file={files.documento_aggiuntivo} error={fileErrors.documento_aggiuntivo} onChange={f => handleFile('documento_aggiuntivo', f)} />
+                {tokenState.status === 'valid' && !tokenState.docsPresent.documento_garante && (
+                  <FileUpload label={t(lang, 'form.documentoGarante')} hint={t(lang, 'form.uploadHint')} file={files.documento_garante} error={fileErrors.documento_garante} onChange={f => handleFile('documento_garante', f)} />
+                )}
+                {tokenState.status === 'valid' && !tokenState.docsPresent.documento_aggiuntivo && (
+                  <FileUpload label={t(lang, 'form.documentoAggiuntivo')} hint={t(lang, 'form.uploadHint')} file={files.documento_aggiuntivo} error={fileErrors.documento_aggiuntivo} onChange={f => handleFile('documento_aggiuntivo', f)} />
+                )}
               </div>
             )}
 
