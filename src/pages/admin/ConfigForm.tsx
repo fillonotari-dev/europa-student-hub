@@ -160,6 +160,23 @@ function CampiTab() {
     },
   });
 
+  // Conteggio risposte per chiave (per warning su disattivazione / eliminazione).
+  const { data: campoUsage = {} } = useQuery({
+    queryKey: ['form-campi-usage'],
+    queryFn: async () => {
+      const { data } = await supabase.from('candidature').select('risposte_custom');
+      const counts: Record<string, number> = {};
+      for (const row of (data ?? [])) {
+        const r = (row.risposte_custom ?? {}) as Record<string, any>;
+        for (const k of Object.keys(r)) {
+          if (r[k] === null || r[k] === undefined || r[k] === '') continue;
+          counts[k] = (counts[k] ?? 0) + 1;
+        }
+      }
+      return counts;
+    },
+  });
+
   const upsert = useMutation({
     mutationFn: async (payload: { id?: string; data: any }) => {
       if (payload.id) {
@@ -190,6 +207,16 @@ function CampiTab() {
     },
     onError: (e: any) => toast({ title: 'Errore', description: e.message, variant: 'destructive' }),
   });
+
+  const handleToggleAttivo = (c: Campo, attivo: boolean) => {
+    const n = campoUsage[c.chiave] ?? 0;
+    if (!attivo && n > 0) {
+      if (!window.confirm(`Disattivare "${c.label_it}"?\n\nEsistono ${n} risposte già raccolte. Resteranno visibili nello storico ma il campo non sarà più richiesto nei nuovi form.`)) {
+        return;
+      }
+    }
+    toggleAttivo.mutate({ id: c.id, attivo });
+  };
 
   const move = useMutation({
     mutationFn: async ({ a, b }: { a: Campo; b: Campo }) => {
@@ -394,7 +421,7 @@ function CampiTab() {
                     <td className="px-3 py-2 text-center">
                       <Switch
                         checked={c.attivo}
-                        onCheckedChange={(v) => toggleAttivo.mutate({ id: c.id, attivo: v })}
+                        onCheckedChange={(v) => handleToggleAttivo(c, v)}
                       />
                     </td>
                     <td className="px-3 py-2 text-right">
@@ -520,9 +547,21 @@ function CampiTab() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare il campo?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Il campo "{deleteTarget?.label_it}" verrà rimosso dal form. Le risposte già raccolte nelle candidature
-              esistenti restano salvate, ma verranno mostrate con la chiave tecnica al posto della label.
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-[13px]">
+                <p>
+                  Il campo "<strong>{deleteTarget?.label_it}</strong>" verrà rimosso dal form.
+                </p>
+                {deleteTarget && (campoUsage[deleteTarget.chiave] ?? 0) > 0 && (
+                  <p className="rounded-md border border-warning/30 bg-warning/10 p-2">
+                    Esistono <strong>{campoUsage[deleteTarget.chiave]} risposte già raccolte</strong>:
+                    resteranno salvate nelle candidature ma diventeranno orfane e saranno mostrate con la chiave tecnica al posto della label.
+                  </p>
+                )}
+                <p className="text-muted-foreground">
+                  In alternativa puoi <strong>disattivare</strong> il campo: non apparirà più nei nuovi form ma le risposte resteranno collegate.
+                </p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -585,6 +624,20 @@ function DocumentiTab() {
     },
   });
 
+  const { data: docUsage = {} } = useQuery({
+    queryKey: ['form-documenti-usage'],
+    queryFn: async () => {
+      const { data } = await supabase.from('documenti').select('tipo');
+      const counts: Record<string, number> = {};
+      for (const row of (data ?? [])) {
+        const k = (row as any).tipo;
+        if (!k) continue;
+        counts[k] = (counts[k] ?? 0) + 1;
+      }
+      return counts;
+    },
+  });
+
   const upsert = useMutation({
     mutationFn: async (payload: { id?: string; data: any }) => {
       if (payload.id) {
@@ -614,6 +667,16 @@ function DocumentiTab() {
       qc.invalidateQueries({ queryKey: ['form-documenti-custom-public'] });
     },
   });
+
+  const handleToggleAttivo = (d: Documento, attivo: boolean) => {
+    const n = docUsage[d.chiave] ?? 0;
+    if (!attivo && n > 0) {
+      if (!window.confirm(`Disattivare "${d.label_it}"?\n\nEsistono ${n} file già caricati. Resteranno disponibili nella scheda candidatura ma il documento non sarà più richiesto nei nuovi form.`)) {
+        return;
+      }
+    }
+    toggleAttivo.mutate({ id: d.id, attivo });
+  };
 
   const move = useMutation({
     mutationFn: async ({ a, b }: { a: Documento; b: Documento }) => {
@@ -774,7 +837,7 @@ function DocumentiTab() {
                     <td className="px-3 py-2 text-center">
                       <Switch
                         checked={d.attivo}
-                        onCheckedChange={(v) => toggleAttivo.mutate({ id: d.id, attivo: v })}
+                        onCheckedChange={(v) => handleToggleAttivo(d, v)}
                       />
                     </td>
                     <td className="px-3 py-2 text-right">
@@ -848,9 +911,21 @@ function DocumentiTab() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare il documento?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Il documento "{deleteTarget?.label_it}" verrà rimosso dal form. I file già caricati nelle candidature
-              esistenti restano salvati e accessibili dalla scheda candidatura.
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-[13px]">
+                <p>
+                  Il documento "<strong>{deleteTarget?.label_it}</strong>" verrà rimosso dal form.
+                </p>
+                {deleteTarget && (docUsage[deleteTarget.chiave] ?? 0) > 0 && (
+                  <p className="rounded-md border border-warning/30 bg-warning/10 p-2">
+                    Esistono <strong>{docUsage[deleteTarget.chiave]} file già caricati</strong> con questo tipo:
+                    resteranno salvati e visibili nella scheda candidatura, ma diventeranno orfani rispetto alla configurazione.
+                  </p>
+                )}
+                <p className="text-muted-foreground">
+                  In alternativa puoi <strong>disattivare</strong> il documento: non sarà più richiesto nei nuovi form ma i file resteranno collegati.
+                </p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
