@@ -434,6 +434,11 @@ export default function Candidature() {
                         Link attivo · scade {new Date(c.token_scade_il).toLocaleDateString('it-IT')}
                       </span>
                     )}
+                    {c.versione_form !== 'completa' && c.token_scade_il && new Date(c.token_scade_il) <= new Date() && (
+                      <span className="inline-block mt-1 ml-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">
+                        Link scaduto
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm">{c.strutture?.nome || '-'}</td>
                   <td className="px-4 py-3 text-sm">{c.anno_accademico}</td>

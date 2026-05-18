@@ -112,7 +112,7 @@ export default function Camere() {
     queryFn: async () => {
       const { data } = await supabase
         .from('candidature')
-        .select('id, studente_id, studenti(id, nome, cognome)')
+        .select('id, studente_id, struttura_preferita_id, strutture(nome), studenti(id, nome, cognome)')
         .eq('stato', 'approvata');
       return data ?? [];
     },
