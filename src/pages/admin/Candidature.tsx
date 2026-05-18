@@ -25,6 +25,7 @@ import {
   Search, FileText, Download, ArrowUp, ArrowDown, ArrowUpDown,
   PlayCircle, CheckCircle2, XCircle, RotateCcw, Mail, DoorOpen, Trash2, Archive,
   ExternalLink, FileIcon,
+  Send, Copy, CheckCircle,
 } from 'lucide-react';
 import { useStrutturaFilter } from '@/hooks/useStrutturaFilter';
 import { StrutturaSelect } from '@/components/admin/StrutturaSelect';
@@ -77,9 +78,35 @@ export default function Candidature() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [linkTarget, setLinkTarget] = useState<any>(null);
+  const [linkData, setLinkData] = useState<{ url: string; scade_il: string } | null>(null);
+  const [linkLoading, setLinkLoading] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+
+  const generateLink = async (c: any) => {
+    setLinkTarget(c);
+    setLinkData(null);
+    setLinkLoading(true);
+    setLinkCopied(false);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-completion-link', {
+        body: { candidatura_id: c.id },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const url = `${window.location.origin}/candidatura/completa/${(data as any).token}`;
+      setLinkData({ url, scade_il: (data as any).scade_il });
+      queryClient.invalidateQueries({ queryKey: ['candidature'] });
+    } catch (e: any) {
+      toast({ title: 'Errore', description: e?.message ?? 'Impossibile generare il link', variant: 'destructive' });
+      setLinkTarget(null);
+    } finally {
+      setLinkLoading(false);
+    }
+  };
 
   const { data: candidature } = useQuery({
     queryKey: ['candidature', filterStato, strutturaId],
@@ -235,6 +262,11 @@ export default function Candidature() {
     return (
       <RowActions>
         <DropdownMenuLabel>Cambia stato</DropdownMenuLabel>
+        {c.versione_form !== 'completa' && (
+          <DropdownMenuItem onClick={() => generateLink(c)}>
+            <Send className="w-4 h-4 mr-2" /> Invia form completo
+          </DropdownMenuItem>
+        )}
         {stato === 'ricevuta' && (
           <DropdownMenuItem onClick={() => updateStato.mutate({ id: c.id, stato: 'in_valutazione' })}>
             <PlayCircle className="w-4 h-4 mr-2" /> Prendi in carico
