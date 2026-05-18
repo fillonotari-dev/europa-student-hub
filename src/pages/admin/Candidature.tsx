@@ -30,18 +30,23 @@ import {
 import { useStrutturaFilter } from '@/hooks/useStrutturaFilter';
 import { StrutturaSelect } from '@/components/admin/StrutturaSelect';
 
-const STATI = ['ricevuta', 'in_valutazione', 'approvata', 'rifiutata', 'ritirata'] as const;
+const STATI = ['ricevuta', 'in_completamento', 'completata', 'in_valutazione', 'approvata', 'rifiutata', 'ritirata'] as const;
 const STATO_LABELS: Record<string, string> = {
-  ricevuta: 'Ricevuta', in_valutazione: 'In valutazione', approvata: 'Approvata',
+  ricevuta: 'Ricevuta', in_completamento: 'In completamento', completata: 'Completata',
+  in_valutazione: 'In valutazione', approvata: 'Approvata',
   rifiutata: 'Rifiutata', ritirata: 'Ritirata', sostituita: 'Sostituita',
 };
 const STATO_COLORS: Record<string, string> = {
-  ricevuta: 'bg-primary/10 text-primary', in_valutazione: 'bg-warning/10 text-warning',
+  ricevuta: 'bg-primary/10 text-primary',
+  in_completamento: 'bg-accent/20 text-foreground',
+  completata: 'bg-success/10 text-success',
+  in_valutazione: 'bg-warning/10 text-warning',
   approvata: 'bg-success/10 text-success', rifiutata: 'bg-destructive/10 text-destructive',
   ritirata: 'bg-muted text-muted-foreground', sostituita: 'bg-muted text-muted-foreground',
 };
 const STATO_ORDER: Record<string, number> = {
-  ricevuta: 0, in_valutazione: 1, approvata: 2, rifiutata: 3, ritirata: 4, sostituita: 5,
+  ricevuta: 0, in_completamento: 1, completata: 2, in_valutazione: 3,
+  approvata: 4, rifiutata: 5, ritirata: 6, sostituita: 7,
 };
 const TIPO_DOC_LABELS: Record<string, string> = {
   documento_identita: 'Documento di identità',
@@ -82,11 +87,19 @@ export default function Candidature() {
   const [linkData, setLinkData] = useState<{ url: string; scade_il: string } | null>(null);
   const [linkLoading, setLinkLoading] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [statoConfirm, setStatoConfirm] = useState<{ c: any; nextStato: string } | null>(null);
+  const [regenConfirm, setRegenConfirm] = useState<any>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
   const generateLink = async (c: any) => {
+    // Se esiste già un token attivo, chiediamo conferma prima di rigenerare.
+    if (c.token_scade_il && new Date(c.token_scade_il) > new Date() && !regenConfirm) {
+      setRegenConfirm(c);
+      return;
+    }
+    setRegenConfirm(null);
     setLinkTarget(c);
     setLinkData(null);
     setLinkLoading(true);
@@ -121,6 +134,33 @@ export default function Candidature() {
       return data ?? [];
     },
   });
+
+  // Set di candidature con assegnazione attiva (per warning sui cambi stato).
+  const { data: candidatureConAssegnazione } = useQuery({
+    queryKey: ['candidature-con-assegnazione-attiva'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('assegnazioni')
+        .select('candidatura_id')
+        .eq('stato', 'attiva');
+      return new Set((data ?? []).map((a: any) => a.candidatura_id));
+    },
+  });
+
+  const hasAssegnazioneAttiva = (c: any) => !!candidatureConAssegnazione?.has(c.id);
+
+  const requestStatoChange = (c: any, nextStato: string) => {
+    // Cambio stato "rischioso" su candidatura con assegnazione attiva.
+    const rischioso = hasAssegnazioneAttiva(c) &&
+      (nextStato === 'rifiutata' || nextStato === 'ritirata' || nextStato === 'in_valutazione');
+    // Approvazione senza form completo: chiediamo conferma esplicita.
+    const approvaIncompleta = nextStato === 'approvata' && c.versione_form !== 'completa';
+    if (rischioso || approvaIncompleta) {
+      setStatoConfirm({ c, nextStato });
+      return;
+    }
+    updateStato.mutate({ id: c.id, stato: nextStato });
+  };
 
   const { data: documenti } = useQuery({
     queryKey: ['documenti', selected?.id],
@@ -268,27 +308,27 @@ export default function Candidature() {
           </DropdownMenuItem>
         )}
         {stato === 'ricevuta' && (
-          <DropdownMenuItem onClick={() => updateStato.mutate({ id: c.id, stato: 'in_valutazione' })}>
+          <DropdownMenuItem onClick={() => requestStatoChange(c, 'in_valutazione')}>
             <PlayCircle className="w-4 h-4 mr-2" /> Prendi in carico
           </DropdownMenuItem>
         )}
         {stato === 'in_valutazione' && (
           <>
-            <DropdownMenuItem onClick={() => updateStato.mutate({ id: c.id, stato: 'approvata' })}>
+            <DropdownMenuItem onClick={() => requestStatoChange(c, 'approvata')}>
               <CheckCircle2 className="w-4 h-4 mr-2" /> Approva
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => updateStato.mutate({ id: c.id, stato: 'rifiutata' })}>
+            <DropdownMenuItem onClick={() => requestStatoChange(c, 'rifiutata')}>
               <XCircle className="w-4 h-4 mr-2" /> Rifiuta
             </DropdownMenuItem>
           </>
         )}
         {(stato === 'approvata' || stato === 'rifiutata') && (
-          <DropdownMenuItem onClick={() => updateStato.mutate({ id: c.id, stato: 'in_valutazione' })}>
+          <DropdownMenuItem onClick={() => requestStatoChange(c, 'in_valutazione')}>
             <RotateCcw className="w-4 h-4 mr-2" /> Rimetti in valutazione
           </DropdownMenuItem>
         )}
         {stato !== 'ritirata' && stato !== 'sostituita' && (
-          <DropdownMenuItem onClick={() => updateStato.mutate({ id: c.id, stato: 'ritirata' })}>
+          <DropdownMenuItem onClick={() => requestStatoChange(c, 'ritirata')}>
             <Archive className="w-4 h-4 mr-2" /> Segna come ritirata
           </DropdownMenuItem>
         )}
@@ -387,6 +427,11 @@ export default function Candidature() {
                     {c.versione_form === 'completa' && (
                       <span className="inline-block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-success/10 text-success">
                         Form completo
+                      </span>
+                    )}
+                    {c.versione_form !== 'completa' && c.token_scade_il && new Date(c.token_scade_il) > new Date() && (
+                      <span className="inline-block mt-1 ml-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-accent/20 text-foreground">
+                        Link attivo · scade {new Date(c.token_scade_il).toLocaleDateString('it-IT')}
                       </span>
                     )}
                   </td>
@@ -520,22 +565,22 @@ export default function Candidature() {
                   <p className="text-sm font-semibold mb-2">Azioni</p>
                   <div className="flex flex-wrap gap-2">
                     {selected.stato === 'ricevuta' && (
-                      <Button size="sm" onClick={() => updateStato.mutate({ id: selected.id, stato: 'in_valutazione' })}>
+                      <Button size="sm" onClick={() => requestStatoChange(selected, 'in_valutazione')}>
                         <PlayCircle className="w-4 h-4 mr-1" /> Prendi in carico
                       </Button>
                     )}
                     {selected.stato === 'in_valutazione' && (
                       <>
-                        <Button size="sm" onClick={() => updateStato.mutate({ id: selected.id, stato: 'approvata' })}>
+                        <Button size="sm" onClick={() => requestStatoChange(selected, 'approvata')}>
                           <CheckCircle2 className="w-4 h-4 mr-1" /> Approva
                         </Button>
-                        <Button size="sm" variant="destructive" onClick={() => updateStato.mutate({ id: selected.id, stato: 'rifiutata' })}>
+                        <Button size="sm" variant="destructive" onClick={() => requestStatoChange(selected, 'rifiutata')}>
                           <XCircle className="w-4 h-4 mr-1" /> Rifiuta
                         </Button>
                       </>
                     )}
                     {(selected.stato === 'approvata' || selected.stato === 'rifiutata') && (
-                      <Button size="sm" variant="outline" onClick={() => updateStato.mutate({ id: selected.id, stato: 'in_valutazione' })}>
+                      <Button size="sm" variant="outline" onClick={() => requestStatoChange(selected, 'in_valutazione')}>
                         <RotateCcw className="w-4 h-4 mr-1" /> Rimetti in valutazione
                       </Button>
                     )}
@@ -561,8 +606,13 @@ export default function Candidature() {
                     placeholder="Note interne..."
                     onBlur={e => {
                       if (e.target.value !== (selected.note_admin || '')) {
-                        supabase.from('candidature').update({ note_admin: e.target.value }).eq('id', selected.id).then(() => {
-                          queryClient.invalidateQueries({ queryKey: ['candidature'] });
+                        supabase.from('candidature').update({ note_admin: e.target.value }).eq('id', selected.id).then(({ error }) => {
+                          if (error) {
+                            toast({ title: 'Errore', description: 'Nota non salvata', variant: 'destructive' });
+                          } else {
+                            queryClient.invalidateQueries({ queryKey: ['candidature'] });
+                            toast({ title: 'Nota salvata' });
+                          }
                         });
                       }
                     }}
@@ -579,8 +629,17 @@ export default function Candidature() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare la candidatura?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleteTarget?.studenti?.nome} {deleteTarget?.studenti?.cognome}. L'operazione è irreversibile e fallirà se esiste un'assegnazione collegata.
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p><strong>{deleteTarget?.studenti?.nome} {deleteTarget?.studenti?.cognome}</strong></p>
+                <p>L'operazione è irreversibile. Verrà eliminata la candidatura, ma:</p>
+                <ul className="list-disc pl-5 text-[13px] space-y-1">
+                  <li>i <strong>documenti caricati</strong> resteranno in archivio fino a pulizia manuale</li>
+                  <li>lo <strong>storico cambi di stato</strong> resta nei log</li>
+                  <li>l'eliminazione <strong>fallirà</strong> se esiste un'assegnazione collegata</li>
+                </ul>
+                <p className="text-[13px] text-muted-foreground">Per ritirare una candidatura senza perdere i dati, usa "Segna come ritirata".</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -590,6 +649,63 @@ export default function Candidature() {
               onClick={() => deleteTarget && deleteCandidatura.mutate(deleteTarget.id)}
             >
               Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Conferma cambio stato rischioso */}
+      <AlertDialog open={!!statoConfirm} onOpenChange={open => { if (!open) setStatoConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confermare il cambio di stato?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-[13px]">
+                {statoConfirm && hasAssegnazioneAttiva(statoConfirm.c) && (
+                  <p>
+                    Esiste già un'<strong>assegnazione attiva</strong> per questa candidatura.
+                    Cambiare stato a "{STATO_LABELS[statoConfirm.nextStato]}" non chiude l'assegnazione:
+                    lo studente resterà residente. Per concludere il soggiorno vai in <strong>Residenti</strong>.
+                  </p>
+                )}
+                {statoConfirm && statoConfirm.nextStato === 'approvata' && statoConfirm.c.versione_form !== 'completa' && (
+                  <p>
+                    Lo studente <strong>non ha ancora compilato il form completo</strong> (stile di vita, garante,
+                    documenti aggiuntivi). Confermi di volerlo approvare comunque?
+                  </p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (statoConfirm) updateStato.mutate({ id: statoConfirm.c.id, stato: statoConfirm.nextStato });
+                setStatoConfirm(null);
+              }}
+            >
+              Procedi
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Conferma rigenerazione link */}
+      <AlertDialog open={!!regenConfirm} onOpenChange={open => { if (!open) setRegenConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Rigenerare il link?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esiste già un link valido fino al{' '}
+              <strong>{regenConfirm?.token_scade_il && new Date(regenConfirm.token_scade_il).toLocaleDateString('it-IT')}</strong>.
+              Rigenerandolo, il <strong>vecchio link smetterà di funzionare</strong> e dovrai inviare il nuovo allo studente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => regenConfirm && generateLink(regenConfirm)}>
+              Rigenera link
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
