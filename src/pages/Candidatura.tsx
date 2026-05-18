@@ -756,67 +756,6 @@ function UniversitaField({ lang, value, onChange }: { lang: Lang; value: string;
 }
 
 function DipartimentoField({ lang, universitaName, value, onChange }: { lang: Lang; universitaName: string; value: string; onChange: (v: string) => void }) {
-  const uni = UNIVERSITIES.find(u => u.name === universitaName);
-  const options = useMemo<ComboboxOption[]>(
-    () =>
-      (uni?.departments ?? []).map(d => ({
-        value: d.name,
-        label: d.name,
-        group: d.sede,
-        searchKey: `${d.name} ${d.sede}`,
-      })),
-    [uni]
-  );
-  return (
-    <Combobox
-      lang={lang}
-      label={t(lang, 'form.dipartimento')}
-      placeholder={t(lang, 'form.selectDipartimento')}
-      value={value}
-      onChange={onChange}
-      options={options}
-      disabled={!uni}
-      required
-    />
-  );
-}
-
-function CorsoField({ lang, universitaName, dipartimentoName, value, onChange }: { lang: Lang; universitaName: string; dipartimentoName: string; value: string; onChange: (v: string) => void }) {
-  const uni = UNIVERSITIES.find(u => u.name === universitaName);
-  const dip = uni?.departments.find(d => d.name === dipartimentoName);
-  const options = useMemo<ComboboxOption[]>(() => {
-    const order: CourseLevel[] = ['ciclo_unico', 'triennale', 'professione_sanitaria', 'magistrale'];
-    const out: ComboboxOption[] = [];
-    if (dip) {
-      for (const lvl of order) {
-        const courses = dip.courses.filter(c => c.level === lvl);
-        const groupLabel = COURSE_LEVEL_LABELS[lvl][lang];
-        courses.forEach((c) => {
-          out.push({
-            value: c.name,
-            label: c.name,
-            group: groupLabel,
-            searchKey: `${c.name} ${groupLabel}`,
-          });
-        });
-      }
-    }
-    return out;
-  }, [dip, lang]);
-  return (
-    <Combobox
-      lang={lang}
-      label={t(lang, 'form.corsoStudi')}
-      placeholder={t(lang, 'form.selectCorso')}
-      value={value}
-      onChange={onChange}
-      options={options}
-      disabled={!dip}
-      required
-    />
-  );
-}
-
 function CustomFieldRenderer({
   lang, campo, value, onChange,
 }: {
