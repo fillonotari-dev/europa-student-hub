@@ -565,22 +565,22 @@ export default function Candidature() {
                   <p className="text-sm font-semibold mb-2">Azioni</p>
                   <div className="flex flex-wrap gap-2">
                     {selected.stato === 'ricevuta' && (
-                      <Button size="sm" onClick={() => updateStato.mutate({ id: selected.id, stato: 'in_valutazione' })}>
+                      <Button size="sm" onClick={() => requestStatoChange(selected, 'in_valutazione')}>
                         <PlayCircle className="w-4 h-4 mr-1" /> Prendi in carico
                       </Button>
                     )}
                     {selected.stato === 'in_valutazione' && (
                       <>
-                        <Button size="sm" onClick={() => updateStato.mutate({ id: selected.id, stato: 'approvata' })}>
+                        <Button size="sm" onClick={() => requestStatoChange(selected, 'approvata')}>
                           <CheckCircle2 className="w-4 h-4 mr-1" /> Approva
                         </Button>
-                        <Button size="sm" variant="destructive" onClick={() => updateStato.mutate({ id: selected.id, stato: 'rifiutata' })}>
+                        <Button size="sm" variant="destructive" onClick={() => requestStatoChange(selected, 'rifiutata')}>
                           <XCircle className="w-4 h-4 mr-1" /> Rifiuta
                         </Button>
                       </>
                     )}
                     {(selected.stato === 'approvata' || selected.stato === 'rifiutata') && (
-                      <Button size="sm" variant="outline" onClick={() => updateStato.mutate({ id: selected.id, stato: 'in_valutazione' })}>
+                      <Button size="sm" variant="outline" onClick={() => requestStatoChange(selected, 'in_valutazione')}>
                         <RotateCcw className="w-4 h-4 mr-1" /> Rimetti in valutazione
                       </Button>
                     )}
@@ -606,8 +606,13 @@ export default function Candidature() {
                     placeholder="Note interne..."
                     onBlur={e => {
                       if (e.target.value !== (selected.note_admin || '')) {
-                        supabase.from('candidature').update({ note_admin: e.target.value }).eq('id', selected.id).then(() => {
-                          queryClient.invalidateQueries({ queryKey: ['candidature'] });
+                        supabase.from('candidature').update({ note_admin: e.target.value }).eq('id', selected.id).then(({ error }) => {
+                          if (error) {
+                            toast({ title: 'Errore', description: 'Nota non salvata', variant: 'destructive' });
+                          } else {
+                            queryClient.invalidateQueries({ queryKey: ['candidature'] });
+                            toast({ title: 'Nota salvata' });
+                          }
                         });
                       }
                     }}
