@@ -185,6 +185,11 @@ export default function Camere() {
         note: f.note.trim() || null,
       };
       if (f.id) {
+        // Blocca se i nuovi posti < occupanti attivi (incongruenza matematica).
+        const occupantiAttuali = (assegnazioni ?? []).filter((a: any) => a.camera_id === f.id).length;
+        if (payload.posti < occupantiAttuali) {
+          throw new Error(`Ci sono ${occupantiAttuali} occupanti attivi. Riduci prima le assegnazioni o imposta almeno ${occupantiAttuali} posti.`);
+        }
         const { error } = await supabase.from('camere').update(payload).eq('id', f.id);
         if (error) throw error;
       } else {
