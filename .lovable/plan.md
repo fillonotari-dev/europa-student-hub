@@ -1,136 +1,135 @@
 ## Obiettivo
 
-Sdoppiare il processo in due fasi:
+Mappare i flussi dell'app dal punto di vista del manager (Hotel Europa), evidenziare i punti dove un'azione può rompere lo stato dei dati o lasciare incongruenze, e introdurre **conferme/avvisi contestuali** (no nuove feature, no nuova logica di business). L'iterazione resta UI/UX: rendere ogni azione "pesante" reversibile o almeno consapevole.
 
-1. **Form pubblico "Pre-screening"** su `/candidatura` → blocchi **1 Dati personali**, **2 Percorso universitario**, **3 Preferenze alloggio**, **6 Documenti base**, **7 Dichiarazioni**.
-2. **Form esteso "Completamento"** su `/candidatura/completa/:token` → aggiunge **4 Stile di vita**, **5 Contatto emergenza/garante** e versione completa di **6 Documenti** (garante, ulteriori). Inviato manualmente dall'admin solo ai candidati pre-approvati.
-
-Una sola entità `candidature` continua a rappresentare la pratica end-to-end: il completamento arricchisce la stessa riga, non ne crea una nuova.
-
-## Flusso UX
+## Mappa dei flussi attuali
 
 ```text
-Studente             Sito pubblico            Admin                Studente
-   │                       │                    │                     │
-   │── compila form base ─▶│                    │                     │
-   │                       │── nuova candidatura (stato: ricevuta)    │
-   │                       │                    │                     │
-   │                       │     admin rivede candidatura             │
-   │                       │                    │── "Invia form completo"
-   │                       │                    │   genera token + link
-   │                       │                    │── email con link ──▶│
-   │                       │                                          │
-   │                       │◀── apre /candidatura/completa/:token ────│
-   │                       │    compila blocchi 4-5 + doc aggiuntivi  │
-   │                       │── stato: completata ────────────────────▶│
-   │                       │                                          │
-   │                       │     admin valuta → accettata/rifiutata   │
+PUBBLICO                        ADMIN (manager)
+────────                        ───────────────
+/candidatura (form base)
+        │                       Dashboard
+        ▼                         ├── KPI (candidature, posti, occupazione)
+Candidatura "ricevuta" ────────▶ │   tasks (contratti in scadenza)
+                                  │
+                                Candidature
+                                  ├── prendi in carico → in_valutazione
+                                  ├── approva / rifiuta
+                                  ├── rimetti in valutazione
+                                  ├── segna come ritirata
+                                  ├── INVIA FORM COMPLETO (token)
+                                  ├── ASSEGNA A CAMERA  ──┐
+                                  └── elimina candidatura │
+                                                          ▼
+/candidatura/completa/:token                            Camere
+        │  (studente compila)                            ├── CRUD camera (posti, tipo)
+        ▼                                                ├── manutenzione / riattiva
+Candidatura "completa"                                   ├── gestisci occupanti
+                                                          │   ├── assegna studente
+                                                          │   └── concludi assegnazione
+                                                          └── elimina camera
+                                                          
+                                                        Residenti
+                                                          ├── trasferisci a nuova camera
+                                                          └── concludi soggiorno
+                                                          
+                                                        Strutture
+                                                          ├── crea/modifica
+                                                          └── disattiva
+                                                          
+                                                        Config Form
+                                                          ├── campi custom (attiva/disattiva, elimina)
+                                                          └── documenti custom (attiva/disattiva, elimina)
+                                                          
+                                                        Storico (read-only)
 ```
 
-### Stati candidatura (aggiornati)
+## Punti critici trovati (ordine di rischio)
 
-`ricevuta` → (admin invia link) → `in_completamento` → (studente compila) → `completata` → `accettata` / `rifiutata` / `ritirata` / `sostituita`.
+### Alto — possono creare incongruenze nei dati
 
-Le candidature possono anche andare direttamente da `ricevuta` a `rifiutata` se non passano il pre-screening (skip del completamento).
+1. **Candidatura `approvata` → `rifiutata` / `ritirata` / `rimetti in valutazione**` mentre esiste già un'assegnazione **attiva** sulla stessa candidatura: oggi avviene senza alcun avviso e lascia un residente in camera con candidatura non più approvata.
+2. **Elimina candidatura**: blocca solo se c'è un'assegnazione (qualsiasi stato), ma non spiega che restano i log_stato e i documenti orfani su storage. Messaggio attuale generico.
+3. **Camera → cambia `posti**` (modifica camera): se i nuovi posti < occupanti correnti, oggi il salvataggio passa e lo stato camera diventa incoerente (occupati > posti).
+4. **Camera → "Imposta in manutenzione"** quando ci sono occupanti attivi: non viene chiesta conferma né segnalato che i residenti restano formalmente in stanza ma la camera risulta non disponibile.
+5. **Camera → elimina**: disabilitata solo se ci sono assegnazioni **attive**. Una camera con storico di assegnazioni può essere cancellata, lasciando lo storico orfano (riferimenti rotti in `assegnazioni.camera_id`).
+6. **Residenti → "Concludi soggiorno"**: termina l'assegnazione subito (data odierna di default) senza ribadire l'impatto (lo studente sparisce dai residenti, la camera viene ricalcolata). Già esiste una conferma ma è generica.
+7. **Residenti → "Trasferisci"**: se la camera di destinazione è piena o in manutenzione, oggi l'azione può fallire silenziosamente o creare overbooking. Manca un check `occupati < posti` lato UI prima di confermare.
+8. **Disattiva struttura** (Strutture): possibile anche con candidature pendenti / residenti attivi. Le candidature pubbliche che la indicano restano "appese". Serve avviso che mostri quanti elementi ne dipendono.
+9. **Config Form → elimina campo/documento custom** con risposte già raccolte: i dati restano in `risposte_custom` come "orfani" (oggi vengono mostrati, ma l'azione non lo dice).
+10. **"Invia form completo" rigenerato**: il nuovo token sovrascrive il precedente. Se il manager rigenera per errore, il link vecchio smette di funzionare. Nessun avviso "esiste già un link valido fino al …".
 
-### UI Admin
+### Medio — incoerenze di flusso / UX confondente
 
-- Nella tabella **Candidature** (stato `ricevuta`): azione **"Invia form completo"** → genera token, mostra modale con link copiabile e pulsante "Apri client email" (`mailto:` precompilato in italiano/inglese a seconda di `lang_preferita` se disponibile, altrimenti italiano).
-- Badge visivo per distinguere candidature `ricevuta` (solo pre-screening) da `completata` (pronte per valutazione).
-- Vista dettaglio candidatura: due sezioni separate, "Dati pre-screening" sempre presenti, "Dati completi" mostrate solo se valorizzate, con timestamp di compilazione.
-- Azione **"Rigenera link"** se il token è scaduto/perso.
+11. `**STATI` filtro candidature** non include `in_completamento` né `completata` (definiti nel plan ma non nel codice). Il manager non può filtrare per "in attesa di completamento".
+12. **Approva candidatura senza form completo**: nessun avviso che lo studente non ha ancora compilato Blocchi 4-5 (lifestyle, garante). Approvare prima del completamento è legittimo ma andrebbe segnalato.
+13. **"Assegna a camera"** disponibile solo da stato `approvata`. Il pulsante nel menu si vede solo se `stato==='approvata'` — OK, ma una volta in modalità assegnazione (`?candidatura=…`) non c'è validazione che la camera scelta appartenga alla `struttura_preferita_id` della candidatura.
+14. **Note admin** salvate `onBlur` senza feedback visivo (toast) di salvataggio: il manager non sa se la nota è andata a buon fine.
 
-### UI Studente
+### Basso — qualità di vita
 
-- `/candidatura` (pubblico): step ridotti — `Personali → Accademico → Preferenze → Documenti base → Dichiarazioni → Revisione`. Schermata di successo aggiornata: "Riceverai una mail se la tua candidatura passa al passo successivo".
-- `/candidatura/completa/:token` (link diretto): step → `Stile di vita → Garante → Documenti aggiuntivi → Dichiarazioni → Revisione`. Header mostra "Ciao Mario, completa la tua candidatura". Riusa gli stessi componenti `Field`, upload via edge function già esistente.
-- Token scaduto/non valido → schermata d'errore con istruzioni per contattare la direzione.
+15. Manca un **badge "Link form completo attivo"** in elenco candidature → il manager non vede a colpo d'occhio quali candidati hanno già il link inviato e quando scade.
+16. Dashboard tasks: nessun raggruppamento "richiede attenzione" (es. candidature ricevute da > N giorni, link scaduti, camere in manutenzione da molto).
 
-## Modello dati
+## Cosa propongo di fare ora
 
-### Migrazione 1 — nuovi campi su `candidature`
+Tutto si traduce in **conferme `AlertDialog` / messaggi inline / disabilitazioni** sui punti sopra. Nessuna modifica al modello dati, nessuna nuova edge function.
 
-```text
-versione_form         text default 'pre_screening'   -- 'pre_screening' | 'completa'
-completata_il         timestamptz null
-completamento_token   text null unique               -- 32+ char random, hashato
-token_scade_il        timestamptz null
-dichiarazioni         jsonb default '{}'             -- block 7 checkboxes
--- block 3 estensioni
-data_arrivo_prevista  date null
-come_conosciuto       text null                      -- 'instagram'|'google'|...
-come_conosciuto_altro text null
-preferenze_note       text null                      -- "preferenze o esigenze particolari"
-indirizzo_residenza   text null                      -- block 1
-documento_identita_n  text null                      -- block 1
-tipo_studente         text null                      -- 'universitario'|'erasmus'|'master'|'altro'
-tipo_studente_altro   text null
--- block 4
-lingue_parlate        text null
-orari                 text null                      -- 'mattiniero'|'serale'|'variabile'
-personalita           text null
-personalita_altro     text null
-ordine_pulizia        text null
-fumatore              boolean null
-presentazione         text null
--- block 5
-garante_nome          text null
-garante_relazione     text null
-garante_telefono      text null
-garante_email         text null
-```
+### Modifiche frontend per blocco
 
-I campi di blocco 4-5 restano `null` finché lo studente non compila il form completo. Niente check constraint con `now()` — eventuale validazione token via trigger o nella edge function.
+`**src/pages/admin/Candidature.tsx**`
 
-### Migrazione 2 — RLS
+- Aggiungere `AlertDialog` di conferma per le transizioni di stato di una candidatura **assegnata** (punto 1): testo "Esiste un'assegnazione attiva. Cambiare stato non la chiude — vai in Residenti per gestirla."
+- Estendere il dialog di "Elimina" (punto 2) elencando cosa rimane (log, documenti) e cosa viene perso.
+- Nel modale "Invia form completo" (punto 10): se la candidatura ha già `token_scade_il > now()`, mostrare warning "Esiste già un link valido fino al … . Rigenerare lo invaliderà." e richiedere conferma esplicita.
+- Aggiungere badge "Form completo richiesto · scade gg/mm" accanto a "Form completo" nelle righe della tabella (punto 15).
+- Aggiungere `in_completamento` e `completata` nell'array `STATI` e nelle mappe label/colore (punto 11).
+- Bottone "Approva" mostra tooltip / conferma se `versione_form !== 'completa'` (punto 12).
+- Aggiungere toast su `onBlur` delle note admin (punto 14).
 
-- `candidature`: aggiungere policy `anon UPDATE` filtrata su `completamento_token = current_setting('request.jwt.claims', true)::jsonb->>'token'` **NO** — meglio gestire tutto via edge function `complete-candidatura` con service role (come già fatto per `submit-candidatura`). Nessuna nuova policy RLS aperta.
-- `documenti`: invariate (edge function service-role).
+`**src/pages/admin/Camere.tsx**`
 
-### Migrazione 3 — `form_documenti_custom`
+- Validazione `posti` nel form camera (punto 3): se `nuovo < occupanti correnti`, bloccare con messaggio `"Ci sono N occupanti attivi: riduci prima le assegnazioni o aumenta i posti."`
+- Manutenzione (punto 4): se la camera ha occupanti, mostrare warning nel modale "Ci sono N residenti in questa stanza. Verranno mantenuti ma la camera risulterà non assegnabile."
+- Elimina camera (punto 5): warning aggiuntivo se esistono assegnazioni concluse → "Eliminando si perde lo storico collegato a questa stanza."
+- In modalità "assegna candidatura" (punto 13): mostrare warning inline se la camera selezionata appartiene a una struttura diversa da `struttura_preferita_id`.
 
-Aggiungere colonna `fase text default 'pre_screening'` (`'pre_screening'` | `'completa'`) per permettere all'admin di decidere in quale fase richiedere ciascun documento custom. Stessa cosa su `form_campi_custom`. Default retro-compatibile.
+`**src/pages/admin/Residenti.tsx**`
 
-## Edge functions
+- Dialog trasferimento (punto 7): mostrare in tempo reale `occupati/posti` della camera di destinazione e disabilitare conferma se piena o in manutenzione.
+- Dialog conclusione (punto 6): dettagliare conseguenze nel testo (rimosso dai residenti, ricalcolo stato camera, mantenuto in storico).
 
-### Nuova `generate-completion-link` (auth: admin)
+`**src/pages/admin/Strutture.tsx**`
 
-Input: `candidatura_id`. Genera token sicuro (32 byte base64url), salva su `candidature` con scadenza `now() + 14 days`, cambia stato in `in_completamento`, scrive in `log_stato_candidature`. Output: `{ url, scade_il }`.
+- Toggle "Disattiva" (punto 8): se `metricsByStruttura[id].candidaturePendenti > 0` o `occupati > 0`, mostrare `AlertDialog` con conteggi e richiesta conferma.
 
-### Nuova `complete-candidatura` (auth: pubblica, valida via token)
+`**src/pages/admin/ConfigForm.tsx**`
 
-Input: `token`, payload blocchi 4-5 + dichiarazioni + documenti. Validazione: token esiste, non scaduto, stato == `in_completamento`. Aggiorna candidatura, imposta `completata_il`, stato `completata`, scrive log. Stessa validazione strict del payload come `submit-candidatura`.
+- Azione elimina campo/documento custom (punto 9): controllare se esiste almeno una `candidature.risposte_custom ? chiave` o `documenti.tipo == chiave`; se sì, mostrare warning "Esistono dati già raccolti con questa chiave: l'eliminazione li rende orfani (restano visibili come 'campo non più configurato')."
 
-### Modifica `submit-candidatura`
+**Componente comune**
 
-- Salva solo i campi del form ridotto.
-- Stato iniziale resta `ricevuta`.
-- `dichiarazioni` (blocco 7) ora obbligatorie anche nel form pubblico.
+- `src/components/admin/ConfirmDestructive.tsx` (nuovo, riutilizzabile): wrapper su `AlertDialog` con varianti `warning` / `destructive` + slot per "conseguenze" (lista puntata). Tutti i punti sopra lo usano per uniformità visiva.
 
-### Nuova `get-completion-form` (auth: pubblica)
+## Dettagli tecnici (per chi implementa)
 
-Input: `token`. Restituisce dati minimi per prefill (nome studente, lingua preferita) e validità token. Nessun PII sensibile.
+- I controlli "esiste assegnazione attiva", "occupanti > N", "candidature pendenti" sono già calcolabili dalle query esistenti (`assegnazioni`, `dashboard-stats`). Aggiungiamo solo:
+  - in `Candidature.tsx`: una `useQuery(['assegnazione-by-cand', id])` lazy quando si apre il dialog stato.
+  - in `Camere.tsx`: lookup `occCount(camera.id)` già esistente.
+  - in `ConfigForm.tsx`: una query `select id` aggregata su `candidature.risposte_custom ? chiave` (filtro JSONB `?` operator) e su `documenti.tipo`.
+- Conferme in italiano, tono pratico, mai bloccare se non strettamente necessario (preferire warning + conferma rispetto a disable).
+- Nessuna modifica al DB. Nessuna modifica alle edge function.
 
-## Frontend — file principali
+## Cosa NON facciamo in questa iterazione
 
-- `src/pages/Candidatura.tsx` → rimuovere step "Stile di vita"/"Garante" (non presenti oggi, quindi solo aggiungere il nuovo step **Dichiarazioni** prima della revisione). Aggiungere campi blocco 1 extra (indirizzo, doc identità n.) e blocco 3 extra (data arrivo, come conosciuto, preferenze particolari, tipo studente).
-- `src/pages/CandidaturaCompleta.tsx` (nuovo) → step blocchi 4, 5, doc aggiuntivi, dichiarazioni se non già firmate, revisione.
-- `src/App.tsx` → nuova route `/candidatura/completa/:token`.
-- `src/pages/admin/Candidature.tsx` → azione "Invia form completo" + badge stato + link copia/mailto.
-- `src/components/admin/CompletionLinkModal.tsx` (nuovo) → modale che mostra link, scadenza, bottone copia, bottone mailto con template IT/EN.
-- `src/i18n/translations.ts` → nuove chiavi per i blocchi 4-5-7, mail templates, schermate token.
-- `src/pages/admin/ConfigForm.tsx` → selettore "fase" per campi e documenti custom.
+- Niente nuovi stati candidatura, niente refactor delle macchine a stati.
+- Niente cleanup automatico di documenti / log orfani (resta valutazione successiva, possibile cascade DB).
+- Niente notifiche email automatiche per scadenze token.
+- Niente nuove viste o pagine: solo dialog/inline su quelle esistenti.
+- Niente modifiche al form pubblico `Candidatura.tsx` / `CandidaturaCompleta.tsx`.
 
-## Considerazioni
+## Domande aperte prima di implementare
 
-- **Email**: l'invio è manuale via `mailto:` (no infrastruttura email da configurare ora). Possiamo automatizzarlo dopo con Resend se necessario.
-- **Sicurezza token**: salviamo l'hash (sha256) del token, non il valore in chiaro, e mostriamo il valore solo una volta nella modale. Scadenza 14 giorni configurabile.
-- **Migrazione dati esistenti**: candidature esistenti rimangono `versione_form='pre_screening'`. Nessun backfill richiesto.
-- **Storico/export XLSX**: estendere `exportXlsx.ts` con le nuove colonne (lasciate vuote se non compilate).
-- **Dichiarazioni blocco 7**: 4 checkbox obbligatorie sia nel form pubblico (le prime 3 + privacy) sia nel form completo (riconferma con timestamp). Il consenso al contatto può essere chiesto solo nel form completo.
-
-## Cosa NON viene fatto in questa iterazione
-
-- Invio email automatico (resta `mailto:`).
-- Firma digitale del PDF generato (rimaniamo su checkbox + dichiarazione con timestamp/IP).
-- Rinnovo automatico token scaduti.
+1. Tra i punti elencati, vuoi che li affronti **tutti insieme** o solo i prioritari (gruppo "Alto")? -> iniziamo con i prioritari
+2. Per i casi di overbooking / manutenzione / posti ridotti: preferisci **bloccare** l'azione o **mostrare warning + permettere conferma esplicita**? (Default proposto: blocco solo dove i dati diventerebbero matematicamente incoerenti — posti < occupanti — warning negli altri casi.) -> ok il default proposto
+3. Vuoi che aggiunga subito `in_completamento` e `completata` ai filtri stato candidature, o lo trattiamo separatamente? - aggiungiamo
