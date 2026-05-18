@@ -426,9 +426,17 @@ export default function Residenti() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Concludere il soggiorno?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {endTarget?.studenti?.cognome} {endTarget?.studenti?.nome} – Camera {endTarget?.camere?.numero}.
-              L'assegnazione verrà chiusa e lo stato camera ricalcolato.
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-[13px]">
+                <p><strong>{endTarget?.studenti?.cognome} {endTarget?.studenti?.nome}</strong> – Camera {endTarget?.camere?.numero}.</p>
+                <p>Conseguenze:</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>lo studente sparisce dall'elenco <strong>Residenti</strong></li>
+                  <li>lo stato della camera viene <strong>ricalcolato</strong> (libera o parz. occupata)</li>
+                  <li>l'assegnazione resta visibile nello <strong>Storico</strong> con la data di fine</li>
+                  <li>la candidatura collegata <strong>non cambia stato</strong>: gestiscila a parte se necessario</li>
+                </ul>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2">
