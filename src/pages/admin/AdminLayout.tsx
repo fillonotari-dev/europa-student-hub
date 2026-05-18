@@ -1,28 +1,54 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Outlet } from 'react-router-dom';
+import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 
 export default function AdminLayout() {
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    let cancelled = false;
+
+    const verify = async (session: Session | null) => {
       if (!session) {
+        if (!cancelled) {
+          setIsAdmin(false);
+          setLoading(false);
+        }
         navigate('/login');
+        return;
       }
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', session.user.id)
+        .eq('role', 'admin')
+        .maybeSingle();
+      if (cancelled) return;
+      if (error || !data) {
+        setIsAdmin(false);
+        setLoading(false);
+        await supabase.auth.signOut();
+        navigate('/login');
+        return;
+      }
+      setIsAdmin(true);
       setLoading(false);
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      // Defer Supabase calls to avoid deadlocks inside the callback
+      setTimeout(() => { verify(session); }, 0);
     });
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) navigate('/login');
-      setLoading(false);
-    });
-    return () => subscription.unsubscribe();
+    supabase.auth.getSession().then(({ data: { session } }) => { verify(session); });
+    return () => { cancelled = true; subscription.unsubscribe(); };
   }, [navigate]);
 
-  if (loading) {
+  if (loading || !isAdmin) {
     return <div className="min-h-screen flex items-center justify-center"><p className="text-muted-foreground">Caricamento...</p></div>;
   }
 
