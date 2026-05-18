@@ -50,12 +50,22 @@ Deno.serve(async (req) => {
       return json({ valid: false, reason: "expired" }, 410);
     }
 
+    const { data: docs } = await supabase
+      .from("documenti")
+      .select("tipo")
+      .eq("candidatura_id", cand.id);
+    const tipi = new Set((docs ?? []).map((d: any) => d.tipo));
+
     const stud = (cand as any).studenti;
     return json({
       valid: true,
       candidatura_id: cand.id,
       nome: stud?.nome ?? "",
       cognome: stud?.cognome ?? "",
+      documenti_presenti: {
+        documento_garante: tipi.has("documento_garante"),
+        documento_aggiuntivo: tipi.has("documento_aggiuntivo"),
+      },
     });
   } catch (e) {
     console.error("get-completion-form error:", e);

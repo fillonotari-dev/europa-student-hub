@@ -18,7 +18,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NATIONALITIES } from '@/lib/nationalities';
-import { UNIVERSITIES, COURSE_LEVEL_LABELS, type CourseLevel } from '@/lib/universities';
+import { UNIVERSITIES } from '@/lib/universities';
 import logoStudentato from '@/assets/logo-studentato.svg';
 
 const BASE_STEPS = ['stepPersonal', 'stepAcademic', 'stepPreferences', 'stepDocuments', 'stepDichiarazioni'] as const;
@@ -62,19 +62,19 @@ export default function Candidatura() {
     nome: '', cognome: '', email: '', telefono: '', data_nascita: '', nazionalita: '', codice_fiscale: '',
     indirizzo_residenza: '', documento_identita_n: '',
     universita: UNIVERSITIES.length === 1 ? UNIVERSITIES[0].name : '',
-    dipartimento: '', corso_di_studi: '', anno_di_corso: '', matricola: '',
+    corso_di_studi: '', anno_di_corso: '',
     tipo_studente: '', tipo_studente_altro: '',
     struttura_preferita_id: '', tipo_camera_preferito: '', periodo_inizio: '', periodo_fine: '',
-    anno_accademico: '', messaggio: '',
+    messaggio: '',
     data_arrivo_prevista: '', come_conosciuto: '', come_conosciuto_altro: '', preferenze_note: '',
   });
-  const [files, setFiles] = useState<{ documento_identita: File | null; certificato_iscrizione: File | null }>({
-    documento_identita: null, certificato_iscrizione: null,
+  const [files, setFiles] = useState<{ documento_identita: File | null; certificato_iscrizione: File | null; documento_garante: File | null; documento_aggiuntivo: File | null }>({
+    documento_identita: null, certificato_iscrizione: null, documento_garante: null, documento_aggiuntivo: null,
   });
   const [dichiarazioni, setDichiarazioni] = useState({
-    veridicita: false, privacy: false, info_struttura: false,
+    veridicita: false, privacy: false, info_struttura: false, contatto: false,
   });
-  const [fileErrors, setFileErrors] = useState<{ documento_identita?: string; certificato_iscrizione?: string }>({});
+  const [fileErrors, setFileErrors] = useState<{ documento_identita?: string; certificato_iscrizione?: string; documento_garante?: string; documento_aggiuntivo?: string }>({});
   const [customAnswers, setCustomAnswers] = useState<Record<string, any>>({});
   const [customFiles, setCustomFiles] = useState<Record<string, File | null>>({});
   const [customFileErrors, setCustomFileErrors] = useState<Record<string, string | undefined>>({});
@@ -135,13 +135,6 @@ export default function Candidatura() {
     },
   });
 
-  // Genera anni accademici (corrente + 2 successivi)
-  const anniAccademici = useMemo(() => {
-    const now = new Date();
-    const startYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
-    return Array.from({ length: 3 }, (_, i) => `${startYear + i}/${startYear + i + 1}`).filter(a => a !== '2025/2026');
-  }, []);
-
   const set = (key: string, value: string) => setForm(f => ({ ...f, [key]: value }));
 
   // Reset tipo camera se non più disponibile per la struttura selezionata
@@ -150,15 +143,13 @@ export default function Candidatura() {
   };
 
   const setUniversita = (value: string) =>
-    setForm(f => ({ ...f, universita: value, dipartimento: '', corso_di_studi: '' }));
-  const setDipartimento = (value: string) =>
-    setForm(f => ({ ...f, dipartimento: value, corso_di_studi: '' }));
+    setForm(f => ({ ...f, universita: value }));
 
   const validateStep = () => {
     const requiredByKey: Record<string, string[]> = {
       stepPersonal: ['nome', 'cognome', 'email', 'telefono', 'data_nascita', 'nazionalita', 'codice_fiscale', 'indirizzo_residenza'],
-      stepAcademic: ['universita', 'dipartimento', 'corso_di_studi', 'matricola'],
-      stepPreferences: ['periodo_inizio', 'periodo_fine', 'anno_accademico'],
+      stepAcademic: ['universita', 'corso_di_studi', 'periodo_inizio', 'periodo_fine'],
+      stepPreferences: [],
       stepDocuments: ['_documenti'],
       stepInfoAggiuntive: ['_info_extra'],
       stepDichiarazioni: ['_dichiarazioni'],
@@ -173,7 +164,7 @@ export default function Candidatura() {
         continue;
       }
       if (f === '_dichiarazioni') {
-        if (!dichiarazioni.veridicita || !dichiarazioni.privacy || !dichiarazioni.info_struttura) {
+        if (!dichiarazioni.veridicita || !dichiarazioni.privacy || !dichiarazioni.info_struttura || !dichiarazioni.contatto) {
           toast({ title: t(lang, 'form.required'), variant: 'destructive' });
           return false;
         }
@@ -376,9 +367,8 @@ export default function Candidatura() {
             {stepKey === 'stepAcademic' && (
               <div className="space-y-4">
                 <UniversitaField lang={lang} value={form.universita} onChange={setUniversita} />
-                <DipartimentoField lang={lang} universitaName={form.universita} value={form.dipartimento} onChange={setDipartimento} />
-                <CorsoField lang={lang} universitaName={form.universita} dipartimentoName={form.dipartimento} value={form.corso_di_studi} onChange={v => set('corso_di_studi', v)} />
-                <Field label={t(lang, 'form.matricola')} value={form.matricola} onChange={v => set('matricola', v)} required />
+                <Field label={t(lang, 'form.corsoStudi')} value={form.corso_di_studi} onChange={v => set('corso_di_studi', v)} required />
+                <Field label={t(lang, 'form.annoCorso')} value={form.anno_di_corso} onChange={v => set('anno_di_corso', v)} />
                 <div>
                   <Label>{t(lang, 'form.tipoStudente')}</Label>
                   <Select value={form.tipo_studente} onValueChange={v => set('tipo_studente', v)}>
@@ -400,6 +390,11 @@ export default function Candidatura() {
                     />
                   )}
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label={t(lang, 'form.periodoInizio')} value={form.periodo_inizio} onChange={v => set('periodo_inizio', v)} type="date" required />
+                  <Field label={t(lang, 'form.periodoFine')} value={form.periodo_fine} onChange={v => set('periodo_fine', v)} type="date" required />
+                </div>
+                <Field label={t(lang, 'form.dataArrivoPrevista')} value={form.data_arrivo_prevista} onChange={v => set('data_arrivo_prevista', v)} type="date" />
               </div>
             )}
             {stepKey === 'stepPreferences' && (
@@ -437,21 +432,6 @@ export default function Candidatura() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label={t(lang, 'form.periodoInizio')} value={form.periodo_inizio} onChange={v => set('periodo_inizio', v)} type="date" required />
-                  <Field label={t(lang, 'form.periodoFine')} value={form.periodo_fine} onChange={v => set('periodo_fine', v)} type="date" required />
-                </div>
-                <div>
-                  <Label>{t(lang, 'form.annoAccademico')}<span className="text-destructive ml-0.5">*</span></Label>
-                  <p className="mt-1 text-[12px] text-muted-foreground">{t(lang, 'form.annoAccademicoHint')}</p>
-                  <Select value={form.anno_accademico} onValueChange={v => set('anno_accademico', v)}>
-                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {anniAccademici.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Field label={t(lang, 'form.dataArrivoPrevista')} value={form.data_arrivo_prevista} onChange={v => set('data_arrivo_prevista', v)} type="date" />
                 <div>
                   <Label>{t(lang, 'form.preferenzeNote')}</Label>
                   <Textarea value={form.preferenze_note} onChange={e => set('preferenze_note', e.target.value)} placeholder={t(lang, 'form.preferenzeNotePlaceholder')} className="mt-1.5" maxLength={1000} />
@@ -486,10 +466,8 @@ export default function Candidatura() {
               <div className="space-y-4">
                 <FileUpload label={t(lang, 'form.documentoIdentita')} hint={t(lang, 'form.uploadHint')} file={files.documento_identita} error={fileErrors.documento_identita} onChange={f => handleFile('documento_identita', f)} required />
                 <FileUpload label={t(lang, 'form.certificatoIscrizione')} hint={t(lang, 'form.uploadHint')} file={files.certificato_iscrizione} error={fileErrors.certificato_iscrizione} onChange={f => handleFile('certificato_iscrizione', f)} required />
-                <div>
-                  <Label>{t(lang, 'form.messaggio')}</Label>
-                  <Textarea value={form.messaggio} onChange={e => set('messaggio', e.target.value)} placeholder={t(lang, 'form.messaggioPlaceholder')} className="mt-1.5" />
-                </div>
+                <FileUpload label={t(lang, 'form.documentoGarante')} hint={t(lang, 'form.uploadHint')} file={files.documento_garante} error={fileErrors.documento_garante} onChange={f => handleFile('documento_garante', f)} />
+                <FileUpload label={t(lang, 'form.documentoAggiuntivo')} hint={t(lang, 'form.uploadHint')} file={files.documento_aggiuntivo} error={fileErrors.documento_aggiuntivo} onChange={f => handleFile('documento_aggiuntivo', f)} />
               </div>
             )}
             {stepKey === 'stepDichiarazioni' && (
@@ -498,6 +476,7 @@ export default function Candidatura() {
                 <DeclCheckbox checked={dichiarazioni.veridicita} onCheckedChange={v => setDichiarazioni(d => ({ ...d, veridicita: v }))} label={t(lang, 'form.dichVeridicita')} />
                 <DeclCheckbox checked={dichiarazioni.privacy} onCheckedChange={v => setDichiarazioni(d => ({ ...d, privacy: v }))} label={t(lang, 'form.dichPrivacy')} />
                 <DeclCheckbox checked={dichiarazioni.info_struttura} onCheckedChange={v => setDichiarazioni(d => ({ ...d, info_struttura: v }))} label={t(lang, 'form.dichInfoStruttura')} />
+                <DeclCheckbox checked={dichiarazioni.contatto} onCheckedChange={v => setDichiarazioni(d => ({ ...d, contatto: v }))} label={t(lang, 'form.dichContatto')} />
               </div>
             )}
             {stepKey === 'stepInfoAggiuntive' && (
@@ -535,9 +514,10 @@ export default function Candidatura() {
                 ]} />
                 <ReviewSection title={t(lang, 'form.stepAcademic')} items={[
                   [t(lang, 'form.universita'), form.universita],
-                  [t(lang, 'form.dipartimento'), form.dipartimento],
                   [t(lang, 'form.corsoStudi'), form.corso_di_studi],
-                  [t(lang, 'form.matricola'), form.matricola],
+                  [t(lang, 'form.annoCorso'), form.anno_di_corso],
+                  [t(lang, 'form.periodoInizio'), form.periodo_inizio],
+                  [t(lang, 'form.periodoFine'), form.periodo_fine],
                 ]} />
                 <ReviewSection title={t(lang, 'form.stepPreferences')} items={[
                   [t(lang, 'form.strutturaPreferita'), (() => {
@@ -546,14 +526,13 @@ export default function Candidatura() {
                     return sel.indirizzo ? `${sel.nome} — ${sel.indirizzo}` : sel.nome;
                   })()],
                   [t(lang, 'form.tipoCameraPreferito'), form.tipo_camera_preferito || '-'],
-                  [t(lang, 'form.periodoInizio'), form.periodo_inizio],
-                  [t(lang, 'form.periodoFine'), form.periodo_fine],
-                  [t(lang, 'form.annoAccademico'), form.anno_accademico],
                 ]} />
-                {(files.documento_identita || files.certificato_iscrizione) && (
+                {(files.documento_identita || files.certificato_iscrizione || files.documento_garante || files.documento_aggiuntivo) && (
                   <ReviewSection title={t(lang, 'form.stepDocuments')} items={[
                     [t(lang, 'form.documentoIdentita'), files.documento_identita?.name || '-'],
                     [t(lang, 'form.certificatoIscrizione'), files.certificato_iscrizione?.name || '-'],
+                    [t(lang, 'form.documentoGarante'), files.documento_garante?.name || '-'],
+                    [t(lang, 'form.documentoAggiuntivo'), files.documento_aggiuntivo?.name || '-'],
                   ]} />
                 )}
                 {hasInfoExtra && (campiCustom.length > 0 || Object.values(customFiles).some(Boolean)) && (
@@ -771,68 +750,6 @@ function UniversitaField({ lang, value, onChange }: { lang: Lang; value: string;
       value={value}
       onChange={onChange}
       options={options}
-      required
-    />
-  );
-}
-
-function DipartimentoField({ lang, universitaName, value, onChange }: { lang: Lang; universitaName: string; value: string; onChange: (v: string) => void }) {
-  const uni = UNIVERSITIES.find(u => u.name === universitaName);
-  const options = useMemo<ComboboxOption[]>(
-    () =>
-      (uni?.departments ?? []).map(d => ({
-        value: d.name,
-        label: d.name,
-        group: d.sede,
-        searchKey: `${d.name} ${d.sede}`,
-      })),
-    [uni]
-  );
-  return (
-    <Combobox
-      lang={lang}
-      label={t(lang, 'form.dipartimento')}
-      placeholder={t(lang, 'form.selectDipartimento')}
-      value={value}
-      onChange={onChange}
-      options={options}
-      disabled={!uni}
-      required
-    />
-  );
-}
-
-function CorsoField({ lang, universitaName, dipartimentoName, value, onChange }: { lang: Lang; universitaName: string; dipartimentoName: string; value: string; onChange: (v: string) => void }) {
-  const uni = UNIVERSITIES.find(u => u.name === universitaName);
-  const dip = uni?.departments.find(d => d.name === dipartimentoName);
-  const options = useMemo<ComboboxOption[]>(() => {
-    const order: CourseLevel[] = ['ciclo_unico', 'triennale', 'professione_sanitaria', 'magistrale'];
-    const out: ComboboxOption[] = [];
-    if (dip) {
-      for (const lvl of order) {
-        const courses = dip.courses.filter(c => c.level === lvl);
-        const groupLabel = COURSE_LEVEL_LABELS[lvl][lang];
-        courses.forEach((c) => {
-          out.push({
-            value: c.name,
-            label: c.name,
-            group: groupLabel,
-            searchKey: `${c.name} ${groupLabel}`,
-          });
-        });
-      }
-    }
-    return out;
-  }, [dip, lang]);
-  return (
-    <Combobox
-      lang={lang}
-      label={t(lang, 'form.corsoStudi')}
-      placeholder={t(lang, 'form.selectCorso')}
-      value={value}
-      onChange={onChange}
-      options={options}
-      disabled={!dip}
       required
     />
   );
