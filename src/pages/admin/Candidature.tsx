@@ -384,6 +384,11 @@ export default function Candidature() {
                   <td className="px-4 py-3">
                     <p className="text-sm font-medium">{c.studenti?.nome} {c.studenti?.cognome}</p>
                     <p className="text-[11px] text-muted-foreground">{c.studenti?.email}</p>
+                    {c.versione_form === 'completa' && (
+                      <span className="inline-block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-success/10 text-success">
+                        Form completo
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm">{c.strutture?.nome || '-'}</td>
                   <td className="px-4 py-3 text-sm">{c.anno_accademico}</td>
