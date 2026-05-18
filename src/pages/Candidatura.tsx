@@ -755,7 +755,6 @@ function UniversitaField({ lang, value, onChange }: { lang: Lang; value: string;
   );
 }
 
-function DipartimentoField({ lang, universitaName, value, onChange }: { lang: Lang; universitaName: string; value: string; onChange: (v: string) => void }) {
 function CustomFieldRenderer({
   lang, campo, value, onChange,
 }: {
