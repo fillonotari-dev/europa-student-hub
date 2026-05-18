@@ -514,9 +514,10 @@ export default function Candidatura() {
                 ]} />
                 <ReviewSection title={t(lang, 'form.stepAcademic')} items={[
                   [t(lang, 'form.universita'), form.universita],
-                  [t(lang, 'form.dipartimento'), form.dipartimento],
                   [t(lang, 'form.corsoStudi'), form.corso_di_studi],
-                  [t(lang, 'form.matricola'), form.matricola],
+                  [t(lang, 'form.annoCorso'), form.anno_di_corso],
+                  [t(lang, 'form.periodoInizio'), form.periodo_inizio],
+                  [t(lang, 'form.periodoFine'), form.periodo_fine],
                 ]} />
                 <ReviewSection title={t(lang, 'form.stepPreferences')} items={[
                   [t(lang, 'form.strutturaPreferita'), (() => {
@@ -525,14 +526,13 @@ export default function Candidatura() {
                     return sel.indirizzo ? `${sel.nome} — ${sel.indirizzo}` : sel.nome;
                   })()],
                   [t(lang, 'form.tipoCameraPreferito'), form.tipo_camera_preferito || '-'],
-                  [t(lang, 'form.periodoInizio'), form.periodo_inizio],
-                  [t(lang, 'form.periodoFine'), form.periodo_fine],
-                  [t(lang, 'form.annoAccademico'), form.anno_accademico],
                 ]} />
-                {(files.documento_identita || files.certificato_iscrizione) && (
+                {(files.documento_identita || files.certificato_iscrizione || files.documento_garante || files.documento_aggiuntivo) && (
                   <ReviewSection title={t(lang, 'form.stepDocuments')} items={[
                     [t(lang, 'form.documentoIdentita'), files.documento_identita?.name || '-'],
                     [t(lang, 'form.certificatoIscrizione'), files.certificato_iscrizione?.name || '-'],
+                    [t(lang, 'form.documentoGarante'), files.documento_garante?.name || '-'],
+                    [t(lang, 'form.documentoAggiuntivo'), files.documento_aggiuntivo?.name || '-'],
                   ]} />
                 )}
                 {hasInfoExtra && (campiCustom.length > 0 || Object.values(customFiles).some(Boolean)) && (
