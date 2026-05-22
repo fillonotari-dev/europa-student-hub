@@ -21,7 +21,7 @@ const MAX_SIZE = 5 * 1024 * 1024;
 
 type TokenState =
   | { status: 'loading' }
-  | { status: 'valid'; nome: string; cognome: string; candidaturaId: string; docsPresent: { documento_garante: boolean; documento_aggiuntivo: boolean } }
+  | { status: 'valid'; nome: string; cognome: string; candidaturaId: string }
   | { status: 'invalid'; reason: 'not_found' | 'expired' | 'already_completed' | 'error' };
 
 export default function CandidaturaCompleta() {
@@ -77,10 +77,6 @@ export default function CandidaturaCompleta() {
           nome: data.nome,
           cognome: data.cognome,
           candidaturaId: data.candidatura_id,
-          docsPresent: {
-            documento_garante: !!data?.documenti_presenti?.documento_garante,
-            documento_aggiuntivo: !!data?.documenti_presenti?.documento_aggiuntivo,
-          },
         });
       } catch {
         if (!cancelled) setTokenState({ status: 'invalid', reason: 'error' });
@@ -89,14 +85,7 @@ export default function CandidaturaCompleta() {
     return () => { cancelled = true; };
   }, [token]);
 
-  const STEPS = useMemo(() => {
-    if (tokenState.status !== 'valid') return ALL_STEPS as readonly string[];
-    const dp = tokenState.docsPresent;
-    if (dp.documento_garante && dp.documento_aggiuntivo) {
-      return ALL_STEPS.filter(s => s !== 'stepDocAggiuntivi');
-    }
-    return ALL_STEPS as readonly string[];
-  }, [tokenState]);
+  const STEPS = useMemo(() => ALL_STEPS as readonly string[], []);
   const stepKey = STEPS[step] as typeof ALL_STEPS[number];
 
   const validateStep = (): boolean => {
@@ -107,6 +96,12 @@ export default function CandidaturaCompleta() {
       }
       if (form.garante_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.garante_email)) {
         toast({ title: t(lang, 'form.invalidEmail'), variant: 'destructive' });
+        return false;
+      }
+    }
+    if (stepKey === 'stepDocAggiuntivi') {
+      if (!files.documento_garante) {
+        toast({ title: t(lang, 'form.required'), variant: 'destructive' });
         return false;
       }
     }
@@ -342,12 +337,8 @@ export default function CandidaturaCompleta() {
 
             {stepKey === 'stepDocAggiuntivi' && (
               <div className="space-y-4">
-                {tokenState.status === 'valid' && !tokenState.docsPresent.documento_garante && (
-                  <FileUpload label={t(lang, 'form.documentoGarante')} hint={t(lang, 'form.uploadHint')} file={files.documento_garante} error={fileErrors.documento_garante} onChange={f => handleFile('documento_garante', f)} />
-                )}
-                {tokenState.status === 'valid' && !tokenState.docsPresent.documento_aggiuntivo && (
-                  <FileUpload label={t(lang, 'form.documentoAggiuntivo')} hint={t(lang, 'form.uploadHint')} file={files.documento_aggiuntivo} error={fileErrors.documento_aggiuntivo} onChange={f => handleFile('documento_aggiuntivo', f)} />
-                )}
+                <FileUpload label={t(lang, 'form.documentoGarante')} hint={t(lang, 'form.uploadHint')} file={files.documento_garante} error={fileErrors.documento_garante} onChange={f => handleFile('documento_garante', f)} required />
+                <FileUpload label={t(lang, 'form.documentoAggiuntivo')} hint={t(lang, 'form.uploadHint')} file={files.documento_aggiuntivo} error={fileErrors.documento_aggiuntivo} onChange={f => handleFile('documento_aggiuntivo', f)} />
               </div>
             )}
 

@@ -68,13 +68,13 @@ export default function Candidatura() {
     messaggio: '',
     data_arrivo_prevista: '', come_conosciuto: '', come_conosciuto_altro: '', preferenze_note: '',
   });
-  const [files, setFiles] = useState<{ documento_identita: File | null; certificato_iscrizione: File | null; documento_garante: File | null; documento_aggiuntivo: File | null }>({
-    documento_identita: null, certificato_iscrizione: null, documento_garante: null, documento_aggiuntivo: null,
+  const [files, setFiles] = useState<{ documento_identita: File | null; certificato_iscrizione: File | null }>({
+    documento_identita: null, certificato_iscrizione: null,
   });
   const [dichiarazioni, setDichiarazioni] = useState({
     veridicita: false, privacy: false, info_struttura: false, contatto: false,
   });
-  const [fileErrors, setFileErrors] = useState<{ documento_identita?: string; certificato_iscrizione?: string; documento_garante?: string; documento_aggiuntivo?: string }>({});
+  const [fileErrors, setFileErrors] = useState<{ documento_identita?: string; certificato_iscrizione?: string }>({});
   const [customAnswers, setCustomAnswers] = useState<Record<string, any>>({});
   const [customFiles, setCustomFiles] = useState<Record<string, File | null>>({});
   const [customFileErrors, setCustomFileErrors] = useState<Record<string, string | undefined>>({});
@@ -473,8 +473,6 @@ export default function Candidatura() {
               <div className="space-y-4">
                 <FileUpload label={t(lang, 'form.documentoIdentita')} hint={t(lang, 'form.uploadHint')} file={files.documento_identita} error={fileErrors.documento_identita} onChange={f => handleFile('documento_identita', f)} required />
                 <FileUpload label={t(lang, 'form.certificatoIscrizione')} hint={t(lang, 'form.uploadHint')} file={files.certificato_iscrizione} error={fileErrors.certificato_iscrizione} onChange={f => handleFile('certificato_iscrizione', f)} required />
-                <FileUpload label={t(lang, 'form.documentoGarante')} hint={t(lang, 'form.uploadHint')} file={files.documento_garante} error={fileErrors.documento_garante} onChange={f => handleFile('documento_garante', f)} />
-                <FileUpload label={t(lang, 'form.documentoAggiuntivo')} hint={t(lang, 'form.uploadHint')} file={files.documento_aggiuntivo} error={fileErrors.documento_aggiuntivo} onChange={f => handleFile('documento_aggiuntivo', f)} />
               </div>
             )}
             {stepKey === 'stepDichiarazioni' && (
