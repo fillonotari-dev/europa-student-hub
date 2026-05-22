@@ -114,12 +114,12 @@ export default function Candidatura() {
   const hasInfoExtra = campiCustom.length > 0 || documentiCustom.length > 0;
   // Dichiarazioni è sempre l'ultimo step; se ci sono campi/documenti custom
   // li mettiamo prima delle dichiarazioni.
-  const STEPS = useMemo(
+  const STEPS = useMemo<string[]>(
     () => {
-      const base = [...BASE_STEPS];
-      const dichIdx = base.indexOf('stepDichiarazioni' as any);
+      const base: string[] = [...BASE_STEPS];
+      const dichIdx = base.indexOf('stepDichiarazioni');
       if (hasInfoExtra && dichIdx >= 0) {
-        base.splice(dichIdx, 0, 'stepInfoAggiuntive' as any);
+        base.splice(dichIdx, 0, 'stepInfoAggiuntive');
       }
       return base;
     },
