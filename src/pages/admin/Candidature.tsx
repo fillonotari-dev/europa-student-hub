@@ -51,7 +51,28 @@ const STATO_ORDER: Record<string, number> = {
 const TIPO_DOC_LABELS: Record<string, string> = {
   documento_identita: 'Documento di identità',
   certificato_iscrizione: 'Certificato di iscrizione',
+  documento_garante: 'Documento garante',
+  documento_aggiuntivo: 'Documento aggiuntivo',
 };
+
+const TIPO_STUDENTE_LABELS: Record<string, string> = {
+  universitario: 'Universitario', erasmus: 'Erasmus', master: 'Master', altro: 'Altro',
+};
+const COME_CONOSCIUTO_LABELS: Record<string, string> = {
+  instagram: 'Instagram', google: 'Google', universita: 'Università', esn: 'ESN',
+  amici: 'Amici', sito: 'Sito web', altro: 'Altro',
+};
+const ORARI_LABELS: Record<string, string> = {
+  mattiniero: 'Mattiniero', serale: 'Serale', variabile: 'Variabile',
+};
+const PERSONALITA_LABELS: Record<string, string> = {
+  tranquilla: 'Tranquilla', socievole: 'Socievole', riservata: 'Riservata', altro: 'Altro',
+};
+const ORDINE_LABELS: Record<string, string> = {
+  molto: 'Molto ordinato', abbastanza: 'Abbastanza ordinato', flessibile: 'Flessibile',
+};
+const fmtIt = (v: string | null | undefined) => v ? new Date(v).toLocaleDateString('it-IT') : '';
+const fmtItDateTime = (v: string | null | undefined) => v ? new Date(v).toLocaleString('it-IT') : '';
 
 // Estrae il path interno al bucket "documenti_studenti" da un URL pubblico/signed Supabase
 function extractStoragePath(url: string): string | null {
@@ -126,7 +147,7 @@ export default function Candidature() {
     queryFn: async () => {
       let query = supabase
         .from('candidature')
-        .select('*, studenti(nome, cognome, email, telefono, nazionalita), strutture(nome)')
+        .select('*, studenti(nome, cognome, email, telefono, nazionalita, data_nascita, codice_fiscale), strutture(nome)')
         .order('created_at', { ascending: false });
       if (filterStato !== 'tutti') query = query.eq('stato', filterStato);
       if (!isAll) query = query.eq('struttura_preferita_id', strutturaId);
