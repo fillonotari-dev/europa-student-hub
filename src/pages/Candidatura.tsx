@@ -112,11 +112,17 @@ export default function Candidatura() {
   });
 
   const hasInfoExtra = campiCustom.length > 0 || documentiCustom.length > 0;
-  const STEPS = useMemo(
-    () =>
-      hasInfoExtra
-        ? [...BASE_STEPS, 'stepInfoAggiuntive', 'stepReview']
-        : [...BASE_STEPS, 'stepReview'],
+  // Dichiarazioni è sempre l'ultimo step; se ci sono campi/documenti custom
+  // li mettiamo prima delle dichiarazioni.
+  const STEPS = useMemo<string[]>(
+    () => {
+      const base: string[] = [...BASE_STEPS];
+      const dichIdx = base.indexOf('stepDichiarazioni');
+      if (hasInfoExtra && dichIdx >= 0) {
+        base.splice(dichIdx, 0, 'stepInfoAggiuntive');
+      }
+      return base;
+    },
     [hasInfoExtra]
   );
   const stepKey = STEPS[step];
@@ -503,55 +509,6 @@ export default function Candidatura() {
                 ))}
               </div>
             )}
-            {stepKey === 'stepReview' && (
-              <div className="space-y-6">
-                <ReviewSection title={t(lang, 'form.stepPersonal')} items={[
-                  [t(lang, 'form.nome'), `${form.nome} ${form.cognome}`],
-                  [t(lang, 'form.email'), form.email],
-                  [t(lang, 'form.telefono'), form.telefono],
-                  [t(lang, 'form.dataNascita'), form.data_nascita],
-                  [t(lang, 'form.nazionalita'), form.nazionalita],
-                ]} />
-                <ReviewSection title={t(lang, 'form.stepAcademic')} items={[
-                  [t(lang, 'form.universita'), form.universita],
-                  [t(lang, 'form.corsoStudi'), form.corso_di_studi],
-                  [t(lang, 'form.annoCorso'), form.anno_di_corso],
-                  [t(lang, 'form.periodoInizio'), form.periodo_inizio],
-                  [t(lang, 'form.periodoFine'), form.periodo_fine],
-                ]} />
-                <ReviewSection title={t(lang, 'form.stepPreferences')} items={[
-                  [t(lang, 'form.strutturaPreferita'), (() => {
-                    const sel = strutture?.find(s => s.id === form.struttura_preferita_id);
-                    if (!sel) return '-';
-                    return sel.indirizzo ? `${sel.nome} — ${sel.indirizzo}` : sel.nome;
-                  })()],
-                  [t(lang, 'form.tipoCameraPreferito'), form.tipo_camera_preferito || '-'],
-                ]} />
-                {(files.documento_identita || files.certificato_iscrizione || files.documento_garante || files.documento_aggiuntivo) && (
-                  <ReviewSection title={t(lang, 'form.stepDocuments')} items={[
-                    [t(lang, 'form.documentoIdentita'), files.documento_identita?.name || '-'],
-                    [t(lang, 'form.certificatoIscrizione'), files.certificato_iscrizione?.name || '-'],
-                    [t(lang, 'form.documentoGarante'), files.documento_garante?.name || '-'],
-                    [t(lang, 'form.documentoAggiuntivo'), files.documento_aggiuntivo?.name || '-'],
-                  ]} />
-                )}
-                {hasInfoExtra && (campiCustom.length > 0 || Object.values(customFiles).some(Boolean)) && (
-                  <ReviewSection
-                    title={t(lang, 'form.infoAggiuntive')}
-                    items={[
-                      ...campiCustom.map<[string, string]>(c => [
-                        labelOf(lang, c.label_it, c.label_en),
-                        formatCustomValue(lang, c, customAnswers[c.chiave]),
-                      ]),
-                      ...documentiCustom.map<[string, string]>(d => [
-                        labelOf(lang, d.label_it, d.label_en),
-                        customFiles[d.chiave]?.name ?? '-',
-                      ]),
-                    ]}
-                  />
-                )}
-              </div>
-            )}
           </motion.div>
         </AnimatePresence>
 
@@ -646,22 +603,6 @@ function FileUpload({ label, hint, file, error, onChange, required }: { label: s
         )}
       </div>
       {error && <p className="text-[12px] text-destructive mt-1">{error}</p>}
-    </div>
-  );
-}
-
-function ReviewSection({ title, items }: { title: string; items: [string, string][] }) {
-  return (
-    <div className="bg-card border rounded-lg p-4">
-      <h3 className="text-sm font-semibold mb-3">{title}</h3>
-      <div className="space-y-2">
-        {items.map(([label, value]) => (
-          <div key={label} className="flex justify-between text-[13px]">
-            <span className="text-muted-foreground">{label}</span>
-            <span className="font-medium">{value || '-'}</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
