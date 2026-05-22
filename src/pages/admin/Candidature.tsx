@@ -51,7 +51,28 @@ const STATO_ORDER: Record<string, number> = {
 const TIPO_DOC_LABELS: Record<string, string> = {
   documento_identita: 'Documento di identità',
   certificato_iscrizione: 'Certificato di iscrizione',
+  documento_garante: 'Documento garante',
+  documento_aggiuntivo: 'Documento aggiuntivo',
 };
+
+const TIPO_STUDENTE_LABELS: Record<string, string> = {
+  universitario: 'Universitario', erasmus: 'Erasmus', master: 'Master', altro: 'Altro',
+};
+const COME_CONOSCIUTO_LABELS: Record<string, string> = {
+  instagram: 'Instagram', google: 'Google', universita: 'Università', esn: 'ESN',
+  amici: 'Amici', sito: 'Sito web', altro: 'Altro',
+};
+const ORARI_LABELS: Record<string, string> = {
+  mattiniero: 'Mattiniero', serale: 'Serale', variabile: 'Variabile',
+};
+const PERSONALITA_LABELS: Record<string, string> = {
+  tranquilla: 'Tranquilla', socievole: 'Socievole', riservata: 'Riservata', altro: 'Altro',
+};
+const ORDINE_LABELS: Record<string, string> = {
+  molto: 'Molto ordinato', abbastanza: 'Abbastanza ordinato', flessibile: 'Flessibile',
+};
+const fmtIt = (v: string | null | undefined) => v ? new Date(v).toLocaleDateString('it-IT') : '';
+const fmtItDateTime = (v: string | null | undefined) => v ? new Date(v).toLocaleString('it-IT') : '';
 
 // Estrae il path interno al bucket "documenti_studenti" da un URL pubblico/signed Supabase
 function extractStoragePath(url: string): string | null {
@@ -126,7 +147,7 @@ export default function Candidature() {
     queryFn: async () => {
       let query = supabase
         .from('candidature')
-        .select('*, studenti(nome, cognome, email, telefono, nazionalita), strutture(nome)')
+        .select('*, studenti(nome, cognome, email, telefono, nazionalita, data_nascita, codice_fiscale), strutture(nome)')
         .order('created_at', { ascending: false });
       if (filterStato !== 'tutti') query = query.eq('stato', filterStato);
       if (!isAll) query = query.eq('struttura_preferita_id', strutturaId);
@@ -384,16 +405,36 @@ export default function Candidature() {
               'Email': c.studenti?.email ?? '',
               'Telefono': c.studenti?.telefono ?? '',
               'Nazionalità': c.studenti?.nazionalita ?? '',
+              'Data di nascita': fmtDate(c.studenti?.data_nascita),
+              'Codice fiscale': c.studenti?.codice_fiscale ?? '',
+              'Indirizzo residenza': c.indirizzo_residenza ?? '',
+              'N. documento identità': c.documento_identita_n ?? '',
               'Struttura preferita': c.strutture?.nome ?? '',
               'Università': c.universita_snapshot ?? '',
               'Corso': c.corso_snapshot ?? '',
               'Anno corso': c.anno_corso_snapshot ?? '',
               'Matricola': c.matricola_snapshot ?? '',
+              'Tipo studente': c.tipo_studente === 'altro' ? (c.tipo_studente_altro ?? 'Altro') : (TIPO_STUDENTE_LABELS[c.tipo_studente] ?? c.tipo_studente ?? ''),
               'Stato': STATO_LABELS[c.stato] ?? c.stato,
+              'Versione form': c.versione_form === 'completa' ? 'Completa' : 'Pre-screening',
               'Anno accademico': c.anno_accademico ?? '',
               'Periodo inizio': fmtDate(c.periodo_inizio),
               'Periodo fine': fmtDate(c.periodo_fine),
+              'Data arrivo prevista': fmtDate(c.data_arrivo_prevista),
+              'Come conosciuto': c.come_conosciuto === 'altro' ? (c.come_conosciuto_altro ?? 'Altro') : (COME_CONOSCIUTO_LABELS[c.come_conosciuto] ?? c.come_conosciuto ?? ''),
+              'Note preferenze': c.preferenze_note ?? '',
+              'Lingue parlate': c.lingue_parlate ?? '',
+              'Orari': ORARI_LABELS[c.orari] ?? c.orari ?? '',
+              'Personalità': c.personalita === 'altro' ? (c.personalita_altro ?? 'Altro') : (PERSONALITA_LABELS[c.personalita] ?? c.personalita ?? ''),
+              'Ordine/pulizia': ORDINE_LABELS[c.ordine_pulizia] ?? c.ordine_pulizia ?? '',
+              'Fumatore': c.fumatore === true ? 'Sì' : c.fumatore === false ? 'No' : '',
+              'Presentazione': c.presentazione ?? '',
+              'Garante nome': c.garante_nome ?? '',
+              'Garante relazione': c.garante_relazione ?? '',
+              'Garante telefono': c.garante_telefono ?? '',
+              'Garante email': c.garante_email ?? '',
               'Data candidatura': fmtDate(c.created_at),
+              'Completata il': fmtDate(c.completata_il),
             };
             const risp = (c.risposte_custom ?? {}) as Record<string, any>;
             for (const cc of campiCustomAll) {
@@ -503,19 +544,60 @@ export default function Candidature() {
                   ['Email', selected.studenti?.email],
                   ['Telefono', selected.studenti?.telefono],
                   ['Nazionalità', selected.studenti?.nazionalita],
+                  ['Data di nascita', fmtIt(selected.studenti?.data_nascita)],
+                  ['Codice fiscale', selected.studenti?.codice_fiscale],
+                  ['Indirizzo residenza', selected.indirizzo_residenza],
+                  ['N. documento identità', selected.documento_identita_n],
                 ]} />
                 <Section title="Dati accademici" items={[
                   ['Università', selected.universita_snapshot],
                   ['Corso', selected.corso_snapshot],
                   ['Anno', selected.anno_corso_snapshot],
                   ['Matricola', selected.matricola_snapshot],
+                  ['Tipo studente', selected.tipo_studente === 'altro'
+                    ? (selected.tipo_studente_altro || 'Altro')
+                    : (TIPO_STUDENTE_LABELS[selected.tipo_studente] || selected.tipo_studente)],
                 ]} />
                 <Section title="Preferenze" items={[
                   ['Struttura', selected.strutture?.nome || '-'],
                   ['Tipo camera', selected.tipo_camera_preferito || '-'],
                   ['Periodo', `${selected.periodo_inizio || ''} → ${selected.periodo_fine || ''}`],
                   ['Anno acc.', selected.anno_accademico],
+                  ['Data arrivo prevista', fmtIt(selected.data_arrivo_prevista)],
+                  ['Come ci ha conosciuti', selected.come_conosciuto === 'altro'
+                    ? (selected.come_conosciuto_altro || 'Altro')
+                    : (COME_CONOSCIUTO_LABELS[selected.come_conosciuto] || selected.come_conosciuto)],
+                  ['Note preferenze', selected.preferenze_note],
                 ]} />
+
+                {selected.versione_form === 'completa' && (
+                  <Section title="Stile di vita" items={[
+                    ['Lingue parlate', selected.lingue_parlate],
+                    ['Orari', ORARI_LABELS[selected.orari] || selected.orari],
+                    ['Personalità', selected.personalita === 'altro'
+                      ? (selected.personalita_altro || 'Altro')
+                      : (PERSONALITA_LABELS[selected.personalita] || selected.personalita)],
+                    ['Ordine/pulizia', ORDINE_LABELS[selected.ordine_pulizia] || selected.ordine_pulizia],
+                    ['Fumatore', selected.fumatore === true ? 'Sì' : selected.fumatore === false ? 'No' : ''],
+                    ['Presentazione', selected.presentazione],
+                  ]} />
+                )}
+
+                {(selected.garante_nome || selected.garante_telefono || selected.garante_email) && (
+                  <Section title="Garante" items={[
+                    ['Nome', selected.garante_nome],
+                    ['Relazione', selected.garante_relazione],
+                    ['Telefono', selected.garante_telefono],
+                    ['Email', selected.garante_email],
+                  ]} />
+                )}
+
+                <Section title="Stato form" items={[
+                  ['Versione', selected.versione_form === 'completa' ? 'Completa' : 'Pre-screening'],
+                  ['Completato il', fmtItDateTime(selected.completata_il)],
+                  ['Dichiarazioni firmate il', fmtItDateTime(selected.dichiarazioni?.firmate_il)],
+                ]} />
+
                 {selected.messaggio && (
                   <div className="bg-muted/50 rounded-lg p-3">
                     <p className="text-[11px] font-medium text-muted-foreground mb-1">Messaggio</p>
