@@ -289,6 +289,7 @@ export default function Candidatura() {
             veridicita: dichiarazioni.veridicita,
             privacy: dichiarazioni.privacy,
             info_struttura: dichiarazioni.info_struttura,
+            contatto: dichiarazioni.contatto,
           },
         },
       });
