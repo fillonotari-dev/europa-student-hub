@@ -13,7 +13,12 @@ const ALLOWED_MIME = new Set([
   "image/png",
   "image/webp",
 ]);
-const FIXED_TIPI = new Set(["documento_identita", "certificato_iscrizione"]);
+const FIXED_TIPI = new Set([
+  "documento_identita",
+  "certificato_iscrizione",
+  "documento_garante",
+  "documento_aggiuntivo",
+]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const KEY_RE = /^[a-z][a-z0-9_]{0,99}$/;
 
