@@ -404,10 +404,10 @@ export default function CandidaturaCompleta() {
   );
 }
 
-function FileUpload({ label, hint, file, error, onChange }: { label: string; hint: string; file: File | null; error?: string; onChange: (f: File | null) => void }) {
+function FileUpload({ label, hint, file, error, onChange, required }: { label: string; hint: string; file: File | null; error?: string; onChange: (f: File | null) => void; required?: boolean }) {
   return (
     <div>
-      <Label>{label}</Label>
+      <Label>{label}{required && <span className="text-destructive ml-0.5">*</span>}</Label>
       <div className={cn('mt-1.5 border-2 border-dashed rounded-lg p-4 text-center hover:bg-muted/50 transition-colors cursor-pointer', error && 'border-destructive')} onClick={() => document.getElementById(`file-${label}`)?.click()}>
         <input id={`file-${label}`} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => onChange(e.target.files?.[0] || null)} />
         {file ? (
