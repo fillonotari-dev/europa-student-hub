@@ -524,19 +524,60 @@ export default function Candidature() {
                   ['Email', selected.studenti?.email],
                   ['Telefono', selected.studenti?.telefono],
                   ['Nazionalità', selected.studenti?.nazionalita],
+                  ['Data di nascita', fmtIt(selected.studenti?.data_nascita)],
+                  ['Codice fiscale', selected.studenti?.codice_fiscale],
+                  ['Indirizzo residenza', selected.indirizzo_residenza],
+                  ['N. documento identità', selected.documento_identita_n],
                 ]} />
                 <Section title="Dati accademici" items={[
                   ['Università', selected.universita_snapshot],
                   ['Corso', selected.corso_snapshot],
                   ['Anno', selected.anno_corso_snapshot],
                   ['Matricola', selected.matricola_snapshot],
+                  ['Tipo studente', selected.tipo_studente === 'altro'
+                    ? (selected.tipo_studente_altro || 'Altro')
+                    : (TIPO_STUDENTE_LABELS[selected.tipo_studente] || selected.tipo_studente)],
                 ]} />
                 <Section title="Preferenze" items={[
                   ['Struttura', selected.strutture?.nome || '-'],
                   ['Tipo camera', selected.tipo_camera_preferito || '-'],
                   ['Periodo', `${selected.periodo_inizio || ''} → ${selected.periodo_fine || ''}`],
                   ['Anno acc.', selected.anno_accademico],
+                  ['Data arrivo prevista', fmtIt(selected.data_arrivo_prevista)],
+                  ['Come ci ha conosciuti', selected.come_conosciuto === 'altro'
+                    ? (selected.come_conosciuto_altro || 'Altro')
+                    : (COME_CONOSCIUTO_LABELS[selected.come_conosciuto] || selected.come_conosciuto)],
+                  ['Note preferenze', selected.preferenze_note],
                 ]} />
+
+                {selected.versione_form === 'completa' && (
+                  <Section title="Stile di vita" items={[
+                    ['Lingue parlate', selected.lingue_parlate],
+                    ['Orari', ORARI_LABELS[selected.orari] || selected.orari],
+                    ['Personalità', selected.personalita === 'altro'
+                      ? (selected.personalita_altro || 'Altro')
+                      : (PERSONALITA_LABELS[selected.personalita] || selected.personalita)],
+                    ['Ordine/pulizia', ORDINE_LABELS[selected.ordine_pulizia] || selected.ordine_pulizia],
+                    ['Fumatore', selected.fumatore === true ? 'Sì' : selected.fumatore === false ? 'No' : ''],
+                    ['Presentazione', selected.presentazione],
+                  ]} />
+                )}
+
+                {(selected.garante_nome || selected.garante_telefono || selected.garante_email) && (
+                  <Section title="Garante" items={[
+                    ['Nome', selected.garante_nome],
+                    ['Relazione', selected.garante_relazione],
+                    ['Telefono', selected.garante_telefono],
+                    ['Email', selected.garante_email],
+                  ]} />
+                )}
+
+                <Section title="Stato form" items={[
+                  ['Versione', selected.versione_form === 'completa' ? 'Completa' : 'Pre-screening'],
+                  ['Completato il', fmtItDateTime(selected.completata_il)],
+                  ['Dichiarazioni firmate il', fmtItDateTime(selected.dichiarazioni?.firmate_il)],
+                ]} />
+
                 {selected.messaggio && (
                   <div className="bg-muted/50 rounded-lg p-3">
                     <p className="text-[11px] font-medium text-muted-foreground mb-1">Messaggio</p>
