@@ -237,17 +237,11 @@ export default function CandidaturaCompleta() {
         </div>
       </header>
 
-      <div className="max-w-2xl mx-auto px-4 pt-6 pb-2">
-        <div className="flex gap-1">
-          {STEPS.map((s, i) => (
-            <div key={s} className="flex-1">
-              <div className={`h-1 rounded-full transition-colors ${i <= step ? 'bg-primary' : 'bg-border'}`} />
-              <p className={`text-[11px] mt-1 ${i === step ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
-                {t(lang, `form.${s}`)}
-              </p>
-            </div>
-          ))}
-        </div>
+      <div className="max-w-2xl mx-auto px-4 pt-8 pb-4">
+        <StepDots total={STEPS.length} current={step} />
+        <p className="text-center text-[13px] font-medium text-foreground mt-4">
+          {t(lang, `form.${stepKey}`)}
+        </p>
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-6">
