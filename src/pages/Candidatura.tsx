@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
 import { Lang, t } from '@/i18n/translations';
-import { CheckCircle, Globe, ChevronRight, ChevronLeft, MapPin } from 'lucide-react';
+import { CheckCircle, Globe, ChevronRight, ChevronLeft, MapPin, FileText, ShieldCheck, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { NATIONALITIES } from '@/lib/nationalities';
 import { UNIVERSITIES } from '@/lib/universities';
 import logoStudentato from '@/assets/logo-studentato.svg';
+import { StepDots } from '@/components/candidatura/StepDots';
 
 const BASE_STEPS = ['stepPersonal', 'stepAcademic', 'stepPreferences', 'stepDocuments', 'stepDichiarazioni'] as const;
 const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
@@ -53,6 +54,7 @@ const labelOf = (lang: Lang, it: string, en: string) => (lang === 'it' ? it : en
 
 export default function Candidatura() {
   const [lang, setLang] = useState<Lang>('it');
+  const [started, setStarted] = useState(false);
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -319,6 +321,62 @@ export default function Candidatura() {
     );
   }
 
+  if (!started) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b bg-card">
+          <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <img src={logoStudentato} alt="Studentato Europa" className="w-8 h-8 object-contain shrink-0" />
+              <div>
+                <h1 className="text-lg font-bold text-primary">Studentato Europa</h1>
+                <p className="text-[13px] text-muted-foreground">{t(lang, 'form.subtitle')}</p>
+              </div>
+            </div>
+            <button onClick={() => setLang(l => l === 'it' ? 'en' : 'it')} className="flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-md hover:bg-muted">
+              <Globe className="w-4 h-4" />
+              {lang === 'it' ? 'EN' : 'IT'}
+            </button>
+          </div>
+        </header>
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="max-w-2xl mx-auto px-4 py-10"
+        >
+          <h2 className="text-2xl font-bold mb-2">{t(lang, 'form.introTitle')}</h2>
+          <p className="text-muted-foreground text-[14px] mb-8">{t(lang, 'form.introLead')}</p>
+          <div className="space-y-4 mb-8">
+            {[
+              { icon: FileText, title: 'form.introBlock1Title', desc: 'form.introBlock1Desc' },
+              { icon: ShieldCheck, title: 'form.introBlock2Title', desc: 'form.introBlock2Desc' },
+              { icon: Clock, title: 'form.introBlock3Title', desc: 'form.introBlock3Desc' },
+            ].map((b, i) => {
+              const Icon = b.icon;
+              return (
+                <div key={i} className="flex gap-4 p-4 rounded-lg border bg-card">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <Icon className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-[14px] mb-1">{t(lang, b.title)}</h3>
+                    <p className="text-[13px] text-muted-foreground leading-relaxed">{t(lang, b.desc)}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <Button size="lg" className="w-full sm:w-auto" onClick={() => setStarted(true)}>
+            {t(lang, 'form.introCta')}
+            <ChevronRight className="w-4 h-4 ml-1" />
+          </Button>
+          <p className="text-[12px] text-muted-foreground mt-4">{t(lang, 'form.introPrivacy')}</p>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -339,17 +397,11 @@ export default function Candidatura() {
       </header>
 
       {/* Step indicator */}
-      <div className="max-w-2xl mx-auto px-4 pt-6 pb-2">
-        <div className="flex gap-1">
-          {STEPS.map((s, i) => (
-            <div key={s} className="flex-1">
-              <div className={`h-1 rounded-full transition-colors ${i <= step ? 'bg-primary' : 'bg-border'}`} />
-              <p className={`text-[11px] mt-1 ${i === step ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
-                {t(lang, `form.${s}`)}
-              </p>
-            </div>
-          ))}
-        </div>
+      <div className="max-w-2xl mx-auto px-4 pt-8 pb-4">
+        <StepDots total={STEPS.length} current={step} />
+        <p className="text-center text-[13px] font-medium text-foreground mt-4">
+          {t(lang, `form.${stepKey}`)}
+        </p>
       </div>
 
       {/* Form */}
