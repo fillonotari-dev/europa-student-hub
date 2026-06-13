@@ -1,44 +1,43 @@
-# Pagina introduttiva + stepper a pallini
+# Recupero password admin
 
-## 1. Nuova pagina introduttiva (step 0)
+Aggiungo il flusso completo di reset password per gli amministratori, usando le email di auth di Lovable Cloud.
 
-All'apertura di `/candidatura` mostriamo una schermata informativa **prima** del form, senza chiedere alcun dato. L'utente legge e clicca "Inizia la candidatura" per accedere al primo step.
+## 1. Pagina Login (`src/pages/Login.tsx`)
 
-Contenuto in IT/EN, strutturato in 3 blocchi con icona + titolo + breve descrizione:
+- Aggiungo link "Password dimenticata?" sotto il form.
+- Cliccandolo si apre un piccolo form (stessa pagina, toggle di stato) che chiede solo l'email.
+- Submit chiama:
+  ```ts
+  supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/reset-password`
+  })
+  ```
+- Mostra toast di conferma ("Se l'email è registrata, riceverai un link").
 
-- **Quali dati raccogliamo** — dati anagrafici, accademici, preferenze sulla stanza, documento d'identità e certificato di iscrizione.
-- **Perché ci servono** — per valutare la candidatura, assegnare la stanza più adatta e poterti ricontattare.
-- **Tempi di risposta** — riceverai un riscontro entro X giorni lavorativi via email (testo configurabile come costante).
+## 2. Nuova pagina `/reset-password` (`src/pages/ResetPassword.tsx`)
 
-In fondo: pulsante primario "Inizia la candidatura" + nota privacy breve.
+- Rotta pubblica registrata in `src/App.tsx`.
+- Listener `onAuthStateChange` per evento `PASSWORD_RECOVERY` (Supabase imposta automaticamente la sessione di recupero dall'hash URL).
+- Form con due campi: nuova password + conferma. Validazione minima (min 8 caratteri, match).
+- Submit chiama `supabase.auth.updateUser({ password })`.
+- Al successo: toast + redirect a `/login`.
+- Stile coerente con la Login attuale (logo, layout centrato).
 
-Implementazione: in `src/pages/Candidatura.tsx` aggiungiamo uno stato `started` (default `false`). Se `!started && !success`, mostriamo `<IntroScreen onStart={() => setStarted(true)} />`. Lo stepper a pallini non appare in questa schermata. Aggiungiamo le stringhe relative a `src/i18n/translations.ts` (intro title, lead, 3 blocchi, CTA, tempi).
+## 3. Email template (opzionale ma consigliato)
 
-## 2. Stepper a pallini animati
+L'invio funziona già con il template di default di Lovable Cloud (mittente generico). 
+**Domanda:** vuoi anche personalizzare il template email (mittente dal tuo dominio + branding Studentato Europa)? Questo richiede di configurare un dominio email e fare scaffold dei template auth. Se sì, lo includo; se no, lascio i default e l'email arriva comunque. 
 
-Sostituiamo il blocco "Step indicator" (Candidatura.tsx ~righe 341–353) con un componente di pallini ispirato alla reference:
+RISPOSTA: per ora manteniamo default
 
-- Una riga di N cerchi piccoli (uno per step), uniti da linee sottili.
-- Stato:
-  - **completato**: cerchio pieno colore `primary`
-  - **corrente**: cerchio con anello/alone colore `primary` (effetto "acceso")
-  - **futuro**: cerchio vuoto `border` su `muted`
-- Linea di connessione fra pallini: si riempie progressivamente fino allo step corrente (transizione con `framer-motion`).
-- **Senza etichette di testo** sotto i pallini (come da reference).
-- Sopra/accanto allo stepper manteniamo solo il titolo del passo corrente (es. "Dati anagrafici") + sottotitolo opzionale, per non perdere il contesto ora che i nomi sotto i pallini spariscono.
+## Note tecniche
 
-Lo stesso componente viene applicato anche in `src/pages/CandidaturaCompleta.tsx` per coerenza visiva.
-
-## 3. Dettagli tecnici
-
-- Nuovo componente `src/components/candidatura/StepDots.tsx` (props: `total`, `current`).
-- Animazioni con `framer-motion` (`layout`, `transition` `spring`).
-- Colori: solo token semantici (`primary`, `border`, `muted`, `muted-foreground`).
-- Nessuna modifica al backend, alle edge function o alle migrazioni.
-- I dati raccolti elencati nella intro restano descrittivi (testo statico) — non leggiamo i campi custom dinamici per non complicare il copy.
+- Nessuna modifica DB / edge functions.
+- Nessuna modifica al form pubblico di candidatura.
+- Login resta riservato agli admin (verifica `user_roles` già presente in `AdminLayout`).
 
 ## File toccati
-- `src/pages/Candidatura.tsx` — intro screen + nuovo stepper + titolo step
-- `src/pages/CandidaturaCompleta.tsx` — sostituzione stepper
-- `src/components/candidatura/StepDots.tsx` — nuovo
-- `src/i18n/translations.ts` — nuove chiavi intro
+
+- `src/pages/Login.tsx` (aggiunta link + mini-form)
+- `src/pages/ResetPassword.tsx` (nuovo)
+- `src/App.tsx` (nuova rotta)
