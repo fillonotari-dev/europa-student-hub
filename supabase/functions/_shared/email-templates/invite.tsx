@@ -1,0 +1,77 @@
+/// <reference types="npm:@types/react@18.3.1" />
+
+import * as React from 'npm:react@18.3.1'
+
+import {
+  Body,
+  Button,
+  Container,
+  Head,
+  Heading,
+  Html,
+  Link,
+  Preview,
+  Text,
+} from 'npm:@react-email/components@0.0.22'
+
+interface InviteEmailProps {
+  siteName: string
+  siteUrl: string
+  confirmationUrl: string
+}
+
+export const InviteEmail = ({
+  siteName,
+  siteUrl,
+  confirmationUrl,
+}: InviteEmailProps) => (
+  <Html lang="it" dir="ltr">
+    <Head />
+    <Preview>Sei stato invitato a {siteName}</Preview>
+    <Body style={main}>
+      <Container style={container}>
+        <Heading style={h1}>Sei stato invitato</Heading>
+        <Text style={text}>
+          Sei stato invitato a unirti a{' '}
+          <Link href={siteUrl} style={link}>
+            <strong>{siteName}</strong>
+          </Link>
+          . Clicca il pulsante qui sotto per accettare l'invito e creare il tuo account.
+        </Text>
+        <Button style={button} href={confirmationUrl}>
+          Accetta invito
+        </Button>
+        <Text style={footer}>
+          Se non ti aspettavi questo invito, puoi ignorare questa email.
+        </Text>
+      </Container>
+    </Body>
+  </Html>
+)
+
+export default InviteEmail
+
+const main = { backgroundColor: '#ffffff', fontFamily: '"Plus Jakarta Sans", Arial, sans-serif' }
+const container = { padding: '20px 25px' }
+const h1 = {
+  fontSize: '22px',
+  fontWeight: 'bold' as const,
+  color: '#003b6b',
+  margin: '0 0 20px',
+}
+const text = {
+  fontSize: '14px',
+  color: '#55575d',
+  lineHeight: '1.5',
+  margin: '0 0 25px',
+}
+const link = { color: 'inherit', textDecoration: 'underline' }
+const button = {
+  backgroundColor: '#003b6b',
+  color: '#ffffff',
+  fontSize: '14px',
+  borderRadius: '6px',
+  padding: '12px 20px',
+  textDecoration: 'none',
+}
+const footer = { fontSize: '12px', color: '#999999', margin: '30px 0 0' }
