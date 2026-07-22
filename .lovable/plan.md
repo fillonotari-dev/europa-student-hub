@@ -1,43 +1,30 @@
-# Recupero password admin
+## Obiettivo
 
-Aggiungo il flusso completo di reset password per gli amministratori, usando le email di auth di Lovable Cloud.
+Rendere robuste le mutation sui posti letto in `Camere.tsx` e `Residenti.tsx`: controllare sempre gli errori Supabase e delegare al trigger DB `camere_sync_stato` il ricalcolo dello stato camera dove già interviene, eliminando i ricalcoli client duplicati.
 
-## 1. Pagina Login (`src/pages/Login.tsx`)
+## Contesto verificato
 
-- Aggiungo link "Password dimenticata?" sotto il form.
-- Cliccandolo si apre un piccolo form (stessa pagina, toggle di stato) che chiede solo l'email.
-- Submit chiama:
-  ```ts
-  supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/reset-password`
-  })
-  ```
-- Mostra toast di conferma ("Se l'email è registrata, riceverai un link").
+- Il trigger `camere_sync_stato` è già definito sulla tabella `assegnazioni` (vedi `<db-functions>`): dopo insert/update/delete di un'assegnazione ricalcola `camere.stato` (libera / parzialmente_occupata / occupata) e rispetta gli stati `manutenzione` / `non_disponibile` (non li sovrascrive).
+- In `Camere.tsx`, le mutation `assegna` e `concludi` NON controllano l'errore Supabase e poi ricalcolano manualmente lo stato camera con dati potenzialmente stantii (`assegnazioni` da cache React Query). `setManutenzione` e `reactivate` non controllano l'errore. Solo `saveCamera` e `deleteCamera` lo fanno già correttamente.
+- In `Residenti.tsx`, `transferisci` e `concludi` non controllano errori e chiamano una funzione locale `recalcCameraStato` che duplica la logica del trigger.
 
-## 2. Nuova pagina `/reset-password` (`src/pages/ResetPassword.tsx`)
+## Modifiche
 
-- Rotta pubblica registrata in `src/App.tsx`.
-- Listener `onAuthStateChange` per evento `PASSWORD_RECOVERY` (Supabase imposta automaticamente la sessione di recupero dall'hash URL).
-- Form con due campi: nuova password + conferma. Validazione minima (min 8 caratteri, match).
-- Submit chiama `supabase.auth.updateUser({ password })`.
-- Al successo: toast + redirect a `/login`.
-- Stile coerente con la Login attuale (logo, layout centrato).
+### `src/pages/admin/Camere.tsx`
 
-## 3. Email template (opzionale ma consigliato)
+- **`assegna`**: sostituire con `insert(...)` che controlla `{ error }` e in caso di errore fa `throw error`. Rimuovere completamente il blocco che calcola `nuovoStato` e fa il secondo `update` su `camere` (il trigger se ne occupa). Aggiungere `onError` con toast di errore.
+- **`concludi`**: idem. Solo `update` di `assegnazioni` con controllo errore; rimuovere il ricalcolo manuale e il secondo update su `camere`. Aggiungere `onError`.
+- **`setManutenzione`**: aggiungere controllo errore sia sul `select` iniziale sia sull'`update` finale; aggiungere `onError`. Il calcolo dello stato resta lato client (il trigger non interviene: nessuna modifica ad `assegnazioni`).
+- **`reactivate`**: mantenere il calcolo client di `nuovo` (libera / parz / occupata) perché anche qui non si tocca `assegnazioni`, ma aggiungere controllo errore sull'`update` e `onError`.
 
-L'invio funziona già con il template di default di Lovable Cloud (mittente generico). 
-**Domanda:** vuoi anche personalizzare il template email (mittente dal tuo dominio + branding Studentato Europa)? Questo richiede di configurare un dominio email e fare scaffold dei template auth. Se sì, lo includo; se no, lascio i default e l'email arriva comunque. 
+### `src/pages/admin/Residenti.tsx`
 
-RISPOSTA: per ora manteniamo default
+- **`transferisci`**: aggiungere controllo `{ error }` su ogni chiamata (`update` chiusura vecchia, `select` posti/candidatura, `insert` nuova assegnazione). Rimuovere entrambe le chiamate a `recalcCameraStato`: le mutation su `assegnazioni` triggerano già `camere_sync_stato` per vecchia e nuova camera.
+- **`concludi`**: controllare l'errore su `update`; rimuovere la chiamata a `recalcCameraStato`. Aggiungere `onError` (attualmente mancante).
+- **Rimuovere la funzione `recalcCameraStato`** (diventa orfana) e la query `tutteAssegnazioniAttive` NON va rimossa perché è usata nel dialog di trasferimento per mostrare l'occupazione delle camere candidate.
 
 ## Note tecniche
 
-- Nessuna modifica DB / edge functions.
-- Nessuna modifica al form pubblico di candidatura.
-- Login resta riservato agli admin (verifica `user_roles` già presente in `AdminLayout`).
-
-## File toccati
-
-- `src/pages/Login.tsx` (aggiunta link + mini-form)
-- `src/pages/ResetPassword.tsx` (nuovo)
-- `src/App.tsx` (nuova rotta)
+- Il pattern per il controllo errori è quello già in uso in `saveCamera`/`deleteCamera`: destrutturare `{ error }` dalla risposta Supabase e fare `throw error`. React Query passa l'errore a `onError` che mostra il toast destructive.
+- Nessuna migration necessaria: il trigger esiste già e copre tutti i casi di modifica ad `assegnazioni`.
+- Il test di concorrenza (due tab che assegnano l'ultimo posto) funzionerà perché il trigger `assegnazioni_check_overbooking` rifiuta la seconda insert con `RAISE EXCEPTION`, che ora arriverà correttamente al toast di errore invece di essere ignorato.
