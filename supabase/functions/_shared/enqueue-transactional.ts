@@ -32,6 +32,36 @@ export async function enqueueTransactional(args: EnqueueArgs): Promise<{ ok: boo
 
     const messageId = crypto.randomUUID()
 
+    // Ensure an unsubscribe token exists for this recipient. The email API
+    // requires it for all transactional sends.
+    let unsubscribeToken: string | null = null
+    const { data: existingToken } = await supabase
+      .from('email_unsubscribe_tokens')
+      .select('token')
+      .eq('email', args.to)
+      .maybeSingle()
+    if (existingToken?.token) {
+      unsubscribeToken = existingToken.token
+    } else {
+      const newToken = crypto.randomUUID()
+      const { data: inserted, error: insErr } = await supabase
+        .from('email_unsubscribe_tokens')
+        .insert({ email: args.to, token: newToken })
+        .select('token')
+        .maybeSingle()
+      if (insErr) {
+        // Race: another concurrent insert may have created it — re-read.
+        const { data: retry } = await supabase
+          .from('email_unsubscribe_tokens')
+          .select('token')
+          .eq('email', args.to)
+          .maybeSingle()
+        unsubscribeToken = retry?.token ?? null
+      } else {
+        unsubscribeToken = inserted?.token ?? newToken
+      }
+    }
+
     await supabase.from('email_send_log').insert({
       message_id: messageId,
       template_name: args.label,
@@ -44,6 +74,7 @@ export async function enqueueTransactional(args: EnqueueArgs): Promise<{ ok: boo
       payload: {
         message_id: messageId,
         idempotency_key: messageId,
+        unsubscribe_token: unsubscribeToken,
         to: args.to,
         from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
         sender_domain: SENDER_DOMAIN,
