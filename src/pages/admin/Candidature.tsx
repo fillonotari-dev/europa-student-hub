@@ -285,6 +285,7 @@ export default function Candidature() {
       const s = search.toLowerCase();
       return c.studenti?.nome?.toLowerCase().includes(s) || c.studenti?.cognome?.toLowerCase().includes(s) || c.studenti?.email?.toLowerCase().includes(s);
     })
+    .filter(c => !esitoFilter || c.esito_email_stato === 'da_inviare')
     .sort((a: any, b: any) => {
       const dir = sortDir === 'asc' ? 1 : -1;
       switch (sortKey) {
@@ -337,6 +338,11 @@ export default function Candidature() {
         {c.versione_form !== 'completa' && (
           <DropdownMenuItem onClick={() => generateLink(c)}>
             <Send className="w-4 h-4 mr-2" /> Invia form completo
+          </DropdownMenuItem>
+        )}
+        {(stato === 'approvata' || stato === 'rifiutata') && c.esito_email_stato === 'da_inviare' && (
+          <DropdownMenuItem onClick={() => { setEsitoNota(''); setEsitoTarget(c); }}>
+            <MailCheck className="w-4 h-4 mr-2" /> Invia comunicazione esito
           </DropdownMenuItem>
         )}
         {stato === 'ricevuta' && (
