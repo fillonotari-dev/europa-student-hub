@@ -1,16 +1,28 @@
-## Contesto
+## Obiettivo
 
-Nello step "Dichiarazioni" (`src/pages/Candidatura.tsx`) esistono già 4 checkbox (`veridicita`, `privacy`, `info_struttura`, `contatto`) tutte validate come obbligatorie lato client e server. Mancano però due cose:
-
-1. Il bottone "Invia candidatura" resta cliccabile anche senza flag: viene bloccato solo dopo il click via `handleValidate`, restituendo un toast di errore.
-2. Le label non segnalano visivamente l'obbligatorietà.
+Sbloccare l'invio delle email transazionali di candidatura aggiungendo l'`unsubscribe_token` mancante nel payload verso l'API email.
 
 ## Modifica
 
-**File:** `src/pages/Candidatura.tsx`
+In `supabase/functions/_shared/enqueue-transactional.ts`, prima di accodare l'email:
 
-- Calcolare `const allDichiarazioniAccettate = dichiarazioni.veridicita && dichiarazioni.privacy && dichiarazioni.info_struttura && dichiarazioni.contatto;`
-- Sul bottone "Invia" (riga ~577), estendere `disabled` a `submitting || (stepKey === 'stepDichiarazioni' && !allDichiarazioniAccettate)`.
-- Nel componente `DeclCheckbox` (o inline nelle 4 istanze) aggiungere l'asterisco rosso `*` accanto alla label per marcare visivamente l'obbligatorietà, coerente con gli altri campi required del form.
+1. Cercare in `email_unsubscribe_tokens` un token esistente per l'indirizzo destinatario.
+2. Se assente, generarne uno sicuro (UUID) e inserirlo nella tabella.
+3. Includere `unsubscribe_token` nel payload passato a `enqueue_email`, accanto a `message_id` e `idempotency_key` già presenti.
 
-Nessuna modifica alla validazione backend o al payload: sono già gestiti.
+## Deploy
+
+Ridistribuire le tre funzioni che usano l'helper condiviso:
+- `submit-candidatura`
+- `generate-completion-link`
+- `send-esito-email`
+
+`process-email-queue` non richiede redeploy: inoltra già il campo all'API.
+
+## Cosa non cambia
+
+Nessuna nuova tabella, nessuna migrazione, nessuna modifica ai flussi applicativi o ai template.
+
+## Verifica
+
+Inviare una nuova candidatura di test dopo il deploy e verificare che la riga in `email_send_log` risulti `sent`. Le righe `failed`/`dlq` precedenti restano storiche (la DLQ non ritenta automaticamente).
