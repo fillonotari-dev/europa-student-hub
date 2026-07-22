@@ -432,6 +432,15 @@ export default function Candidature() {
           onChange={(v) => { setStrutturaId(v); setPage(1); }}
           strutture={strutture}
         />
+        {esitoFilter && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => { const next = new URLSearchParams(searchParams); next.delete('esito_da_inviare'); setSearchParams(next); setPage(1); }}
+          >
+            <MailCheck className="w-4 h-4 mr-2" /> Solo esiti da comunicare · Rimuovi
+          </Button>
+        )}
         <ExportButton
           filename="candidature"
           getRows={() => filtered.map((c: any) => {
