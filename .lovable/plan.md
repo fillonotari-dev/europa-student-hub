@@ -1,28 +1,49 @@
 ## Obiettivo
 
-Sbloccare l'invio delle email transazionali di candidatura aggiungendo l'`unsubscribe_token` mancante nel payload verso l'API email.
+Intercettare gli errori sulle date di permanenza già nello step "Dati accademici" e, quando l'invio finale fallisce comunque, mostrare il messaggio reale restituito dal server invece del generico "Edge Function returned a non-2xx status code".
 
-## Modifica
+## Modifiche
 
-In `supabase/functions/_shared/enqueue-transactional.ts`, prima di accodare l'email:
+### 1. `src/pages/Candidatura.tsx` — `validateStep()` per `stepAcademic`
 
-1. Cercare in `email_unsubscribe_tokens` un token esistente per l'indirizzo destinatario.
-2. Se assente, generarne uno sicuro (UUID) e inserirlo nella tabella.
-3. Includere `unsubscribe_token` nel payload passato a `enqueue_email`, accanto a `message_id` e `idempotency_key` già presenti.
+Dopo il controllo di presenza dei campi obbligatori, quando `stepKey === 'stepAcademic'`:
 
-## Deploy
+- verificare che `form.periodo_inizio` e `form.periodo_fine` siano date parseabili;
+- verificare che `periodo_fine >= periodo_inizio`;
+- opzionalmente segnalare se `periodo_inizio` è nel passato (solo warning testuale nel toast, non blocca — da confermare, vedi Domande).
 
-Ridistribuire le tre funzioni che usano l'helper condiviso:
-- `submit-candidatura`
-- `generate-completion-link`
-- `send-esito-email`
+In caso di violazione, mostrare un toast `destructive` con messaggio specifico (es. "La data di fine permanenza deve essere successiva alla data di inizio") e ritornare `false`, esattamente come per gli altri campi obbligatori dello stesso step. Aggiungere le nuove chiavi di traduzione IT/EN in `src/i18n/translations.ts` (es. `form.periodoFineBeforeInizio`).
 
-`process-email-queue` non richiede redeploy: inoltra già il campo all'API.
+### 2. `src/pages/Candidatura.tsx` — errore reale in `handleSubmit`
 
-## Cosa non cambia
+Sostituire l'attuale:
 
-Nessuna nuova tabella, nessuna migrazione, nessuna modifica ai flussi applicativi o ai template.
+```ts
+const { error } = await supabase.functions.invoke('submit-candidatura', { body: {...} });
+if (error) throw error;
+```
 
-## Verifica
+con il pattern già usato in `CandidaturaCompleta.tsx`: destrutturare anche `data`, e in caso di `error` leggere prima `data?.error` per il messaggio del server; gestire inoltre il caso in cui il body dell'errore non è disponibile in `data` (Supabase JS non lo popola sempre sui non-2xx) tentando `await error.context?.response?.json()` se presente. Fallback finale al messaggio generico tradotto.
 
-Inviare una nuova candidatura di test dopo il deploy e verificare che la riga in `email_send_log` risulti `sent`. Le righe `failed`/`dlq` precedenti restano storiche (la DLQ non ritenta automaticamente).
+```ts
+const { data, error } = await supabase.functions.invoke('submit-candidatura', { body: {...} });
+if (error) {
+  let serverMsg: string | undefined = (data as any)?.error;
+  if (!serverMsg) {
+    try { serverMsg = (await (error as any).context?.response?.json())?.error; } catch {}
+  }
+  throw new Error(serverMsg || error.message || t(lang, 'form.submitError'));
+}
+if ((data as any)?.error) throw new Error((data as any).error);
+```
+
+Nessuna modifica alle Edge Functions: `submit-candidatura` già restituisce messaggi specifici come `"Periodo inizio non valido"` con status 400.
+
+## Fuori scopo
+
+- Nessuna modifica al backend o alle altre funzioni.
+- Nessun refactor di `CandidaturaCompleta.tsx` (già corretto).
+
+## Domande
+
+1. Sulla data di inizio nel passato: bloccare l'utente o lasciar passare (magari con warning)? -> Bloccare l'utente 
