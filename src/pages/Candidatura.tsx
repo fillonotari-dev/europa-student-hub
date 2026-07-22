@@ -574,7 +574,7 @@ export default function Candidatura() {
               {t(lang, 'form.next')} <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
           ) : (
-            <Button onClick={handleSubmit} disabled={submitting}>
+            <Button onClick={handleSubmit} disabled={submitting || !allDichiarazioniAccettate}>
               {submitting ? t(lang, 'form.submitting') : t(lang, 'form.submit')}
             </Button>
           )}
