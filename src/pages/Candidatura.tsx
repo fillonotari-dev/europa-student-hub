@@ -758,19 +758,44 @@ function Combobox({ lang, label, placeholder, value, onChange, options, disabled
 
 function UniversitaField({ lang, value, onChange }: { lang: Lang; value: string; onChange: (v: string) => void }) {
   const options = useMemo<ComboboxOption[]>(
-    () => UNIVERSITIES.map(u => ({ value: u.name, label: u.name })),
+    () => [
+      ...UNIVERSITIES.map(u => ({ value: u.name, label: u.name })),
+      { value: '__altra__', label: t(lang, 'form.altraUniversita') },
+    ],
     []
   );
+  const knownNames = useMemo(() => new Set(UNIVERSITIES.map(u => u.name)), []);
+  const isAltra = value !== '' && !knownNames.has(value);
+  const [showAltra, setShowAltra] = useState(isAltra);
+  const selectValue = showAltra || isAltra ? '__altra__' : value;
   return (
-    <Combobox
-      lang={lang}
-      label={t(lang, 'form.universita')}
-      placeholder={t(lang, 'form.selectUniversita')}
-      value={value}
-      onChange={onChange}
-      options={options}
-      required
-    />
+    <div className="space-y-2">
+      <Combobox
+        lang={lang}
+        label={t(lang, 'form.universita')}
+        placeholder={t(lang, 'form.selectUniversita')}
+        value={selectValue}
+        onChange={v => {
+          if (v === '__altra__') {
+            setShowAltra(true);
+            onChange('');
+          } else {
+            setShowAltra(false);
+            onChange(v);
+          }
+        }}
+        options={options}
+        required
+      />
+      {(showAltra || isAltra) && (
+        <Input
+          placeholder={t(lang, 'form.altraUniversitaPlaceholder')}
+          value={isAltra ? value : ''}
+          onChange={e => onChange(e.target.value)}
+          maxLength={200}
+        />
+      )}
+    </div>
   );
 }
 
