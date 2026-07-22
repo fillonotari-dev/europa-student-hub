@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
@@ -25,7 +25,7 @@ import {
   Search, FileText, Download, ArrowUp, ArrowDown, ArrowUpDown,
   PlayCircle, CheckCircle2, XCircle, RotateCcw, Mail, DoorOpen, Trash2, Archive,
   ExternalLink, FileIcon,
-  Send, Copy, CheckCircle,
+  Send, Copy, CheckCircle, MailCheck,
 } from 'lucide-react';
 import { useStrutturaFilter } from '@/hooks/useStrutturaFilter';
 import { StrutturaSelect } from '@/components/admin/StrutturaSelect';
@@ -110,9 +110,20 @@ export default function Candidature() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [statoConfirm, setStatoConfirm] = useState<{ c: any; nextStato: string } | null>(null);
   const [regenConfirm, setRegenConfirm] = useState<any>(null);
+  const [esitoTarget, setEsitoTarget] = useState<any>(null);
+  const [esitoNota, setEsitoNota] = useState('');
+  const [esitoLoading, setEsitoLoading] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const esitoFilter = searchParams.get('esito_da_inviare') === '1';
+
+  useEffect(() => {
+    const stato = searchParams.get('stato');
+    if (stato && stato !== filterStato) setFilterStato(stato);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const generateLink = async (c: any) => {
     // Se esiste già un token attivo, chiediamo conferma prima di rigenerare.
@@ -127,7 +138,7 @@ export default function Candidature() {
     setLinkCopied(false);
     try {
       const { data, error } = await supabase.functions.invoke('generate-completion-link', {
-        body: { candidatura_id: c.id },
+        body: { candidatura_id: c.id, origin: window.location.origin },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
@@ -268,12 +279,32 @@ export default function Candidature() {
     onError: (e: any) => toast({ title: 'Errore', description: e.message, variant: 'destructive' }),
   });
 
+  const sendEsito = useMutation({
+    mutationFn: async ({ id, nota }: { id: string; nota: string }) => {
+      const { data, error } = await supabase.functions.invoke('send-esito-email', {
+        body: { candidatura_id: id, nota: nota || null },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['candidature'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      toast({ title: 'Comunicazione esito inviata' });
+      setEsitoTarget(null);
+      setEsitoNota('');
+    },
+    onError: (e: any) => toast({ title: 'Errore', description: e?.message ?? 'Invio fallito', variant: 'destructive' }),
+    onSettled: () => setEsitoLoading(false),
+  });
+
   const filtered = (candidature ?? [])
     .filter(c => {
       if (!search) return true;
       const s = search.toLowerCase();
       return c.studenti?.nome?.toLowerCase().includes(s) || c.studenti?.cognome?.toLowerCase().includes(s) || c.studenti?.email?.toLowerCase().includes(s);
     })
+    .filter(c => !esitoFilter || c.esito_email_stato === 'da_inviare')
     .sort((a: any, b: any) => {
       const dir = sortDir === 'asc' ? 1 : -1;
       switch (sortKey) {
@@ -326,6 +357,11 @@ export default function Candidature() {
         {c.versione_form !== 'completa' && (
           <DropdownMenuItem onClick={() => generateLink(c)}>
             <Send className="w-4 h-4 mr-2" /> Invia form completo
+          </DropdownMenuItem>
+        )}
+        {(stato === 'approvata' || stato === 'rifiutata') && c.esito_email_stato === 'da_inviare' && (
+          <DropdownMenuItem onClick={() => { setEsitoNota(''); setEsitoTarget(c); }}>
+            <MailCheck className="w-4 h-4 mr-2" /> Invia comunicazione esito
           </DropdownMenuItem>
         )}
         {stato === 'ricevuta' && (
@@ -396,6 +432,15 @@ export default function Candidature() {
           onChange={(v) => { setStrutturaId(v); setPage(1); }}
           strutture={strutture}
         />
+        {esitoFilter && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => { const next = new URLSearchParams(searchParams); next.delete('esito_da_inviare'); setSearchParams(next); setPage(1); }}
+          >
+            <MailCheck className="w-4 h-4 mr-2" /> Solo esiti da comunicare · Rimuovi
+          </Button>
+        )}
         <ExportButton
           filename="candidature"
           getRows={() => filtered.map((c: any) => {
@@ -487,6 +532,16 @@ export default function Candidature() {
                     <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${STATO_COLORS[c.stato]}`}>
                       {STATO_LABELS[c.stato]}
                     </span>
+                    {(c.stato === 'approvata' || c.stato === 'rifiutata') && c.esito_email_stato === 'da_inviare' && (
+                      <span className="block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-warning/10 text-warning">
+                        Esito da comunicare
+                      </span>
+                    )}
+                    {(c.stato === 'approvata' || c.stato === 'rifiutata') && c.esito_email_stato === 'inviata' && (
+                      <span className="block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-success/10 text-success">
+                        Esito inviato
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">{new Date(c.created_at).toLocaleDateString('it-IT')}</td>
                   <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
@@ -841,6 +896,52 @@ export default function Candidature() {
                 </p>
               </>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invio comunicazione esito */}
+      <Dialog open={!!esitoTarget} onOpenChange={open => { if (!open && !esitoLoading) { setEsitoTarget(null); setEsitoNota(''); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {esitoTarget?.stato === 'approvata' ? 'Comunica esito: Approvata' : 'Comunica esito: Rifiutata'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-[13px] text-muted-foreground">
+              Invieremo un'email a <strong>{esitoTarget?.studenti?.email}</strong> con l'esito della candidatura.
+              {esitoTarget?.stato === 'approvata'
+                ? " Successivamente potrai assegnare lo studente a una camera."
+                : " Puoi aggiungere una nota che verrà inclusa nell'email."}
+            </p>
+            <div>
+              <label className="text-[12px] font-medium">Nota per lo studente (opzionale)</label>
+              <Textarea
+                value={esitoNota}
+                onChange={e => setEsitoNota(e.target.value.slice(0, 2000))}
+                rows={5}
+                placeholder="Aggiungi eventuali indicazioni personali per lo studente..."
+                className="mt-1"
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">{esitoNota.length}/2000</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" disabled={esitoLoading} onClick={() => { setEsitoTarget(null); setEsitoNota(''); }}>
+                Annulla
+              </Button>
+              <Button
+                disabled={esitoLoading}
+                onClick={() => {
+                  if (!esitoTarget) return;
+                  setEsitoLoading(true);
+                  sendEsito.mutate({ id: esitoTarget.id, nota: esitoNota.trim() });
+                }}
+              >
+                <MailCheck className="w-4 h-4 mr-2" />
+                {esitoLoading ? 'Invio in corso...' : 'Conferma e invia email'}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

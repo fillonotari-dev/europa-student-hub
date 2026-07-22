@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { enqueueTransactional, SITE_NAME } from "../_shared/enqueue-transactional.ts";
+import { CandidaturaLinkCompletamentoEmail } from "../_shared/email-templates/candidatura-link-completamento.tsx";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -63,13 +65,15 @@ Deno.serve(async (req) => {
     let body: any;
     try { body = await req.json(); } catch { return json({ error: "Richiesta non valida" }, 400); }
     const candidaturaId = body?.candidatura_id;
+    const originIn = typeof body?.origin === 'string' ? body.origin : '';
+    const safeOrigin = /^https?:\/\/[A-Za-z0-9.\-:]+$/.test(originIn) ? originIn : 'https://app.studentatoeuropa.it';
     if (typeof candidaturaId !== "string" || !UUID_RE.test(candidaturaId)) {
       return json({ error: "ID candidatura non valido" }, 400);
     }
 
     const { data: existing, error: candErr } = await admin
       .from("candidature")
-      .select("id, stato, versione_form, completata_il")
+      .select("id, stato, versione_form, completata_il, lingua, studenti(nome, email)")
       .eq("id", candidaturaId)
       .maybeSingle();
     if (candErr) throw candErr;
@@ -98,6 +102,29 @@ Deno.serve(async (req) => {
       cambiato_da: userData.user.id,
       note: "Generato link form completo",
     });
+
+    // Send email with the completion link. Never block the response on email failure.
+    const studente = (existing as any).studenti;
+    const recipient: string | undefined = studente?.email;
+    if (recipient) {
+      const lang: 'it' | 'en' = ((existing as any).lingua === 'en') ? 'en' : 'it';
+      const completionUrl = `${safeOrigin}/candidatura/completa/${token}`;
+      const subject = lang === 'en'
+        ? `Complete your application - ${SITE_NAME}`
+        : `Completa la tua candidatura - ${SITE_NAME}`;
+      try {
+        const res = await enqueueTransactional({
+          component: CandidaturaLinkCompletamentoEmail,
+          props: { lang, nome: studente?.nome, siteName: SITE_NAME, completionUrl, scadeIlIso: scadenza },
+          subject,
+          to: recipient,
+          label: 'candidatura-link-completamento',
+        });
+        if (!res.ok) console.error('generate-completion-link: enqueue failed', res.error);
+      } catch (e) {
+        console.error('generate-completion-link: enqueue exception', e);
+      }
+    }
 
     return json({ token, scade_il: scadenza });
   } catch (e) {

@@ -287,6 +287,7 @@ export default function Candidatura() {
           documenti: uploadedDocs,
           struttura_preferita_id: form.struttura_preferita_id || null,
           risposte_custom: customAnswers,
+          lingua: lang,
           dichiarazioni: {
             veridicita: dichiarazioni.veridicita,
             privacy: dichiarazioni.privacy,
