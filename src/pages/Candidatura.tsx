@@ -76,6 +76,7 @@ export default function Candidatura() {
   const [dichiarazioni, setDichiarazioni] = useState({
     veridicita: false, privacy: false, info_struttura: false, contatto: false,
   });
+  const allDichiarazioniAccettate = dichiarazioni.veridicita && dichiarazioni.privacy && dichiarazioni.info_struttura && dichiarazioni.contatto;
   const [fileErrors, setFileErrors] = useState<{ documento_identita?: string; certificato_iscrizione?: string }>({});
   const [customAnswers, setCustomAnswers] = useState<Record<string, any>>({});
   const [customFiles, setCustomFiles] = useState<Record<string, File | null>>({});
@@ -574,7 +575,7 @@ export default function Candidatura() {
               {t(lang, 'form.next')} <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
           ) : (
-            <Button onClick={handleSubmit} disabled={submitting}>
+            <Button onClick={handleSubmit} disabled={submitting || !allDichiarazioniAccettate}>
               {submitting ? t(lang, 'form.submitting') : t(lang, 'form.submit')}
             </Button>
           )}
@@ -849,7 +850,7 @@ function DeclCheckbox({ checked, onCheckedChange, label }: { checked: boolean; o
   return (
     <label className="flex items-start gap-3 cursor-pointer border rounded-lg p-3 hover:bg-muted/40 transition-colors">
       <Checkbox checked={checked} onCheckedChange={(c) => onCheckedChange(!!c)} className="mt-0.5" />
-      <span className="text-[13px] leading-relaxed">{label}</span>
+      <span className="text-[13px] leading-relaxed">{label} <span className="text-destructive">*</span></span>
     </label>
   );
 }
