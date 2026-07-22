@@ -850,7 +850,7 @@ function DeclCheckbox({ checked, onCheckedChange, label }: { checked: boolean; o
   return (
     <label className="flex items-start gap-3 cursor-pointer border rounded-lg p-3 hover:bg-muted/40 transition-colors">
       <Checkbox checked={checked} onCheckedChange={(c) => onCheckedChange(!!c)} className="mt-0.5" />
-      <span className="text-[13px] leading-relaxed">{label}</span>
+      <span className="text-[13px] leading-relaxed">{label} <span className="text-destructive">*</span></span>
     </label>
   );
 }
