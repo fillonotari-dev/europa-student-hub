@@ -209,6 +209,24 @@ export default function Candidatura() {
       toast({ title: t(lang, 'form.invalidEmail'), variant: 'destructive' });
       return false;
     }
+    if (stepKey === 'stepAcademic') {
+      const dInizio = new Date(form.periodo_inizio);
+      const dFine = new Date(form.periodo_fine);
+      if (isNaN(dInizio.getTime()) || isNaN(dFine.getTime())) {
+        toast({ title: t(lang, 'form.invalidDate'), variant: 'destructive' });
+        return false;
+      }
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (dInizio < today) {
+        toast({ title: t(lang, 'form.periodoInizioPast'), variant: 'destructive' });
+        return false;
+      }
+      if (dFine < dInizio) {
+        toast({ title: t(lang, 'form.periodoFineBeforeInizio'), variant: 'destructive' });
+        return false;
+      }
+    }
     return true;
   };
 
