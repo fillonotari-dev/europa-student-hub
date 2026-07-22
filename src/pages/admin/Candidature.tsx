@@ -532,6 +532,16 @@ export default function Candidature() {
                     <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${STATO_COLORS[c.stato]}`}>
                       {STATO_LABELS[c.stato]}
                     </span>
+                    {(c.stato === 'approvata' || c.stato === 'rifiutata') && c.esito_email_stato === 'da_inviare' && (
+                      <span className="block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-warning/10 text-warning">
+                        Esito da comunicare
+                      </span>
+                    )}
+                    {(c.stato === 'approvata' || c.stato === 'rifiutata') && c.esito_email_stato === 'inviata' && (
+                      <span className="block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-success/10 text-success">
+                        Esito inviato
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">{new Date(c.created_at).toLocaleDateString('it-IT')}</td>
                   <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
