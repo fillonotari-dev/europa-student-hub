@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { enqueueTransactional, SITE_NAME } from "../_shared/enqueue-transactional.ts";
+import { CandidaturaRicevutaEmail } from "../_shared/email-templates/candidatura-ricevuta.tsx";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -56,8 +58,10 @@ Deno.serve(async (req) => {
       anno_accademico, messaggio, documenti, risposte_custom,
       indirizzo_residenza, documento_identita_n, tipo_studente, tipo_studente_altro,
       data_arrivo_prevista, come_conosciuto, come_conosciuto_altro, preferenze_note,
-      dichiarazioni,
+      dichiarazioni, lingua,
     } = body;
+
+    const vLingua: 'it' | 'en' = (lingua === 'en') ? 'en' : 'it';
 
     // Required strings with length limits
     const vNome = str(nome, 100);
@@ -299,6 +303,7 @@ Deno.serve(async (req) => {
         come_conosciuto_altro: vComeConoscAltro,
         preferenze_note: vPrefNote,
         dichiarazioni: dichiarazioniSafe,
+        lingua: vLingua,
       })
       .select("id")
       .single();
@@ -321,6 +326,23 @@ Deno.serve(async (req) => {
         url: doc.url,
         caricato_da: "studente",
       });
+    }
+
+    // Fire-and-log conferma ricezione email. Never rollback the application on email failure.
+    try {
+      const subject = vLingua === 'en'
+        ? `We received your application - ${SITE_NAME}`
+        : `Abbiamo ricevuto la tua candidatura - ${SITE_NAME}`;
+      const res = await enqueueTransactional({
+        component: CandidaturaRicevutaEmail,
+        props: { lang: vLingua, nome: vNome, siteName: SITE_NAME },
+        subject,
+        to: vEmail,
+        label: 'candidatura-ricevuta',
+      });
+      if (!res.ok) console.error('submit-candidatura: enqueue conferma failed', res.error);
+    } catch (e) {
+      console.error('submit-candidatura: enqueue conferma exception', e);
     }
 
     return new Response(JSON.stringify({
