@@ -300,7 +300,7 @@ export default function Candidatura() {
         await uploadViaFunction(chiave, file);
       }
 
-      const { error } = await supabase.functions.invoke('submit-candidatura', {
+      const { data, error } = await supabase.functions.invoke('submit-candidatura', {
         body: {
           ...form,
           documenti: uploadedDocs,
@@ -315,10 +315,17 @@ export default function Candidatura() {
           },
         },
       });
-      if (error) throw error;
+      if (error) {
+        let serverMsg: string | undefined = (data as any)?.error;
+        if (!serverMsg) {
+          try { serverMsg = (await (error as any).context?.response?.json())?.error; } catch {}
+        }
+        throw new Error(serverMsg || error.message || t(lang, 'form.submitError'));
+      }
+      if ((data as any)?.error) throw new Error((data as any).error);
       setSuccess(true);
     } catch (err: any) {
-      toast({ title: err.message || 'Errore durante l\'invio', variant: 'destructive' });
+      toast({ title: err.message || t(lang, 'form.submitError'), variant: 'destructive' });
     } finally {
       setSubmitting(false);
     }
