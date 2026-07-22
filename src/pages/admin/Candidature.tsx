@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
@@ -25,7 +25,7 @@ import {
   Search, FileText, Download, ArrowUp, ArrowDown, ArrowUpDown,
   PlayCircle, CheckCircle2, XCircle, RotateCcw, Mail, DoorOpen, Trash2, Archive,
   ExternalLink, FileIcon,
-  Send, Copy, CheckCircle,
+  Send, Copy, CheckCircle, MailCheck,
 } from 'lucide-react';
 import { useStrutturaFilter } from '@/hooks/useStrutturaFilter';
 import { StrutturaSelect } from '@/components/admin/StrutturaSelect';
@@ -110,9 +110,20 @@ export default function Candidature() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [statoConfirm, setStatoConfirm] = useState<{ c: any; nextStato: string } | null>(null);
   const [regenConfirm, setRegenConfirm] = useState<any>(null);
+  const [esitoTarget, setEsitoTarget] = useState<any>(null);
+  const [esitoNota, setEsitoNota] = useState('');
+  const [esitoLoading, setEsitoLoading] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const esitoFilter = searchParams.get('esito_da_inviare') === '1';
+
+  useEffect(() => {
+    const stato = searchParams.get('stato');
+    if (stato && stato !== filterStato) setFilterStato(stato);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const generateLink = async (c: any) => {
     // Se esiste già un token attivo, chiediamo conferma prima di rigenerare.
@@ -127,7 +138,7 @@ export default function Candidature() {
     setLinkCopied(false);
     try {
       const { data, error } = await supabase.functions.invoke('generate-completion-link', {
-        body: { candidatura_id: c.id },
+        body: { candidatura_id: c.id, origin: window.location.origin },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
