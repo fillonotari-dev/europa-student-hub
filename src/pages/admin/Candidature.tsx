@@ -279,6 +279,25 @@ export default function Candidature() {
     onError: (e: any) => toast({ title: 'Errore', description: e.message, variant: 'destructive' }),
   });
 
+  const sendEsito = useMutation({
+    mutationFn: async ({ id, nota }: { id: string; nota: string }) => {
+      const { data, error } = await supabase.functions.invoke('send-esito-email', {
+        body: { candidatura_id: id, nota: nota || null },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['candidature'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      toast({ title: 'Comunicazione esito inviata' });
+      setEsitoTarget(null);
+      setEsitoNota('');
+    },
+    onError: (e: any) => toast({ title: 'Errore', description: e?.message ?? 'Invio fallito', variant: 'destructive' }),
+    onSettled: () => setEsitoLoading(false),
+  });
+
   const filtered = (candidature ?? [])
     .filter(c => {
       if (!search) return true;
