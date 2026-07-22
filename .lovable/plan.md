@@ -1,17 +1,16 @@
-## Problema
+## Contesto
 
-Le email transazionali di candidatura (ricezione, link completamento, esito) falliscono con errore 400 dall'API email di Lovable. Il payload accodato su `transactional_emails` non contiene il campo `idempotency_key`, richiesto per le email applicative (`purpose: 'transactional'`). Senza quel campo — o in alternativa `run_id`, riservato alle email auth — l'API rifiuta la richiesta.
+Nello step "Dichiarazioni" (`src/pages/Candidatura.tsx`) esistono già 4 checkbox (`veridicita`, `privacy`, `info_struttura`, `contatto`) tutte validate come obbligatorie lato client e server. Mancano però due cose:
+
+1. Il bottone "Invia candidatura" resta cliccabile anche senza flag: viene bloccato solo dopo il click via `handleValidate`, restituendo un toast di errore.
+2. Le label non segnalano visivamente l'obbligatorietà.
 
 ## Modifica
 
-**File:** `supabase/functions/_shared/enqueue-transactional.ts`
+**File:** `src/pages/Candidatura.tsx`
 
-Nel payload passato a `supabase.rpc('enqueue_email', ...)`, aggiungere `idempotency_key: messageId` riusando lo stesso `messageId` già generato per il log su `email_send_log`. Nessun'altra modifica al payload: `purpose`, `sender_domain`, `from`, `subject`, `html`, `text`, `label`, `queued_at` restano invariati.
+- Calcolare `const allDichiarazioniAccettate = dichiarazioni.veridicita && dichiarazioni.privacy && dichiarazioni.info_struttura && dichiarazioni.contatto;`
+- Sul bottone "Invia" (riga ~577), estendere `disabled` a `submitting || (stepKey === 'stepDichiarazioni' && !allDichiarazioniAccettate)`.
+- Nel componente `DeclCheckbox` (o inline nelle 4 istanze) aggiungere l'asterisco rosso `*` accanto alla label per marcare visivamente l'obbligatorietà, coerente con gli altri campi required del form.
 
-## Deploy
-
-Dopo la modifica, ridistribuire le Edge Functions che importano l'helper: `submit-candidatura`, `generate-completion-link`, `send-esito-email`.
-
-## Verifica
-
-Inviare una candidatura di test dal form pubblico e controllare che la riga corrispondente su `email_send_log` passi da `pending` a `sent` (invece di `failed` con 400).
+Nessuna modifica alla validazione backend o al payload: sono già gestiti.
