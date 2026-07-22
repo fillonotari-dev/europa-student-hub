@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import {
   FileText, Users, DoorOpen, Clock, ChevronRight, Inbox,
-  ClipboardCheck, UserPlus, Wrench, CalendarClock, CheckCircle2, AlertTriangle,
+  ClipboardCheck, UserPlus, Wrench, CalendarClock, CheckCircle2, AlertTriangle, MailCheck,
 } from 'lucide-react';
 import { useStrutturaFilter } from '@/hooks/useStrutturaFilter';
 import { StrutturaSelect } from '@/components/admin/StrutturaSelect';
@@ -104,7 +104,7 @@ export default function Dashboard() {
 
       const [
         ricevute, valutazione, approvate, assegnAttive, manutenzione, scadenza,
-        ricevuteVecchie, tokenScaduti, manutenzioneVecchia, assegnScadute,
+        ricevuteVecchie, tokenScaduti, manutenzioneVecchia, assegnScadute, esitiDaComunicare,
       ] = await Promise.all([
         candFilter(supabase.from('candidature').select('id', { count: 'exact', head: true }).eq('stato', 'ricevuta')),
         candFilter(supabase.from('candidature').select('id', { count: 'exact', head: true }).eq('stato', 'in_valutazione')),
@@ -126,6 +126,8 @@ export default function Dashboard() {
           .eq('stato', 'manutenzione').lt('updated_at', thirtyDaysAgoIso)),
         assegnFilter(supabase.from('assegnazioni').select('id', { count: 'exact', head: true })
           .eq('stato', 'attiva').not('data_fine', 'is', null).lt('data_fine', todayIso)),
+        candFilter(supabase.from('candidature').select('id', { count: 'exact', head: true })
+          .in('stato', ['approvata', 'rifiutata']).eq('esito_email_stato', 'da_inviare')),
       ]);
 
       const assegnate = new Set((assegnAttive.data ?? []).map((a: any) => a.candidatura_id));
@@ -141,6 +143,7 @@ export default function Dashboard() {
         tokenScaduti: tokenScaduti.count ?? 0,
         manutenzioneVecchia: manutenzioneVecchia.count ?? 0,
         assegnScadute: assegnScadute.count ?? 0,
+        esitiDaComunicare: esitiDaComunicare.count ?? 0,
       };
     },
   });
@@ -169,6 +172,14 @@ export default function Dashboard() {
       label: 'Studenti approvati da assegnare a una camera',
       count: tasks?.daAssegnare ?? 0,
       to: '/admin/candidature?stato=approvata',
+    },
+    {
+      key: 'esiti-da-comunicare',
+      icon: MailCheck,
+      color: 'text-warning bg-warning/10',
+      label: 'Esiti candidatura da comunicare via email',
+      count: tasks?.esitiDaComunicare ?? 0,
+      to: '/admin/candidature?esito_da_inviare=1',
     },
     {
       key: 'manutenzione',
