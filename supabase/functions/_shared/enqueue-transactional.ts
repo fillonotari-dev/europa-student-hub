@@ -43,6 +43,7 @@ export async function enqueueTransactional(args: EnqueueArgs): Promise<{ ok: boo
       queue_name: 'transactional_emails',
       payload: {
         message_id: messageId,
+        idempotency_key: messageId,
         to: args.to,
         from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
         sender_domain: SENDER_DOMAIN,
