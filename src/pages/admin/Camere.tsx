@@ -132,13 +132,10 @@ export default function Camere() {
 
   const assegna = useMutation({
     mutationFn: async ({ camera_id, studente_id, candidatura_id, posto }: any) => {
-      await supabase.from('assegnazioni').insert({
+      const { error } = await supabase.from('assegnazioni').insert({
         camera_id, studente_id, candidatura_id, posto, data_inizio: new Date().toISOString().split('T')[0], stato: 'attiva',
       });
-      const cameraAssegnazioni = (assegnazioni?.filter(a => a.camera_id === camera_id).length ?? 0) + 1;
-      const camera = camere?.find(c => c.id === camera_id);
-      const nuovoStato = camera && cameraAssegnazioni >= camera.posti ? 'occupata' : 'parzialmente_occupata';
-      await supabase.from('camere').update({ stato: nuovoStato }).eq('id', camera_id);
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['camere'] });
@@ -152,18 +149,16 @@ export default function Camere() {
         setSearchParams(searchParams);
       }
     },
+    onError: (e: any) => toast({ title: 'Errore', description: e.message, variant: 'destructive' }),
   });
 
   const concludi = useMutation({
     mutationFn: async ({ assegnazione_id, camera_id }: { assegnazione_id: string; camera_id: string }) => {
-      await supabase
+      const { error } = await supabase
         .from('assegnazioni')
         .update({ stato: 'conclusa', data_fine: new Date().toISOString().split('T')[0] })
         .eq('id', assegnazione_id);
-      const rimaste = (assegnazioni?.filter(a => a.camera_id === camera_id && a.id !== assegnazione_id).length ?? 0);
-      const camera = camere?.find(c => c.id === camera_id);
-      const nuovoStato = rimaste === 0 ? 'libera' : (camera && rimaste < camera.posti ? 'parzialmente_occupata' : 'occupata');
-      await supabase.from('camere').update({ stato: nuovoStato }).eq('id', camera_id);
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['camere'] });
@@ -172,6 +167,7 @@ export default function Camere() {
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       toast({ title: 'Assegnazione conclusa' });
     },
+    onError: (e: any) => toast({ title: 'Errore', description: e.message, variant: 'destructive' }),
   });
 
   const saveCamera = useMutation({
@@ -208,11 +204,13 @@ export default function Camere() {
 
   const setManutenzione = useMutation({
     mutationFn: async ({ id, note }: { id: string; note: string }) => {
-      const { data: existing } = await supabase.from('camere').select('note').eq('id', id).single();
+      const { data: existing, error: selErr } = await supabase.from('camere').select('note').eq('id', id).single();
+      if (selErr) throw selErr;
       const merged = note
         ? `${existing?.note ? existing.note + '\n' : ''}[Manutenzione ${new Date().toLocaleDateString('it-IT')}] ${note}`
         : existing?.note;
-      await supabase.from('camere').update({ stato: 'manutenzione', note: merged }).eq('id', id);
+      const { error } = await supabase.from('camere').update({ stato: 'manutenzione', note: merged }).eq('id', id);
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['camere'] });
@@ -221,13 +219,15 @@ export default function Camere() {
       setMaintenanceTarget(null);
       setMaintenanceNote('');
     },
+    onError: (e: any) => toast({ title: 'Errore', description: e.message, variant: 'destructive' }),
   });
 
   const reactivate = useMutation({
     mutationFn: async (camera: any) => {
       const occupati = assegnazioni?.filter(a => a.camera_id === camera.id).length ?? 0;
       const nuovo = occupati === 0 ? 'libera' : occupati >= camera.posti ? 'occupata' : 'parzialmente_occupata';
-      await supabase.from('camere').update({ stato: nuovo }).eq('id', camera.id);
+      const { error } = await supabase.from('camere').update({ stato: nuovo }).eq('id', camera.id);
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['camere'] });
@@ -235,6 +235,7 @@ export default function Camere() {
       toast({ title: 'Camera riattivata' });
       setReactivateTarget(null);
     },
+    onError: (e: any) => toast({ title: 'Errore', description: e.message, variant: 'destructive' }),
   });
 
   const deleteCamera = useMutation({

@@ -89,34 +89,26 @@ export default function Residenti() {
     },
   });
 
-  const recalcCameraStato = async (cameraId: string) => {
-    const { data: rim } = await supabase.from('assegnazioni').select('id', { count: 'exact' }).eq('camera_id', cameraId).eq('stato', 'attiva');
-    const { data: cam } = await supabase.from('camere').select('posti, stato').eq('id', cameraId).single();
-    if (!cam) return;
-    if (cam.stato === 'manutenzione') return;
-    const occ = rim?.length ?? 0;
-    const nuovo = occ === 0 ? 'libera' : occ >= cam.posti ? 'occupata' : 'parzialmente_occupata';
-    await supabase.from('camere').update({ stato: nuovo }).eq('id', cameraId);
-  };
-
   const transferisci = useMutation({
     mutationFn: async ({ assegnazione_id, vecchia_camera_id, studente_id, nuova_camera_id, data }: any) => {
       // Conclude old
-      await supabase.from('assegnazioni').update({ stato: 'conclusa', data_fine: data }).eq('id', assegnazione_id);
+      const { error: updErr } = await supabase.from('assegnazioni').update({ stato: 'conclusa', data_fine: data }).eq('id', assegnazione_id);
+      if (updErr) throw updErr;
       // Compute next posto in new camera
-      const { data: existing } = await supabase.from('assegnazioni').select('posto').eq('camera_id', nuova_camera_id).eq('stato', 'attiva');
+      const { data: existing, error: exErr } = await supabase.from('assegnazioni').select('posto').eq('camera_id', nuova_camera_id).eq('stato', 'attiva');
+      if (exErr) throw exErr;
       const nextPosto = (existing?.length ?? 0) + 1;
       // Create new assignment (candidatura_id required NOT NULL → reuse last from this student)
-      const { data: lastCand } = await supabase
+      const { data: lastCand, error: candErr } = await supabase
         .from('candidature').select('id').eq('studente_id', studente_id)
         .order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (candErr) throw candErr;
       if (!lastCand) throw new Error('Nessuna candidatura trovata per lo studente.');
-      await supabase.from('assegnazioni').insert({
+      const { error: insErr } = await supabase.from('assegnazioni').insert({
         camera_id: nuova_camera_id, studente_id, candidatura_id: lastCand.id,
         posto: nextPosto, data_inizio: data, stato: 'attiva',
       });
-      await recalcCameraStato(vecchia_camera_id);
-      await recalcCameraStato(nuova_camera_id);
+      if (insErr) throw insErr;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['residenti'] });
@@ -132,10 +124,10 @@ export default function Residenti() {
 
   const concludi = useMutation({
     mutationFn: async ({ assegnazione_id, camera_id, data, note }: any) => {
-      await supabase.from('assegnazioni')
+      const { error } = await supabase.from('assegnazioni')
         .update({ stato: 'conclusa', data_fine: data, note: note || null })
         .eq('id', assegnazione_id);
-      await recalcCameraStato(camera_id);
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['residenti'] });
@@ -146,6 +138,7 @@ export default function Residenti() {
       setEndTarget(null);
       setEndNote('');
     },
+    onError: (e: any) => toast({ title: 'Errore', description: e.message, variant: 'destructive' }),
   });
 
   const filtered = (residenti ?? [])
