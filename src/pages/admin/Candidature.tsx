@@ -899,6 +899,52 @@ export default function Candidature() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Invio comunicazione esito */}
+      <Dialog open={!!esitoTarget} onOpenChange={open => { if (!open && !esitoLoading) { setEsitoTarget(null); setEsitoNota(''); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {esitoTarget?.stato === 'approvata' ? 'Comunica esito: Approvata' : 'Comunica esito: Rifiutata'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-[13px] text-muted-foreground">
+              Invieremo un'email a <strong>{esitoTarget?.studenti?.email}</strong> con l'esito della candidatura.
+              {esitoTarget?.stato === 'approvata'
+                ? " Successivamente potrai assegnare lo studente a una camera."
+                : " Puoi aggiungere una nota che verrà inclusa nell'email."}
+            </p>
+            <div>
+              <label className="text-[12px] font-medium">Nota per lo studente (opzionale)</label>
+              <Textarea
+                value={esitoNota}
+                onChange={e => setEsitoNota(e.target.value.slice(0, 2000))}
+                rows={5}
+                placeholder="Aggiungi eventuali indicazioni personali per lo studente..."
+                className="mt-1"
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">{esitoNota.length}/2000</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" disabled={esitoLoading} onClick={() => { setEsitoTarget(null); setEsitoNota(''); }}>
+                Annulla
+              </Button>
+              <Button
+                disabled={esitoLoading}
+                onClick={() => {
+                  if (!esitoTarget) return;
+                  setEsitoLoading(true);
+                  sendEsito.mutate({ id: esitoTarget.id, nota: esitoNota.trim() });
+                }}
+              >
+                <MailCheck className="w-4 h-4 mr-2" />
+                {esitoLoading ? 'Invio in corso...' : 'Conferma e invia email'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
