@@ -31,12 +31,15 @@ export default function Dashboard() {
 
       // Assegnazioni attive nella struttura selezionata
       let postiOccupati = 0;
+      let studentiInStruttura = 0;
       if (isAll) {
         const r = await supabase.from('assegnazioni').select('id', { count: 'exact', head: true }).eq('stato', 'attiva');
         postiOccupati = r.count ?? 0;
       } else if (cameraIds.length > 0) {
-        const r = await supabase.from('assegnazioni').select('id', { count: 'exact', head: true }).eq('stato', 'attiva').in('camera_id', cameraIds);
-        postiOccupati = r.count ?? 0;
+        const r = await supabase.from('assegnazioni').select('studente_id').eq('stato', 'attiva').in('camera_id', cameraIds);
+        const rows = r.data ?? [];
+        postiOccupati = rows.length;
+        studentiInStruttura = new Set(rows.map((a: any) => a.studente_id)).size;
       }
 
       const cand = candidature.data || [];
@@ -51,7 +54,7 @@ export default function Dashboard() {
         totalePosti: totalPosti,
         postiOccupati,
         postiLiberi: totalPosti - postiOccupati,
-        totaleStudenti: studenti.count || 0,
+        totaleStudenti: isAll ? (studenti.count || 0) : studentiInStruttura,
         occupazione: totalPosti > 0 ? Math.round((postiOccupati / totalPosti) * 100) : 0,
       };
     },
