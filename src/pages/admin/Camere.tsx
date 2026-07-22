@@ -23,6 +23,8 @@ import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdow
 import { RowActions } from '@/components/admin/RowActions';
 import { useToast } from '@/hooks/use-toast';
 import { ExportButton } from '@/components/admin/ExportButton';
+import { useStrutturaFilter } from '@/hooks/useStrutturaFilter';
+import { StrutturaSelect } from '@/components/admin/StrutturaSelect';
 import {
   DoorOpen, User, X, ArrowUp, ArrowDown, ArrowUpDown, Plus,
   Pencil, Wrench, RotateCcw, Trash2, Settings,
@@ -64,7 +66,6 @@ export default function Camere() {
   const candidaturaParam = searchParams.get('candidatura');
 
   const [selectedCamera, setSelectedCamera] = useState<any>(null);
-  const [selectedStruttura, setSelectedStruttura] = useState<string>('tutti');
   const [filterStato, setFilterStato] = useState<string>('tutti');
   const [sortKey, setSortKey] = useState<SortKey>('numero');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -81,19 +82,13 @@ export default function Camere() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: strutture } = useQuery({
-    queryKey: ['strutture'],
-    queryFn: async () => {
-      const { data } = await supabase.from('strutture').select('*');
-      return data ?? [];
-    },
-  });
+  const { strutturaId, setStrutturaId, strutture, isAll } = useStrutturaFilter();
 
   const { data: camere } = useQuery({
-    queryKey: ['camere', selectedStruttura],
+    queryKey: ['camere', strutturaId],
     queryFn: async () => {
       let query = supabase.from('camere').select('*, strutture(nome)').order('piano').order('numero');
-      if (selectedStruttura !== 'tutti') query = query.eq('struttura_id', selectedStruttura);
+      if (!isAll) query = query.eq('struttura_id', strutturaId);
       const { data } = await query;
       return data ?? [];
     },
@@ -330,13 +325,11 @@ export default function Camere() {
           <p className="text-[13px] text-muted-foreground">Elenco camere per struttura, piano e stato</p>
         </div>
         <div className="flex items-center gap-2">
-          <Select value={selectedStruttura} onValueChange={setSelectedStruttura}>
-            <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="tutti">Tutte le strutture</SelectItem>
-              {strutture?.map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <StrutturaSelect
+            value={strutturaId}
+            onChange={(v) => { setStrutturaId(v); setPage(1); }}
+            strutture={strutture}
+          />
           <Select value={filterStato} onValueChange={setFilterStato}>
             <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
             <SelectContent>
