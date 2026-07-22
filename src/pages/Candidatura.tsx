@@ -76,6 +76,7 @@ export default function Candidatura() {
   const [dichiarazioni, setDichiarazioni] = useState({
     veridicita: false, privacy: false, info_struttura: false, contatto: false,
   });
+  const allDichiarazioniAccettate = dichiarazioni.veridicita && dichiarazioni.privacy && dichiarazioni.info_struttura && dichiarazioni.contatto;
   const [fileErrors, setFileErrors] = useState<{ documento_identita?: string; certificato_iscrizione?: string }>({});
   const [customAnswers, setCustomAnswers] = useState<Record<string, any>>({});
   const [customFiles, setCustomFiles] = useState<Record<string, File | null>>({});
