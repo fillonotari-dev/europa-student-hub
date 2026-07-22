@@ -138,6 +138,9 @@ export type Database = {
           data_arrivo_prevista: string | null
           dichiarazioni: Json
           documento_identita_n: string | null
+          esito_email_inviata_il: string | null
+          esito_email_nota: string | null
+          esito_email_stato: string | null
           fumatore: boolean | null
           garante_email: string | null
           garante_nome: string | null
@@ -145,6 +148,7 @@ export type Database = {
           garante_telefono: string | null
           id: string
           indirizzo_residenza: string | null
+          lingua: string
           lingue_parlate: string | null
           matricola_snapshot: string | null
           messaggio: string | null
@@ -181,6 +185,9 @@ export type Database = {
           data_arrivo_prevista?: string | null
           dichiarazioni?: Json
           documento_identita_n?: string | null
+          esito_email_inviata_il?: string | null
+          esito_email_nota?: string | null
+          esito_email_stato?: string | null
           fumatore?: boolean | null
           garante_email?: string | null
           garante_nome?: string | null
@@ -188,6 +195,7 @@ export type Database = {
           garante_telefono?: string | null
           id?: string
           indirizzo_residenza?: string | null
+          lingua?: string
           lingue_parlate?: string | null
           matricola_snapshot?: string | null
           messaggio?: string | null
@@ -224,6 +232,9 @@ export type Database = {
           data_arrivo_prevista?: string | null
           dichiarazioni?: Json
           documento_identita_n?: string | null
+          esito_email_inviata_il?: string | null
+          esito_email_nota?: string | null
+          esito_email_stato?: string | null
           fumatore?: boolean | null
           garante_email?: string | null
           garante_nome?: string | null
@@ -231,6 +242,7 @@ export type Database = {
           garante_telefono?: string | null
           id?: string
           indirizzo_residenza?: string | null
+          lingua?: string
           lingue_parlate?: string | null
           matricola_snapshot?: string | null
           messaggio?: string | null
