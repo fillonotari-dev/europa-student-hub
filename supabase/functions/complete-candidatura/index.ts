@@ -9,6 +9,7 @@ const corsHeaders = {
 const TOKEN_RE = /^[A-Za-z0-9_-]{20,128}$/;
 const DOC_KEY_RE = /^[a-z][a-z0-9_]{0,99}$/;
 const STORAGE_PATH_RE = /^pending\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[a-z][a-z0-9_]{0,99}\/[A-Za-z0-9._-]{1,200}$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const GENERIC_ERROR = "Si è verificato un errore. Riprova più tardi.";
 
@@ -48,6 +49,15 @@ Deno.serve(async (req) => {
     if (typeof token !== "string" || !TOKEN_RE.test(token)) {
       return json({ error: "Token non valido" }, 400);
     }
+    const tempId = body?.temp_id;
+    if (typeof tempId !== "string" || !UUID_RE.test(tempId)) {
+      return json({ error: "Sessione non valida" }, 400);
+    }
+    const { data: sessOk, error: sessErr } = await supabase
+      .rpc("check_candidatura_sessione", { p_temp_id: tempId });
+    if (sessErr) throw sessErr;
+    if (sessOk !== true) return json({ error: "Sessione di invio non valida o scaduta" }, 400);
+
     const hash = await sha256Hex(token);
 
     const { data: cand, error: candErr } = await supabase
@@ -104,6 +114,7 @@ Deno.serve(async (req) => {
       if (!Array.isArray(body.documenti) || body.documenti.length > 20) {
         return json({ error: "Documenti non validi" }, 400);
       }
+      const expectedPrefix = `pending/${tempId}/`;
       for (const d of body.documenti) {
         if (!d || typeof d !== "object") return json({ error: "Documento non valido" }, 400);
         const tipo = typeof d.tipo === "string" ? d.tipo : "";
@@ -112,6 +123,7 @@ Deno.serve(async (req) => {
         if (!DOC_KEY_RE.test(tipo)) return json({ error: "Tipo documento non valido" }, 400);
         if (!nome_file || nome_file.length > 200) return json({ error: "Nome file non valido" }, 400);
         if (!STORAGE_PATH_RE.test(url)) return json({ error: "Riferimento documento non valido" }, 400);
+        if (!url.startsWith(expectedPrefix)) return json({ error: "Riferimento documento non corrispondente alla sessione" }, 400);
         docsIn.push({ tipo, nome_file, url });
       }
     }
@@ -164,6 +176,8 @@ Deno.serve(async (req) => {
       stato_nuovo: "completata_form",
       note: "Form completo inviato dallo studente",
     });
+
+    await supabase.rpc("consume_candidatura_sessione", { p_temp_id: tempId });
 
     return json({ success: true });
   } catch (e) {

@@ -69,6 +69,15 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Tipo file non supportato (PDF, JPG, PNG, WEBP)" }, 400);
     }
 
+    // Atomic session guard: single UPDATE that increments upload_count only if
+    // session is valid (not consumed, within 30 min, under the cap of 12).
+    const { data: slotOk, error: slotErr } = await supabase
+      .rpc("consume_candidatura_upload_slot", { p_temp_id: tempId });
+    if (slotErr) throw slotErr;
+    if (slotOk !== true) {
+      return jsonResponse({ error: "Sessione di invio non valida o scaduta" }, 400);
+    }
+
     // Validate tipo: fixed or active custom doc
     if (!FIXED_TIPI.has(tipo)) {
       const { data: doc, error: docErr } = await supabase

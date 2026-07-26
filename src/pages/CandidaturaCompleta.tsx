@@ -140,6 +140,22 @@ export default function CandidaturaCompleta() {
     setSubmitting(true);
     try {
       const tempId = crypto.randomUUID();
+
+      // Open authorized session using the completion token before uploads
+      {
+        const { data: sessData, error: sessErr } = await supabase.functions.invoke(
+          'open-candidatura-sessione',
+          { body: { temp_id: tempId, completamento_token: token } },
+        );
+        if (sessErr || (sessData as any)?.error) {
+          let serverMsg: string | undefined = (sessData as any)?.error;
+          if (!serverMsg && sessErr) {
+            try { serverMsg = (await (sessErr as any).context?.response?.json())?.error; } catch {}
+          }
+          throw new Error(serverMsg || t(lang, 'form.submitError'));
+        }
+      }
+
       const uploadedDocs: { tipo: string; nome_file: string; url: string }[] = [];
       for (const [tipo, file] of Object.entries(files)) {
         if (!file) continue;
@@ -157,6 +173,7 @@ export default function CandidaturaCompleta() {
       const { data, error } = await supabase.functions.invoke('complete-candidatura', {
         body: {
           token,
+          temp_id: tempId,
           ...form,
           documenti: uploadedDocs,
           dichiarazioni,
@@ -166,7 +183,11 @@ export default function CandidaturaCompleta() {
       if ((data as any)?.error) throw new Error((data as any).error);
       setSuccess(true);
     } catch (err: any) {
-      toast({ title: err.message || 'Errore durante l\'invio', variant: 'destructive' });
+      toast({
+        title: err.message || t(lang, 'form.submitError'),
+        description: t(lang, 'form.submitRetryPreservedInvite'),
+        variant: 'destructive',
+      });
     } finally {
       setSubmitting(false);
     }

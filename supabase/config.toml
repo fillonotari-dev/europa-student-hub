@@ -5,3 +5,5 @@ project_id = "mxfrhocvswxfweyafqce"
     verify_jwt = false
   [functions.process-email-queue]
     verify_jwt = true
+  [functions.open-candidatura-sessione]
+    verify_jwt = false
