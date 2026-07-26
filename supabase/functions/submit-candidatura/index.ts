@@ -339,6 +339,9 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Consume session on success
+    await supabase.rpc("consume_candidatura_sessione", { p_temp_id: temp_id });
+
     // Fire-and-log conferma ricezione email. Never rollback the application on email failure.
     try {
       const subject = vLingua === 'en'
