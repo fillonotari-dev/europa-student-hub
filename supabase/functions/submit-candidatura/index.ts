@@ -58,8 +58,17 @@ Deno.serve(async (req) => {
       anno_accademico, messaggio, documenti, risposte_custom,
       indirizzo_residenza, documento_identita_n, tipo_studente, tipo_studente_altro,
       data_arrivo_prevista, come_conosciuto, come_conosciuto_altro, preferenze_note,
-      dichiarazioni, lingua,
+      dichiarazioni, lingua, temp_id,
     } = body;
+
+    // Validate session
+    if (typeof temp_id !== "string" || !UUID_RE.test(temp_id)) {
+      return bad("Sessione non valida");
+    }
+    const { data: sessOk, error: sessErr } = await supabase
+      .rpc("check_candidatura_sessione", { p_temp_id: temp_id });
+    if (sessErr) throw sessErr;
+    if (sessOk !== true) return bad("Sessione di invio non valida o scaduta");
 
     const vLingua: 'it' | 'en' = (lingua === 'en') ? 'en' : 'it';
 
@@ -143,6 +152,7 @@ Deno.serve(async (req) => {
     const docsIn: Array<{ tipo: string; nome_file: string; url: string }> = [];
     if (documenti !== undefined && documenti !== null) {
       if (!Array.isArray(documenti) || documenti.length > 20) return bad("Documenti non validi");
+      const expectedPrefix = `pending/${temp_id}/`;
       for (const d of documenti) {
         if (!d || typeof d !== "object") return bad("Documento non valido");
         const tipo = typeof d.tipo === "string" ? d.tipo : "";
@@ -151,6 +161,7 @@ Deno.serve(async (req) => {
         if (!DOC_KEY_RE.test(tipo)) return bad("Tipo documento non valido");
         if (!nome_file || nome_file.length > 200) return bad("Nome file non valido");
         if (!STORAGE_PATH_RE.test(url)) return bad("Riferimento documento non valido");
+        if (!url.startsWith(expectedPrefix)) return bad("Riferimento documento non corrispondente alla sessione");
         docsIn.push({ tipo, nome_file, url });
       }
     }
