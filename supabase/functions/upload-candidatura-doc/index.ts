@@ -69,29 +69,14 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Tipo file non supportato (PDF, JPG, PNG, WEBP)" }, 400);
     }
 
-    // Atomic session guard: increment upload_count only if session is valid,
-    // not consumed, within 30 minutes and under the cap of 12 uploads.
-    const { data: sessRow, error: sessErr } = await supabase
-      .from("candidatura_sessioni")
-      .update({ upload_count: (undefined as any) })
-      .select();
-    // We need a raw expression update; use rpc via sql through the REST is not
-    // possible with typed client, so use a direct call via .rpc is unnecessary
-    // — we implement it via update with `upload_count` = `upload_count + 1`
-    // through a Postgres function. Fall back: use `.rpc` on inline SQL is not
-    // available; use `.filter` + increment via `.update({ upload_count: ...})`
-    // requires the current value. Use a small SQL function is overkill; use
-    // the Postgres REST `Prefer: params=single-object` isn't available either.
-    // Use `.rpc` on a dedicated function created via migration would be
-    // cleaner, but we can achieve atomicity with a filtered UPDATE and
-    // `upload_count = upload_count + 1` via the raw SQL execution using
-    // `supabase.rpc` requires a defined function. Instead use `.update` with
-    // a computed expression is not supported by PostgREST — but we can use
-    // the `sql` template via `supabase.from(...).update` combined with
-    // `.filter` and rely on serializable retry. To keep the guarantee simple
-    // and truly atomic per the plan, we use a small SQL query through
-    // `supabase.rpc`. This file needs a companion RPC — see migration.
-    void sessRow; void sessErr;
+    // Atomic session guard: single UPDATE that increments upload_count only if
+    // session is valid (not consumed, within 30 min, under the cap of 12).
+    const { data: slotOk, error: slotErr } = await supabase
+      .rpc("consume_candidatura_upload_slot", { p_temp_id: tempId });
+    if (slotErr) throw slotErr;
+    if (slotOk !== true) {
+      return jsonResponse({ error: "Sessione di invio non valida o scaduta" }, 400);
+    }
 
     // Validate tipo: fixed or active custom doc
     if (!FIXED_TIPI.has(tipo)) {
