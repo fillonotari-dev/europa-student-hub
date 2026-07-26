@@ -708,6 +708,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_candidatura_sessione: {
+        Args: { p_temp_id: string }
+        Returns: boolean
+      }
+      consume_candidatura_sessione: {
+        Args: { p_temp_id: string }
+        Returns: undefined
+      }
+      consume_candidatura_upload_slot: {
+        Args: { p_temp_id: string }
+        Returns: boolean
+      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
