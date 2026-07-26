@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "Public upload documenti" ON storage.objects;
