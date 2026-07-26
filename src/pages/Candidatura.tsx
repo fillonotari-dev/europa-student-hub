@@ -660,6 +660,9 @@ export default function Candidatura() {
                 <DeclCheckbox checked={dichiarazioni.privacy} onCheckedChange={v => setDichiarazioni(d => ({ ...d, privacy: v }))} label={t(lang, 'form.dichPrivacy')} />
                 <DeclCheckbox checked={dichiarazioni.info_struttura} onCheckedChange={v => setDichiarazioni(d => ({ ...d, info_struttura: v }))} label={t(lang, 'form.dichInfoStruttura')} />
                 <DeclCheckbox checked={dichiarazioni.contatto} onCheckedChange={v => setDichiarazioni(d => ({ ...d, contatto: v }))} label={t(lang, 'form.dichContatto')} />
+                <div className="pt-2 flex justify-center">
+                  <div ref={turnstileContainerRef} />
+                </div>
               </div>
             )}
             {stepKey === 'stepInfoAggiuntive' && (
@@ -699,7 +702,7 @@ export default function Candidatura() {
               {t(lang, 'form.next')} <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
           ) : (
-            <Button onClick={handleSubmit} disabled={submitting || !allDichiarazioniAccettate}>
+            <Button onClick={handleSubmit} disabled={submitting || !allDichiarazioniAccettate || !turnstileToken}>
               {submitting ? t(lang, 'form.submitting') : t(lang, 'form.submit')}
             </Button>
           )}
