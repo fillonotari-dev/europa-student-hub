@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
@@ -25,6 +25,17 @@ import { StepDots } from '@/components/candidatura/StepDots';
 const BASE_STEPS = ['stepPersonal', 'stepAcademic', 'stepPreferences', 'stepDocuments', 'stepDichiarazioni'] as const;
 const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 const MAX_SIZE = 5 * 1024 * 1024;
+const TURNSTILE_SITE_KEY = '0x4AAAAAAD-aYq1jX5cywwnC';
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (el: HTMLElement | string, opts: Record<string, unknown>) => string;
+      remove: (id: string) => void;
+      reset: (id?: string) => void;
+    };
+  }
+}
 
 type CampoOpzione = { value: string; label_it: string; label_en: string };
 type CampoCustom = {
@@ -81,6 +92,9 @@ export default function Candidatura() {
   const [customAnswers, setCustomAnswers] = useState<Record<string, any>>({});
   const [customFiles, setCustomFiles] = useState<Record<string, File | null>>({});
   const [customFileErrors, setCustomFileErrors] = useState<Record<string, string | undefined>>({});
+  const [turnstileToken, setTurnstileToken] = useState<string>('');
+  const turnstileWidgetIdRef = useRef<string | null>(null);
+  const turnstileContainerRef = useRef<HTMLDivElement | null>(null);
 
   const { data: strutture } = useQuery({
     queryKey: ['strutture-pubbliche'],
@@ -130,6 +144,54 @@ export default function Candidatura() {
   );
   const stepKey = STEPS[step];
 
+  // Load Turnstile script once at mount
+  useEffect(() => {
+    const SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+    if (document.querySelector(`script[src="${SRC}"]`)) return;
+    const s = document.createElement('script');
+    s.src = SRC;
+    s.async = true;
+    s.defer = true;
+    document.head.appendChild(s);
+  }, []);
+
+  // Mount / unmount Turnstile widget when entering / leaving stepDichiarazioni
+  useEffect(() => {
+    if (stepKey !== 'stepDichiarazioni') return;
+    let cancelled = false;
+    let widgetId: string | null = null;
+
+    const tryRender = () => {
+      if (cancelled) return;
+      if (!window.turnstile || !turnstileContainerRef.current) {
+        window.setTimeout(tryRender, 150);
+        return;
+      }
+      try {
+        widgetId = window.turnstile.render(turnstileContainerRef.current, {
+          sitekey: TURNSTILE_SITE_KEY,
+          callback: (token: string) => setTurnstileToken(token),
+          'expired-callback': () => setTurnstileToken(''),
+          'error-callback': () => setTurnstileToken(''),
+        });
+        turnstileWidgetIdRef.current = widgetId;
+      } catch (e) {
+        console.error('Turnstile render error', e);
+      }
+    };
+    tryRender();
+
+    return () => {
+      cancelled = true;
+      const id = turnstileWidgetIdRef.current;
+      if (id && window.turnstile) {
+        try { window.turnstile.remove(id); } catch {}
+      }
+      turnstileWidgetIdRef.current = null;
+      setTurnstileToken('');
+    };
+  }, [stepKey]);
+
   // Tipi camera disponibili per la struttura selezionata (lettura real-time dal DB)
   const { data: tipiCameraDisponibili } = useQuery({
     queryKey: ['tipi-camera', form.struttura_preferita_id],
@@ -175,6 +237,10 @@ export default function Candidatura() {
       if (f === '_dichiarazioni') {
         if (!dichiarazioni.veridicita || !dichiarazioni.privacy || !dichiarazioni.info_struttura || !dichiarazioni.contatto) {
           toast({ title: t(lang, 'form.required'), variant: 'destructive' });
+          return false;
+        }
+        if (!turnstileToken) {
+          toast({ title: t(lang, 'form.turnstileRequired'), variant: 'destructive' });
           return false;
         }
         continue;
@@ -269,9 +335,30 @@ export default function Candidatura() {
   };
 
   const handleSubmit = async () => {
+    // Guard: Turnstile token is required before generating temp_id
+    if (!turnstileToken) {
+      toast({ title: t(lang, 'form.turnstileRequired'), variant: 'destructive' });
+      return;
+    }
     setSubmitting(true);
     try {
       const tempId = crypto.randomUUID();
+
+      // Open authorized session (Turnstile-backed) before any upload
+      {
+        const { data: sessData, error: sessErr } = await supabase.functions.invoke(
+          'open-candidatura-sessione',
+          { body: { temp_id: tempId, turnstile_token: turnstileToken } },
+        );
+        if (sessErr || (sessData as any)?.error) {
+          let serverMsg: string | undefined = (sessData as any)?.error;
+          if (!serverMsg && sessErr) {
+            try { serverMsg = (await (sessErr as any).context?.response?.json())?.error; } catch {}
+          }
+          throw new Error(serverMsg || t(lang, 'form.submitError'));
+        }
+      }
+
       const uploadedDocs: { tipo: string; nome_file: string; url: string }[] = [];
 
       const uploadViaFunction = async (tipo: string, file: File) => {
@@ -303,6 +390,7 @@ export default function Candidatura() {
       const { data, error } = await supabase.functions.invoke('submit-candidatura', {
         body: {
           ...form,
+          temp_id: tempId,
           documenti: uploadedDocs,
           struttura_preferita_id: form.struttura_preferita_id || null,
           risposte_custom: customAnswers,
@@ -325,7 +413,18 @@ export default function Candidatura() {
       if ((data as any)?.error) throw new Error((data as any).error);
       setSuccess(true);
     } catch (err: any) {
-      toast({ title: err.message || t(lang, 'form.submitError'), variant: 'destructive' });
+      // Turnstile tokens are single-use and get consumed by siteverify.
+      // Reset the widget so the user can retry without recompiling the form.
+      const id = turnstileWidgetIdRef.current;
+      if (id && window.turnstile) {
+        try { window.turnstile.reset(id); } catch {}
+      }
+      setTurnstileToken('');
+      toast({
+        title: err.message || t(lang, 'form.submitError'),
+        description: t(lang, 'form.submitRetryPreserved'),
+        variant: 'destructive',
+      });
     } finally {
       setSubmitting(false);
     }
