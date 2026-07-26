@@ -1,29 +1,21 @@
-## Funzioni interessate
+## Migrazione: rimozione policy storage residua
 
-Il linter segnala 6 funzioni `SECURITY DEFINER` nello schema `public` eseguibili da `anon` (e `authenticated`), tutte parte dell'infrastruttura interna della coda email — nessuna è chiamata dal frontend o da utenti finali:
+Chiudere la falla RLS sul bucket `documenti_studenti` e allineare i limiti del bucket ai controlli già presenti nell'edge function `upload-candidatura-doc`.
 
-- `public.enqueue_email(text, jsonb)`
-- `public.read_email_batch(text, int, int)`
-- `public.delete_email(text, bigint)`
-- `public.move_to_dlq(text, text, bigint, jsonb)`
-- `public.email_queue_dispatch()`
-- `public.email_queue_wake()`
+### SQL
 
-Queste vengono invocate solo da:
+```sql
+DROP POLICY IF EXISTS "Public upload documenti" ON storage.objects;
 
-- Trigger interni (`email_queue_wake`)
-- Cron job Postgres (`email_queue_dispatch`)
-- Edge Functions con `service_role` (`process-email-queue`, helper `enqueue-transactional`)
+UPDATE storage.buckets
+SET file_size_limit    = 10485760,
+    allowed_mime_types = ARRAY['application/pdf','image/jpeg','image/png','image/webp']
+WHERE id = 'documenti_studenti';
+```
 
-`public.has_role` è invece correttamente ristretta ad `authenticated` + `service_role` e non risulta nel problema.
+### Note
 
-## Fix
-
-Migrazione unica che revoca `EXECUTE` da `PUBLIC`, `anon`, `authenticated` (e `sandbox_exec`) su tutte e 6 le funzioni, mantenendo l'accesso a `service_role` e `postgres`. Nessun cambio applicativo necessario: le Edge Functions usano già `service_role`, i trigger/cron girano come `postgres`.
-
-Estendi la migrazione includendo anche il fix del finding "Function Search Path Mutable", ma **solo** su queste quattro funzioni, che risultano prive di `search_path`:  
-`enqueue_email(text, jsonb)`, `read_email_batch(text, integer, integer)`, `delete_email(text, bigint)`, `move_to_dlq(text, text, bigint, jsonb)`.  
-Usa `SET search_path = ''`: tutte e quattro qualificano già esplicitamente le chiamate a `pgmq`.  
-**Non toccare `email_queue_dispatch()` ed `email_queue_wake()**`: hanno già `search_path = ''` impostato, verificato via `pg_proc.proconfig`. Sovrascriverlo sarebbe una regressione.
-
-Dopo la migrazione: rirun linter per confermare la risoluzione e marcare la finding come fixed.
+- La policy "Auth upload documenti" (admin autenticati) resta invariata.
+- Le policy di lettura restano invariate.
+- Nessun cambio applicativo: entrambi i form caricano già tramite l'edge function `upload-candidatura-doc` con `service_role`, che bypassa RLS.
+- Dopo la migrazione, rieseguire il linter per confermare la chiusura del finding.
