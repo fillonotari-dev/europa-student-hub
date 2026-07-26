@@ -125,6 +125,30 @@ export type Database = {
           },
         ]
       }
+      candidatura_sessioni: {
+        Row: {
+          consumata_il: string | null
+          created_at: string
+          origine: string
+          temp_id: string
+          upload_count: number
+        }
+        Insert: {
+          consumata_il?: string | null
+          created_at?: string
+          origine: string
+          temp_id: string
+          upload_count?: number
+        }
+        Update: {
+          consumata_il?: string | null
+          created_at?: string
+          origine?: string
+          temp_id?: string
+          upload_count?: number
+        }
+        Relationships: []
+      }
       candidature: {
         Row: {
           anno_accademico: string | null
