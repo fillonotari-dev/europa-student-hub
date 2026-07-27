@@ -182,13 +182,6 @@ export default function Strutture() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Strutture</h1>
-          <p className="text-muted-foreground mt-1">Gestisci le strutture ricettive e le loro informazioni</p>
-        </div>
-      </div>
-
       {isLoading ? (
         <p className="text-muted-foreground">Caricamento...</p>
       ) : (

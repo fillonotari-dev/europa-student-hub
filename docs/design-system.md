@@ -207,39 +207,48 @@ Componente unico `ExportButton` (`@/components/admin/ExportButton`) — `variant
 
 ## 8. Pattern di pagina admin
 
-Struttura standard di una pagina sotto `/admin`:
+Il layout admin (`AdminLayout`) fornisce una **top bar globale** con:
+- pulsante di collasso della sidebar,
+- **titolo della pagina** corrente,
+- **selettore struttura** globale (`StrutturaSelect`) — sorgente unica del filtro sede.
+
+Le pagine sotto `/admin` **non** stampano più titolo, sottotitolo o selettore struttura al proprio interno: iniziano direttamente con la toolbar filtri o con il contenuto principale.
+
+### Titolo pagina
+
+Il titolo mostrato in top bar è risolto in ordine da:
+1. override esplicito impostato dalla pagina via `usePageTitle(label)` — necessario per rotte con parametri variabili (es. `/admin/candidature/:id` → `"Candidatura · Mario Rossi"`);
+2. mappa statica `route → label` in `src/hooks/usePageTitle.ts` per le rotte fisse note;
+3. stringa vuota come fallback (nessun placeholder).
+
+### Filtro struttura
+
+Il filtro sede vive in un unico contesto (`StrutturaFilterProvider` in `src/hooks/useStrutturaFilter.ts`): tutte le pagine che leggono `useStrutturaFilter()` condividono lo stesso stato e rifetchano i dati automaticamente al cambio di valore.
+
+**Eccezione**: la pagina `/admin/strutture` elenca sempre tutte le sedi (attive e disattivate), indipendentemente dal valore del filtro globale, perché è la pagina in cui le sedi si gestiscono.
+
+### Scheletro di pagina
 
 ```
 <div className="space-y-6">
-  {/* 1. Header */}
-  <div className="flex items-center justify-between">
-    <div>
-      <h1 className="text-xl font-bold tracking-tight">Titolo</h1>
-      <p className="text-[13px] text-muted-foreground">Descrizione breve</p>
-    </div>
-    <div className="flex items-center gap-2">
-      {/* azioni primarie + ExportButton */}
-    </div>
-  </div>
-
-  {/* 2. Toolbar filtri */}
+  {/* 1. Toolbar filtri + azioni primarie + ExportButton */}
   <div className="flex gap-3 flex-wrap">
     <Input search... />
     <Select filtri... />
   </div>
 
-  {/* 3. Contenitore dati */}
+  {/* 2. Contenitore dati */}
   <div className="bg-card border border-border/50 rounded-lg overflow-hidden">
     <table>...</table>
   </div>
 
-  {/* 4. Paginazione + counter */}
+  {/* 3. Paginazione + counter */}
   <div className="flex items-center justify-between text-[13px] text-muted-foreground">
     <span>1–15 di N</span>
     <Pagination>...</Pagination>
   </div>
 
-  {/* 5. Dialog/AlertDialog fuori dal flusso */}
+  {/* 4. Dialog/AlertDialog fuori dal flusso */}
 </div>
 ```
 
