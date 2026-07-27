@@ -14,12 +14,11 @@ import {
 import { Search, Eye } from 'lucide-react';
 import { ExportButton } from '@/components/admin/ExportButton';
 import { useStrutturaFilter } from '@/hooks/useStrutturaFilter';
-import { StrutturaSelect } from '@/components/admin/StrutturaSelect';
 
 const PAGE_SIZE = 20;
 
 export default function StoricoCamere() {
-  const { strutturaId, setStrutturaId, strutture, isAll } = useStrutturaFilter();
+  const { strutturaId, isAll } = useStrutturaFilter();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<any>(null);
@@ -58,12 +57,7 @@ export default function StoricoCamere() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <StrutturaSelect
-          value={strutturaId}
-          onChange={(v) => { setStrutturaId(v); setPage(1); }}
-          strutture={strutture}
-        />
+      <div className="flex items-center justify-end gap-3 flex-wrap">
         <ExportButton
           filename="storico_camere"
           getRows={() => filtered.map((c: any) => ({
