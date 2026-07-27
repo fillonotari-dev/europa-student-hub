@@ -7,10 +7,9 @@ import {
   ClipboardCheck, UserPlus, Wrench, CalendarClock, CheckCircle2, AlertTriangle, MailCheck,
 } from 'lucide-react';
 import { useStrutturaFilter } from '@/hooks/useStrutturaFilter';
-import { StrutturaSelect } from '@/components/admin/StrutturaSelect';
 
 export default function Dashboard() {
-  const { strutturaId, setStrutturaId, strutture, nomeSelezionato, isAll } = useStrutturaFilter();
+  const { strutturaId, nomeSelezionato, isAll } = useStrutturaFilter();
 
   const { data: stats } = useQuery({
     queryKey: ['dashboard-stats', strutturaId],
@@ -241,7 +240,6 @@ export default function Dashboard() {
     { label: 'Candidature ricevute', value: stats?.candidatureRicevute ?? 0, icon: Clock, color: 'text-primary bg-primary/10' },
     { label: 'In valutazione', value: stats?.candidatureInValutazione ?? 0, icon: FileText, color: 'text-warning bg-warning/10' },
     { label: 'Posti liberi', value: stats?.postiLiberi ?? 0, icon: DoorOpen, color: 'text-success bg-success/10' },
-    { label: 'Studenti registrati', value: stats?.totaleStudenti ?? 0, icon: Users, color: 'text-accent bg-accent/10' },
   ];
 
   const statoLabel: Record<string, string> = {
@@ -264,18 +262,6 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">Home</h1>
-          <p className="text-[13px] text-muted-foreground">
-            {isAll
-              ? 'Panoramica complessiva di tutte le strutture'
-              : `Panoramica struttura ${nomeSelezionato ?? ''}`}
-          </p>
-        </div>
-        <StrutturaSelect value={strutturaId} onChange={setStrutturaId} strutture={strutture} />
-      </div>
-
       {/* Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {metrics.map((m, i) => (
