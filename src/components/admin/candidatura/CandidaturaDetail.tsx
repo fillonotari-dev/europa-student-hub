@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
-import { FileText, CheckCircle2 } from 'lucide-react';
+import { FileText, CheckCircle2, ChevronDown, ChevronRight } from 'lucide-react';
 import { Section } from './Section';
 import { DocumentoRow } from './DocumentoRow';
 import { CandidaturaBadges } from './CandidaturaBadges';
@@ -30,11 +30,17 @@ const ORDINE_LABELS: Record<string, string> = {
 };
 const fmtIt = (v: string | null | undefined) => v ? new Date(v).toLocaleDateString('it-IT') : '';
 const fmtItDateTime = (v: string | null | undefined) => v ? new Date(v).toLocaleString('it-IT') : '';
+const fmtPeriodo = (a: string | null | undefined, b: string | null | undefined) => {
+  if (!a && !b) return '';
+  return `${fmtIt(a) || '—'} → ${fmtIt(b) || '—'}`;
+};
 
-export function CandidaturaDetail({ candidatura, highlight, studenteId }: {
+export function CandidaturaDetail({ candidatura, highlight, studenteId, open, onToggle }: {
   candidatura: any;
   highlight?: boolean;
   studenteId: string;
+  open: boolean;
+  onToggle: () => void;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -42,6 +48,7 @@ export function CandidaturaDetail({ candidatura, highlight, studenteId }: {
 
   const { data: documenti } = useQuery({
     queryKey: ['studente-documenti', studenteId, candidatura.id],
+    enabled: open,
     queryFn: async () => {
       const { data } = await supabase.from('documenti').select('*').eq('candidatura_id', candidatura.id);
       return data ?? [];
@@ -50,6 +57,7 @@ export function CandidaturaDetail({ candidatura, highlight, studenteId }: {
 
   const { data: log } = useQuery({
     queryKey: ['studente-log', studenteId, candidatura.id],
+    enabled: open,
     queryFn: async () => {
       const { data } = await supabase
         .from('log_stato_candidature')
@@ -61,30 +69,41 @@ export function CandidaturaDetail({ candidatura, highlight, studenteId }: {
   });
 
   const c = candidatura;
-  const s = c.studenti ?? {};
+
+  const firstLogId = useMemo(() => (log && log.length > 0 ? log[0].id : null), [log]);
 
   return (
     <motion.section
       id={`candidatura-${c.id}`}
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`bg-card border rounded-lg p-5 space-y-5 transition-shadow ${highlight ? 'ring-2 ring-primary/40 border-primary/30' : 'border-border/50'}`}
+      className={`bg-card border rounded-lg transition-shadow ${highlight ? 'ring-2 ring-primary/40 border-primary/30' : 'border-border/50'}`}
     >
-      <header className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="space-y-1">
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-            Candidatura del {new Date(c.created_at).toLocaleDateString('it-IT')} · {c.anno_accademico ?? '—'}
-          </p>
-          <CandidaturaBadges c={c} />
+      <header className="flex items-start justify-between gap-3 flex-wrap p-5 pb-3">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex items-start gap-2 text-left flex-1 min-w-0"
+          aria-expanded={open}
+        >
+          {open
+            ? <ChevronDown className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
+            : <ChevronRight className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />}
+          <div className="space-y-1 min-w-0">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              Candidatura del {new Date(c.created_at).toLocaleDateString('it-IT')} · {c.anno_accademico ?? '—'}
+            </p>
+            <CandidaturaBadges c={c} />
+          </div>
+        </button>
+        <div onClick={(e) => e.stopPropagation()}>
+          <CandidaturaActions.Buttons candidatura={c} />
         </div>
       </header>
 
-      <Section title="Dati studente" items={[
-        ['Email', s.email],
-        ['Telefono', s.telefono],
-        ['Nazionalità', s.nazionalita],
-        ['Data di nascita', fmtIt(s.data_nascita)],
-        ['Codice fiscale', s.codice_fiscale],
+      {open && (
+      <div className="px-5 pb-5 space-y-5">
+      <Section title="Dichiarazioni per questa candidatura" items={[
         ['Indirizzo residenza', c.indirizzo_residenza],
         ['N. documento identità', c.documento_identita_n],
       ]} />
@@ -102,7 +121,7 @@ export function CandidaturaDetail({ candidatura, highlight, studenteId }: {
       <Section title="Preferenze" items={[
         ['Struttura', c.strutture?.nome || '-'],
         ['Tipo camera', c.tipo_camera_preferito || '-'],
-        ['Periodo', `${c.periodo_inizio || ''} → ${c.periodo_fine || ''}`],
+        ['Periodo', fmtPeriodo(c.periodo_inizio, c.periodo_fine)],
         ['Anno acc.', c.anno_accademico],
         ['Data arrivo prevista', fmtIt(c.data_arrivo_prevista)],
         ['Come ci ha conosciuti', c.come_conosciuto === 'altro'
@@ -164,23 +183,39 @@ export function CandidaturaDetail({ candidatura, highlight, studenteId }: {
         {(log?.length ?? 0) === 0 ? (
           <div className="bg-muted/30 rounded-lg p-3 text-[13px] text-muted-foreground">Nessun cambio di stato registrato</div>
         ) : (
-          <ol className="space-y-1.5">
-            {log!.map((l: any) => (
-              <li key={l.id} className="flex items-center justify-between text-[13px] bg-muted/30 rounded px-3 py-1.5">
-                <span>
-                  {l.stato_precedente ? <><span className="text-muted-foreground">{formatStato(l.stato_precedente)}</span> → </> : null}
-                  <strong>{formatStato(l.stato_nuovo)}</strong>
-                </span>
-                <span className="text-muted-foreground">{new Date(l.created_at).toLocaleString('it-IT')}</span>
-              </li>
-            ))}
+          <ol className="relative border-l border-border/60 pl-4 space-y-3">
+            {log!.map((l: any) => {
+              const isFirst = l.id === firstLogId;
+              const isTransition = !isFirst && !!l.stato_precedente && l.stato_precedente !== l.stato_nuovo;
+              const hasNote = !!(l.note && String(l.note).trim());
+              let title: React.ReactNode;
+              if (isFirst) {
+                title = l.stato_nuovo === 'ricevuta'
+                  ? <>Candidatura ricevuta</>
+                  : <>Candidatura registrata come <strong>{formatStato(l.stato_nuovo)}</strong></>;
+              } else if (isTransition) {
+                title = <>Stato passato da <strong>{formatStato(l.stato_precedente)}</strong> a <strong>{formatStato(l.stato_nuovo)}</strong></>;
+              } else if (hasNote) {
+                title = <span className="whitespace-pre-wrap">{l.note}</span>;
+              } else {
+                title = <>Stato registrato: <strong>{formatStato(l.stato_nuovo)}</strong></>;
+              }
+              const showNoteBelow = hasNote && (isFirst || isTransition);
+              return (
+                <li key={l.id} className="relative">
+                  <span className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full bg-primary/60 border-2 border-background" />
+                  <div className="text-[13px]">{title}</div>
+                  {showNoteBelow && (
+                    <div className="text-[12px] text-muted-foreground mt-0.5 whitespace-pre-wrap">{l.note}</div>
+                  )}
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    {new Date(l.created_at).toLocaleString('it-IT')}
+                  </div>
+                </li>
+              );
+            })}
           </ol>
         )}
-      </div>
-
-      <div>
-        <p className="text-sm font-semibold mb-2">Azioni</p>
-        <CandidaturaActions.Buttons candidatura={c} />
       </div>
 
       <div>
@@ -213,6 +248,8 @@ export function CandidaturaDetail({ candidatura, highlight, studenteId }: {
           }}
         />
       </div>
+      </div>
+      )}
     </motion.section>
   );
 }
