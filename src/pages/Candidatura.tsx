@@ -177,27 +177,6 @@ export default function Candidatura() {
         }
         continue;
       }
-      if (f === '_info_extra') {
-        for (const c of campiCustom) {
-          if (!c.obbligatorio) continue;
-          const v = customAnswers[c.chiave];
-          const empty =
-            v === undefined || v === null || v === '' ||
-            (Array.isArray(v) && v.length === 0);
-          if (empty) {
-            toast({ title: `${labelOf(lang, c.label_it, c.label_en)}: ${t(lang, 'form.required')}`, variant: 'destructive' });
-            return false;
-          }
-        }
-        for (const d of documentiCustom) {
-          if (!d.obbligatorio) continue;
-          if (!customFiles[d.chiave]) {
-            toast({ title: `${labelOf(lang, d.label_it, d.label_en)}: ${t(lang, 'form.required')}`, variant: 'destructive' });
-            return false;
-          }
-        }
-        continue;
-      }
       if (!(form as any)[f]) {
         toast({ title: t(lang, 'form.required'), variant: 'destructive' });
         return false;
@@ -255,17 +234,6 @@ export default function Candidatura() {
     setFiles(f => ({ ...f, [key]: file }));
   };
 
-  const handleCustomFile = (chiave: string, file: File | null) => {
-    const err = validateFile(file);
-    if (err) {
-      setCustomFileErrors(e => ({ ...e, [chiave]: err }));
-      toast({ title: err, variant: 'destructive' });
-      return;
-    }
-    setCustomFileErrors(e => ({ ...e, [chiave]: undefined }));
-    setCustomFiles(f => ({ ...f, [chiave]: file }));
-  };
-
   const handleSubmit = async () => {
     // Guard: Turnstile token is required before generating temp_id
     if (!turnstileToken) {
@@ -313,19 +281,12 @@ export default function Candidatura() {
         await uploadViaFunction(tipo, file);
       }
 
-      // Documenti custom
-      for (const [chiave, file] of Object.entries(customFiles)) {
-        if (!file) continue;
-        await uploadViaFunction(chiave, file);
-      }
-
       const { data, error } = await supabase.functions.invoke('submit-candidatura', {
         body: {
           ...form,
           temp_id: tempId,
           documenti: uploadedDocs,
           struttura_preferita_id: form.struttura_preferita_id || null,
-          risposte_custom: customAnswers,
           lingua: lang,
           dichiarazioni: {
             veridicita: dichiarazioni.veridicita,
