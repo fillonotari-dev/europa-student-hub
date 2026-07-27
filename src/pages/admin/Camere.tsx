@@ -81,7 +81,7 @@ export default function Camere() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { strutturaId, isAll } = useStrutturaFilter();
+  const { strutturaId, strutture, isAll } = useStrutturaFilter();
 
   const { data: camere } = useQuery({
     queryKey: ['camere', strutturaId],
