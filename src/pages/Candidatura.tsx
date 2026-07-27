@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
@@ -22,7 +21,7 @@ import { UNIVERSITIES } from '@/lib/universities';
 import logoStudentato from '@/assets/logo-studentato.svg';
 import { StepDots } from '@/components/candidatura/StepDots';
 
-const BASE_STEPS = ['stepPersonal', 'stepAcademic', 'stepPreferences', 'stepDocuments', 'stepDichiarazioni'] as const;
+const STEPS = ['stepPersonal', 'stepAcademic', 'stepPreferences', 'stepDocuments', 'stepDichiarazioni'] as const;
 const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 const MAX_SIZE = 5 * 1024 * 1024;
 const TURNSTILE_SITE_KEY = '0x4AAAAAAD-aYq1jX5cywwnC';
@@ -36,32 +35,6 @@ declare global {
     };
   }
 }
-
-type CampoOpzione = { value: string; label_it: string; label_en: string };
-type CampoCustom = {
-  id: string;
-  chiave: string;
-  tipo: 'text' | 'textarea' | 'number' | 'date' | 'boolean' | 'select' | 'multiselect';
-  label_it: string;
-  label_en: string;
-  descrizione_it: string | null;
-  descrizione_en: string | null;
-  opzioni: CampoOpzione[] | null;
-  obbligatorio: boolean;
-  ordine: number;
-};
-type DocumentoCustom = {
-  id: string;
-  chiave: string;
-  label_it: string;
-  label_en: string;
-  descrizione_it: string | null;
-  descrizione_en: string | null;
-  obbligatorio: boolean;
-  ordine: number;
-};
-
-const labelOf = (lang: Lang, it: string, en: string) => (lang === 'it' ? it : en);
 
 export default function Candidatura() {
   const [lang, setLang] = useState<Lang>('it');
@@ -89,9 +62,6 @@ export default function Candidatura() {
   });
   const allDichiarazioniAccettate = dichiarazioni.veridicita && dichiarazioni.privacy && dichiarazioni.info_struttura && dichiarazioni.contatto;
   const [fileErrors, setFileErrors] = useState<{ documento_identita?: string; certificato_iscrizione?: string }>({});
-  const [customAnswers, setCustomAnswers] = useState<Record<string, any>>({});
-  const [customFiles, setCustomFiles] = useState<Record<string, File | null>>({});
-  const [customFileErrors, setCustomFileErrors] = useState<Record<string, string | undefined>>({});
   const [turnstileToken, setTurnstileToken] = useState<string>('');
   const turnstileWidgetIdRef = useRef<string | null>(null);
   const turnstileContainerRef = useRef<HTMLDivElement | null>(null);
@@ -104,44 +74,6 @@ export default function Candidatura() {
     },
   });
 
-  const { data: campiCustom = [] } = useQuery({
-    queryKey: ['form-campi-custom-public'],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('form_campi_custom')
-        .select('*')
-        .eq('attivo', true)
-        .order('ordine');
-      return (data ?? []) as unknown as CampoCustom[];
-    },
-  });
-
-  const { data: documentiCustom = [] } = useQuery({
-    queryKey: ['form-documenti-custom-public'],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('form_documenti_custom')
-        .select('*')
-        .eq('attivo', true)
-        .order('ordine');
-      return (data ?? []) as unknown as DocumentoCustom[];
-    },
-  });
-
-  const hasInfoExtra = campiCustom.length > 0 || documentiCustom.length > 0;
-  // Dichiarazioni è sempre l'ultimo step; se ci sono campi/documenti custom
-  // li mettiamo prima delle dichiarazioni.
-  const STEPS = useMemo<string[]>(
-    () => {
-      const base: string[] = [...BASE_STEPS];
-      const dichIdx = base.indexOf('stepDichiarazioni');
-      if (hasInfoExtra && dichIdx >= 0) {
-        base.splice(dichIdx, 0, 'stepInfoAggiuntive');
-      }
-      return base;
-    },
-    [hasInfoExtra]
-  );
   const stepKey = STEPS[step];
 
   // Load Turnstile script once at mount
@@ -222,7 +154,6 @@ export default function Candidatura() {
       stepAcademic: ['universita', 'corso_di_studi', 'periodo_inizio', 'periodo_fine'],
       stepPreferences: [],
       stepDocuments: ['_documenti'],
-      stepInfoAggiuntive: ['_info_extra'],
       stepDichiarazioni: ['_dichiarazioni'],
     };
     const fields = requiredByKey[stepKey] || [];
@@ -242,27 +173,6 @@ export default function Candidatura() {
         if (!turnstileToken) {
           toast({ title: t(lang, 'form.turnstileRequired'), variant: 'destructive' });
           return false;
-        }
-        continue;
-      }
-      if (f === '_info_extra') {
-        for (const c of campiCustom) {
-          if (!c.obbligatorio) continue;
-          const v = customAnswers[c.chiave];
-          const empty =
-            v === undefined || v === null || v === '' ||
-            (Array.isArray(v) && v.length === 0);
-          if (empty) {
-            toast({ title: `${labelOf(lang, c.label_it, c.label_en)}: ${t(lang, 'form.required')}`, variant: 'destructive' });
-            return false;
-          }
-        }
-        for (const d of documentiCustom) {
-          if (!d.obbligatorio) continue;
-          if (!customFiles[d.chiave]) {
-            toast({ title: `${labelOf(lang, d.label_it, d.label_en)}: ${t(lang, 'form.required')}`, variant: 'destructive' });
-            return false;
-          }
         }
         continue;
       }
@@ -323,17 +233,6 @@ export default function Candidatura() {
     setFiles(f => ({ ...f, [key]: file }));
   };
 
-  const handleCustomFile = (chiave: string, file: File | null) => {
-    const err = validateFile(file);
-    if (err) {
-      setCustomFileErrors(e => ({ ...e, [chiave]: err }));
-      toast({ title: err, variant: 'destructive' });
-      return;
-    }
-    setCustomFileErrors(e => ({ ...e, [chiave]: undefined }));
-    setCustomFiles(f => ({ ...f, [chiave]: file }));
-  };
-
   const handleSubmit = async () => {
     // Guard: Turnstile token is required before generating temp_id
     if (!turnstileToken) {
@@ -381,19 +280,12 @@ export default function Candidatura() {
         await uploadViaFunction(tipo, file);
       }
 
-      // Documenti custom
-      for (const [chiave, file] of Object.entries(customFiles)) {
-        if (!file) continue;
-        await uploadViaFunction(chiave, file);
-      }
-
       const { data, error } = await supabase.functions.invoke('submit-candidatura', {
         body: {
           ...form,
           temp_id: tempId,
           documenti: uploadedDocs,
           struttura_preferita_id: form.struttura_preferita_id || null,
-          risposte_custom: customAnswers,
           lingua: lang,
           dichiarazioni: {
             veridicita: dichiarazioni.veridicita,
@@ -665,30 +557,6 @@ export default function Candidatura() {
                 </div>
               </div>
             )}
-            {stepKey === 'stepInfoAggiuntive' && (
-              <div className="space-y-4">
-                {campiCustom.map(c => (
-                  <CustomFieldRenderer
-                    key={c.id}
-                    lang={lang}
-                    campo={c}
-                    value={customAnswers[c.chiave]}
-                    onChange={(v) => setCustomAnswers(a => ({ ...a, [c.chiave]: v }))}
-                  />
-                ))}
-                {documentiCustom.map(d => (
-                  <FileUpload
-                    key={d.id}
-                    label={`${labelOf(lang, d.label_it, d.label_en)}${d.descrizione_it || d.descrizione_en ? ` — ${labelOf(lang, d.descrizione_it ?? '', d.descrizione_en ?? '')}` : ''}`}
-                    hint={t(lang, 'form.uploadHint')}
-                    file={customFiles[d.chiave] ?? null}
-                    error={customFileErrors[d.chiave]}
-                    onChange={(f) => handleCustomFile(d.chiave, f)}
-                    required={d.obbligatorio}
-                  />
-                ))}
-              </div>
-            )}
           </motion.div>
         </AnimatePresence>
 
@@ -901,102 +769,6 @@ function UniversitaField({ lang, value, onChange }: { lang: Lang; value: string;
   );
 }
 
-function CustomFieldRenderer({
-  lang, campo, value, onChange,
-}: {
-  lang: Lang;
-  campo: CampoCustom;
-  value: any;
-  onChange: (v: any) => void;
-}) {
-  const lab = labelOf(lang, campo.label_it, campo.label_en);
-  const desc = labelOf(lang, campo.descrizione_it ?? '', campo.descrizione_en ?? '');
-  const opts = campo.opzioni ?? [];
-
-  const renderControl = () => {
-    switch (campo.tipo) {
-      case 'text':
-        return <Input value={value ?? ''} onChange={e => onChange(e.target.value)} className="mt-1.5" maxLength={500} />;
-      case 'number':
-        return <Input type="number" value={value ?? ''} onChange={e => onChange(e.target.value)} className="mt-1.5" />;
-      case 'date':
-        return <Input type="date" value={value ?? ''} onChange={e => onChange(e.target.value)} className="mt-1.5" />;
-      case 'textarea':
-        return <Textarea value={value ?? ''} onChange={e => onChange(e.target.value)} className="mt-1.5" maxLength={2000} rows={3} />;
-      case 'boolean':
-        return (
-          <div className="mt-2 flex items-center gap-2">
-            <Switch checked={!!value} onCheckedChange={onChange} />
-            <span className="text-[13px] text-muted-foreground">{value ? t(lang, 'form.yes') : t(lang, 'form.no')}</span>
-          </div>
-        );
-      case 'select':
-        return (
-          <Select value={value ?? ''} onValueChange={onChange}>
-            <SelectTrigger className="mt-1.5"><SelectValue placeholder={t(lang, 'form.selectOption')} /></SelectTrigger>
-            <SelectContent>
-              {opts.map(o => (
-                <SelectItem key={o.value} value={o.value}>{labelOf(lang, o.label_it, o.label_en)}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        );
-      case 'multiselect': {
-        const arr: string[] = Array.isArray(value) ? value : [];
-        const toggle = (val: string, on: boolean) => {
-          const next = on ? Array.from(new Set([...arr, val])) : arr.filter(x => x !== val);
-          onChange(next);
-        };
-        return (
-          <div className="mt-2 space-y-2">
-            {opts.length === 0 && <p className="text-[12px] text-muted-foreground">{t(lang, 'form.noOption')}</p>}
-            {opts.map(o => {
-              const checked = arr.includes(o.value);
-              return (
-                <label key={o.value} className="flex items-center gap-2 cursor-pointer">
-                  <Checkbox checked={checked} onCheckedChange={(c) => toggle(o.value, !!c)} />
-                  <span className="text-[13px]">{labelOf(lang, o.label_it, o.label_en)}</span>
-                </label>
-              );
-            })}
-          </div>
-        );
-      }
-      default:
-        return null;
-    }
-  };
-
-  return (
-    <div>
-      <Label>
-        {lab}
-        {campo.obbligatorio && <span className="text-destructive ml-0.5">*</span>}
-      </Label>
-      {desc && <p className="text-[12px] text-muted-foreground mt-1">{desc}</p>}
-      {renderControl()}
-    </div>
-  );
-}
-
-function formatCustomValue(lang: Lang, campo: CampoCustom, value: any): string {
-  if (value === undefined || value === null || value === '') return '-';
-  if (campo.tipo === 'boolean') return value ? t(lang, 'form.yes') : t(lang, 'form.no');
-  if (campo.tipo === 'select') {
-    const o = (campo.opzioni ?? []).find(x => x.value === value);
-    return o ? labelOf(lang, o.label_it, o.label_en) : String(value);
-  }
-  if (campo.tipo === 'multiselect') {
-    if (!Array.isArray(value) || value.length === 0) return '-';
-    return value
-      .map(v => {
-        const o = (campo.opzioni ?? []).find(x => x.value === v);
-        return o ? labelOf(lang, o.label_it, o.label_en) : String(v);
-      })
-      .join(', ');
-  }
-  return String(value);
-}
 
 function DeclCheckbox({ checked, onCheckedChange, label }: { checked: boolean; onCheckedChange: (v: boolean) => void; label: string }) {
   return (

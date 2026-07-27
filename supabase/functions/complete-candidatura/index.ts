@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { DOCUMENTO_TIPI_SET, extractTipoFromPath } from "../_shared/documenti-tipi.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,7 +8,6 @@ const corsHeaders = {
 };
 
 const TOKEN_RE = /^[A-Za-z0-9_-]{20,128}$/;
-const DOC_KEY_RE = /^[a-z][a-z0-9_]{0,99}$/;
 const STORAGE_PATH_RE = /^pending\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[a-z][a-z0-9_]{0,99}\/[A-Za-z0-9._-]{1,200}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -120,10 +120,11 @@ Deno.serve(async (req) => {
         const tipo = typeof d.tipo === "string" ? d.tipo : "";
         const nome_file = typeof d.nome_file === "string" ? d.nome_file : "";
         const url = typeof d.url === "string" ? d.url : "";
-        if (!DOC_KEY_RE.test(tipo)) return json({ error: "Tipo documento non valido" }, 400);
+        if (!DOCUMENTO_TIPI_SET.has(tipo)) return json({ error: "Tipo documento non valido" }, 400);
         if (!nome_file || nome_file.length > 200) return json({ error: "Nome file non valido" }, 400);
         if (!STORAGE_PATH_RE.test(url)) return json({ error: "Riferimento documento non valido" }, 400);
         if (!url.startsWith(expectedPrefix)) return json({ error: "Riferimento documento non corrispondente alla sessione" }, 400);
+        if (extractTipoFromPath(url) !== tipo) return json({ error: "Riferimento documento non valido" }, 400);
         docsIn.push({ tipo, nome_file, url });
       }
     }

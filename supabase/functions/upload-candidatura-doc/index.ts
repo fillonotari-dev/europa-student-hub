@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { DOCUMENTO_TIPI_SET } from "../_shared/documenti-tipi.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,14 +14,7 @@ const ALLOWED_MIME = new Set([
   "image/png",
   "image/webp",
 ]);
-const FIXED_TIPI = new Set([
-  "documento_identita",
-  "certificato_iscrizione",
-  "documento_garante",
-  "documento_aggiuntivo",
-]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const KEY_RE = /^[a-z][a-z0-9_]{0,99}$/;
 
 function sanitizeFilename(name: string): string {
   // Keep extension, strip path separators and weird chars
@@ -59,7 +53,7 @@ Deno.serve(async (req) => {
     if (!UUID_RE.test(tempId)) {
       return jsonResponse({ error: "Invalid temp_id" }, 400);
     }
-    if (!tipo || !KEY_RE.test(tipo)) {
+    if (!tipo || !DOCUMENTO_TIPI_SET.has(tipo)) {
       return jsonResponse({ error: "Invalid tipo" }, 400);
     }
     if (file.size <= 0 || file.size > MAX_BYTES) {
@@ -76,18 +70,6 @@ Deno.serve(async (req) => {
     if (slotErr) throw slotErr;
     if (slotOk !== true) {
       return jsonResponse({ error: "Sessione di invio non valida o scaduta" }, 400);
-    }
-
-    // Validate tipo: fixed or active custom doc
-    if (!FIXED_TIPI.has(tipo)) {
-      const { data: doc, error: docErr } = await supabase
-        .from("form_documenti_custom")
-        .select("chiave")
-        .eq("chiave", tipo)
-        .eq("attivo", true)
-        .maybeSingle();
-      if (docErr) throw docErr;
-      if (!doc) return jsonResponse({ error: "Tipo documento non riconosciuto" }, 400);
     }
 
     const filename = sanitizeFilename(file.name);
