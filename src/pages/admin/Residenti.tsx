@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
@@ -34,10 +34,30 @@ type SortKey = 'nome' | 'email' | 'nazionalita' | 'camera' | 'struttura';
 export default function Residenti() {
   const { strutturaId, isAll } = useStrutturaFilter();
   const navigate = useNavigate();
-  const [search, setSearch] = useState('');
-  const [sortKey, setSortKey] = useState<SortKey>('nome');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const search = searchParams.get('q') ?? '';
+  const sortKey = ((searchParams.get('sk') as SortKey) ?? 'nome');
+  const sortDir = ((searchParams.get('sd') as 'asc' | 'desc') ?? 'asc');
+  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1);
+
+  const patchParams = (patch: Record<string, string | null>, opts: { resetPage?: boolean } = {}) => {
+    const next = new URLSearchParams(searchParams);
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === null || v === '') next.delete(k); else next.set(k, v);
+    }
+    if (opts.resetPage) next.delete('page');
+    setSearchParams(next, { replace: true });
+  };
+  const setPage = (p: number | ((prev: number) => number)) => {
+    const val = typeof p === 'function' ? p(page) : p;
+    patchParams({ page: val > 1 ? String(val) : null });
+  };
+
+  const openScheda = (studenteId: string) => {
+    const qs = searchParams.toString();
+    const suffix = qs ? `&${qs}` : '';
+    navigate(`/admin/studenti/${studenteId}?from=residenti${suffix}`);
+  };
 
   const [transferTarget, setTransferTarget] = useState<any>(null);
   const [transferCameraId, setTransferCameraId] = useState<string>('');
@@ -162,9 +182,11 @@ export default function Residenti() {
   const pageItems = filtered.slice(pageStart, pageStart + PAGE_SIZE);
 
   const toggleSort = (key: SortKey) => {
-    if (sortKey === key) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
-    else { setSortKey(key); setSortDir('asc'); }
-    setPage(1);
+    if (sortKey === key) {
+      patchParams({ sd: sortDir === 'asc' ? 'desc' : 'asc' }, { resetPage: true });
+    } else {
+      patchParams({ sk: key, sd: 'asc' }, { resetPage: true });
+    }
   };
 
   const SortHeader = ({ k, label }: { k: SortKey; label: string }) => {
@@ -193,7 +215,8 @@ export default function Residenti() {
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Cerca residente..." value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} className="pl-9" />
+          <Input placeholder="Cerca residente..." value={search}
+            onChange={e => patchParams({ q: e.target.value || null }, { resetPage: true })} className="pl-9" />
         </div>
         <ExportButton
           filename="residenti"
@@ -231,7 +254,7 @@ export default function Residenti() {
             {pageItems.map((a: any, i: number) => (
               <motion.tr key={a.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}
                 className="border-b border-border/30 hover:bg-muted/50 cursor-pointer transition-colors"
-                onClick={() => a.studenti?.id && navigate(`/admin/studenti/${a.studenti.id}`)}>
+                onClick={() => a.studenti?.id && openScheda(a.studenti.id)}>
                 <td className="px-4 py-3 text-sm font-medium">{a.studenti?.cognome} {a.studenti?.nome}</td>
                 <td className="px-4 py-3 text-sm text-muted-foreground">{a.studenti?.email}</td>
                 <td className="px-4 py-3 text-sm">{a.studenti?.nazionalita || '-'}</td>
@@ -239,7 +262,7 @@ export default function Residenti() {
                 <td className="px-4 py-3 text-sm">{a.camere?.strutture?.nome || '-'}</td>
                 <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                   <RowActions>
-                    <DropdownMenuItem onClick={() => a.studenti?.id && navigate(`/admin/studenti/${a.studenti.id}`)}>
+                    <DropdownMenuItem onClick={() => a.studenti?.id && openScheda(a.studenti.id)}>
                       <User className="w-4 h-4 mr-2" /> Visualizza profilo
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => { setTransferTarget(a); setTransferCameraId(''); setTransferData(new Date().toISOString().split('T')[0]); }}>
