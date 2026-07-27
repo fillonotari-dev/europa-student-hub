@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { enqueueTransactional, SITE_NAME } from "../_shared/enqueue-transactional.ts";
 import { CandidaturaRicevutaEmail } from "../_shared/email-templates/candidatura-ricevuta.tsx";
 import { DOCUMENTO_TIPI_SET, extractTipoFromPath } from "../_shared/documenti-tipi.ts";
+import { moveDocumentToFinal } from "../_shared/move-documenti.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -262,12 +263,17 @@ Deno.serve(async (req) => {
 
     // Register documents if any (already validated)
     for (const doc of docsIn) {
+      const moved = await moveDocumentToFinal(supabase, {
+        tempPath: doc.url,
+        candidaturaId: candidatura.id,
+        tipo: doc.tipo,
+      });
       await supabase.from("documenti").insert({
         studente_id: studenteId,
         candidatura_id: candidatura.id,
         tipo: doc.tipo,
         nome_file: doc.nome_file,
-        url: doc.url,
+        url: moved.path,
         caricato_da: "studente",
       });
     }
