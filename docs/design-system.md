@@ -80,10 +80,10 @@ Sidebar ha la propria sotto-palette: `--sidebar-background`, `--sidebar-foregrou
 
 | Uso | Classe Tailwind | Note |
 |-----|-----------------|------|
-| H1 pagina | `text-xl font-bold tracking-tight` | Titolo sezione admin (es. "Candidature") |
+| Titolo pagina (top bar) | `text-sm font-semibold tracking-tight` | Reso da `AdminTopBar` nella top bar globale a partire da `usePageTitle`. Le pagine admin **non** stampano un proprio H1 |
 | H2 / titolo card | `text-sm font-semibold` o `text-base font-semibold` | |
 | Body | `text-sm` (14px) | Contenuto tabelle, form |
-| Sottotitolo / descrizione | `text-[13px] text-muted-foreground` | Sotto i titoli H1 |
+| Testo secondario | `text-[13px] text-muted-foreground` | Descrizioni sotto label, riepiloghi, metadata leggibili |
 | Micro / metadata | `text-[11px] text-muted-foreground` | Email sotto nome, label badge |
 | Header tabella | `text-xs uppercase tracking-wider text-muted-foreground` | |
 | Numeri tabellari | aggiungere `tabular-nums` | Per allineamento colonne |
