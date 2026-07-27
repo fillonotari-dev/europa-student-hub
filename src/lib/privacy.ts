@@ -1,0 +1,1 @@
+export const PRIVACY_POLICY_URL = 'https://studentatoeuropa.it/privacy-policy';
