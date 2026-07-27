@@ -7,5 +7,3 @@ project_id = "mxfrhocvswxfweyafqce"
     verify_jwt = true
   [functions.open-candidatura-sessione]
     verify_jwt = false
-  [functions.migrate-pending-docs]
-    verify_jwt = true
