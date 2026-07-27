@@ -43,7 +43,7 @@ Il flusso è **a due fasi**, per esplicita richiesta della direzione: serve un f
 
 ### Fase 1 — Candidatura base (pubblica, senza autenticazione)
 
-Lo studente compila il form su `/candidatura`. Raccoglie:
+Lo studente compila il form su `/candidatura`, articolato in cinque step: anagrafica → dati accademici → preferenze → documenti → dichiarazioni. Non esiste uno step di riepilogo: l'invio parte dallo step dichiarazioni, disponibile solo quando tutte e quattro le spunte sono attive. Raccoglie:
 
 - **Anagrafica:** nome, cognome, email, telefono, data di nascita, nazionalità, codice fiscale, indirizzo di residenza, numero documento d'identità
 - **Dati accademici:** università, dipartimento, corso di studi, anno di corso, tipologia (universitario / Erasmus / master / altro)
@@ -60,11 +60,9 @@ Stato risultante: **`ricevuta`**. Parte in automatico l'email di conferma ricezi
 
 Se il candidato supera il filtro iniziale, l'amministratore genera un link di completamento da `/admin/candidature`. `generate-completion-link` produce un token casuale da 32 byte, ne salva **solo l'hash SHA-256** sul record, imposta una scadenza a 21 giorni e invia in automatico l'email con il link.
 
-Il candidato apre `/candidatura/completa/{token}` e compila il secondo blocco:
+Il candidato apre `/candidatura/completa/{token}` e compila un modulo in quattro step: stile di vita → garante → documenti aggiuntivi → dichiarazioni. Come nella fase 1, non esiste uno step di riepilogo: l'invio parte dallo step dichiarazioni.
 
-- **Stile di vita:** lingue parlate, orari prevalenti, personalità, abitudini di ordine e pulizia, fumatore, presentazione personale
-- **Garante:** nome, relazione, telefono, email
-- **Documenti aggiuntivi:** documento d'identità del garante (obbligatorio), documentazione ulteriore (facoltativa)
+Sono **obbligatori**: lingue parlate, orari prevalenti, personalità (con testo libero se "altro"), abitudini di ordine e pulizia, indicazione esplicita se fumatore, presentazione personale, tutti i campi del garante (nome, relazione, telefono, email), documento d'identità del garante e tutte e quattro le dichiarazioni. La documentazione ulteriore resta facoltativa.
 
 Il token viene validato da `get-completion-form` prima di mostrare il modulo e di nuovo da `complete-candidatura` al momento dell'invio. È monouso: dopo il completamento il link restituisce `410`.
 
