@@ -193,8 +193,8 @@ Deno.serve(async (req) => {
 
     await supabase.from("log_stato_candidature").insert({
       candidatura_id: cand.id,
-      stato_precedente: null,
-      stato_nuovo: "completata_form",
+      stato_precedente: cand.stato,
+      stato_nuovo: cand.stato,
       note: "Form completo inviato dallo studente",
     });
 
