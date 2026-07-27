@@ -21,6 +21,7 @@ import { UNIVERSITIES } from '@/lib/universities';
 import logoStudentato from '@/assets/logo-studentato.svg';
 import { StepDots } from '@/components/candidatura/StepDots';
 import { MAX_UPLOAD_BYTES, ACCEPTED_UPLOAD_MIME } from '@/lib/uploads';
+import { PRIVACY_POLICY_URL } from '@/lib/privacy';
 
 const STEPS = ['stepPersonal', 'stepAcademic', 'stepPreferences', 'stepDocuments', 'stepDichiarazioni'] as const;
 const ACCEPTED_TYPES: readonly string[] = ACCEPTED_UPLOAD_MIME;
@@ -550,7 +551,31 @@ export default function Candidatura() {
               <div className="space-y-4">
                 <p className="text-[13px] text-muted-foreground">{t(lang, 'form.dichiarazioniIntro')}</p>
                 <DeclCheckbox checked={dichiarazioni.veridicita} onCheckedChange={v => setDichiarazioni(d => ({ ...d, veridicita: v }))} label={t(lang, 'form.dichVeridicita')} />
-                <DeclCheckbox checked={dichiarazioni.privacy} onCheckedChange={v => setDichiarazioni(d => ({ ...d, privacy: v }))} label={t(lang, 'form.dichPrivacy')} />
+                <div className="flex items-start gap-3 border rounded-lg p-3 hover:bg-muted/40 transition-colors">
+                  <Checkbox
+                    id="dich-privacy"
+                    checked={dichiarazioni.privacy}
+                    onCheckedChange={(c) => setDichiarazioni(d => ({ ...d, privacy: !!c }))}
+                    className="mt-0.5"
+                  />
+                  <span className="text-[13px] leading-relaxed">
+                    <label htmlFor="dich-privacy" className="cursor-pointer">
+                      {t(lang, 'form.dichPrivacyBefore')}
+                    </label>
+                    <a
+                      href={PRIVACY_POLICY_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline text-primary hover:text-primary/80"
+                    >
+                      {t(lang, 'form.dichPrivacyLink')}
+                    </a>
+                    <label htmlFor="dich-privacy" className="cursor-pointer">
+                      {t(lang, 'form.dichPrivacyAfter')}
+                      <span className="text-destructive ml-0.5"> *</span>
+                    </label>
+                  </span>
+                </div>
                 <DeclCheckbox checked={dichiarazioni.info_struttura} onCheckedChange={v => setDichiarazioni(d => ({ ...d, info_struttura: v }))} label={t(lang, 'form.dichInfoStruttura')} />
                 <DeclCheckbox checked={dichiarazioni.contatto} onCheckedChange={v => setDichiarazioni(d => ({ ...d, contatto: v }))} label={t(lang, 'form.dichContatto')} />
                 <div className="pt-2 flex justify-center">
