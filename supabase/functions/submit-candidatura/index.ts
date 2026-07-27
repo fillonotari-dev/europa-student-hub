@@ -152,7 +152,7 @@ Deno.serve(async (req) => {
     // Validate documenti shape and path
     const docsIn: Array<{ tipo: string; nome_file: string; url: string }> = [];
     if (documenti !== undefined && documenti !== null) {
-      if (!Array.isArray(documenti) || documenti.length > 20) return bad("Documenti non validi");
+      if (!Array.isArray(documenti) || documenti.length > 4) return bad("Documenti non validi");
       const expectedPrefix = `pending/${temp_id}/`;
       for (const d of documenti) {
         if (!d || typeof d !== "object") return bad("Documento non valido");
