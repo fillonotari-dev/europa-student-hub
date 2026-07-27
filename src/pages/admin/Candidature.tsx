@@ -319,12 +319,7 @@ export default function Candidature() {
             <MailCheck className="w-4 h-4 mr-2" /> Invia comunicazione esito
           </DropdownMenuItem>
         )}
-        {stato === 'ricevuta' && (
-          <DropdownMenuItem onClick={() => requestStatoChange(c, 'in_valutazione')}>
-            <PlayCircle className="w-4 h-4 mr-2" /> Prendi in carico
-          </DropdownMenuItem>
-        )}
-        {stato === 'in_valutazione' && (
+        {(stato === 'ricevuta' || stato === 'completata') && (
           <>
             <DropdownMenuItem onClick={() => requestStatoChange(c, 'approvata')}>
               <CheckCircle2 className="w-4 h-4 mr-2" /> Approva
@@ -335,13 +330,13 @@ export default function Candidature() {
           </>
         )}
         {(stato === 'approvata' || stato === 'rifiutata') && (
-          <DropdownMenuItem onClick={() => requestStatoChange(c, 'in_valutazione')}>
-            <RotateCcw className="w-4 h-4 mr-2" /> Rimetti in valutazione
+          <DropdownMenuItem onClick={() => requestStatoChange(c, reopenStato(c))}>
+            <RotateCcw className="w-4 h-4 mr-2" /> Riapri
           </DropdownMenuItem>
         )}
         {stato !== 'ritirata' && stato !== 'sostituita' && (
           <DropdownMenuItem onClick={() => requestStatoChange(c, 'ritirata')}>
-            <Archive className="w-4 h-4 mr-2" /> Segna come ritirata
+            <Archive className="w-4 h-4 mr-2" /> Segna come rinuncia
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
@@ -620,12 +615,7 @@ export default function Candidature() {
                 <div>
                   <p className="text-sm font-semibold mb-2">Azioni</p>
                   <div className="flex flex-wrap gap-2">
-                    {selected.stato === 'ricevuta' && (
-                      <Button size="sm" onClick={() => requestStatoChange(selected, 'in_valutazione')}>
-                        <PlayCircle className="w-4 h-4 mr-1" /> Prendi in carico
-                      </Button>
-                    )}
-                    {selected.stato === 'in_valutazione' && (
+                    {(selected.stato === 'ricevuta' || selected.stato === 'completata') && (
                       <>
                         <Button size="sm" onClick={() => requestStatoChange(selected, 'approvata')}>
                           <CheckCircle2 className="w-4 h-4 mr-1" /> Approva
@@ -636,8 +626,8 @@ export default function Candidature() {
                       </>
                     )}
                     {(selected.stato === 'approvata' || selected.stato === 'rifiutata') && (
-                      <Button size="sm" variant="outline" onClick={() => requestStatoChange(selected, 'in_valutazione')}>
-                        <RotateCcw className="w-4 h-4 mr-1" /> Rimetti in valutazione
+                      <Button size="sm" variant="outline" onClick={() => requestStatoChange(selected, reopenStato(selected))}>
+                        <RotateCcw className="w-4 h-4 mr-1" /> Riapri
                       </Button>
                     )}
                     {selected.stato === 'approvata' && (
@@ -694,7 +684,7 @@ export default function Candidature() {
                   <li>lo <strong>storico cambi di stato</strong> resta nei log</li>
                   <li>l'eliminazione <strong>fallirà</strong> se esiste un'assegnazione collegata</li>
                 </ul>
-                <p className="text-[13px] text-muted-foreground">Per ritirare una candidatura senza perdere i dati, usa "Segna come ritirata".</p>
+                <p className="text-[13px] text-muted-foreground">Per registrare una rinuncia senza perdere i dati, usa "Segna come rinuncia".</p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
