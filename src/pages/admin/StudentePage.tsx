@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,11 +11,33 @@ import { Button } from '@/components/ui/button';
 
 const fmtIt = (v: string | null | undefined) => v ? new Date(v).toLocaleDateString('it-IT') : '';
 
+function fmtDurata(days: number): string {
+  if (days >= 30) {
+    const mesi = Math.round(days / 30);
+    return mesi === 1 ? '1 mese' : `${mesi} mesi`;
+  }
+  return days === 1 ? '1 giorno' : `${days} giorni`;
+}
+
 export default function StudentePage() {
   const { id: studenteId = '' } = useParams();
   const [searchParams] = useSearchParams();
   const candidaturaParam = searchParams.get('candidatura');
+  const from = searchParams.get('from');
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set());
+  const [openInitialized, setOpenInitialized] = useState(false);
+
+  // Ricostruisce l'URL di ritorno alla lista, preservando i filtri passati nell'URL.
+  const backTo = useMemo(() => {
+    const base = from === 'residenti' ? '/admin/residenti' : '/admin/candidature';
+    const params = new URLSearchParams();
+    searchParams.forEach((v, k) => {
+      if (k !== 'candidatura' && k !== 'from') params.set(k, v);
+    });
+    const qs = params.toString();
+    return qs ? `${base}?${qs}` : base;
+  }, [from, searchParams]);
 
   const { data: studente, isLoading: loadingStudente } = useQuery({
     queryKey: ['studente', studenteId],
@@ -72,17 +94,34 @@ export default function StudentePage() {
     ],
   });
 
-  // Highlight: parte solo quando i dati sono resi. Se l'id non appartiene o non esiste, nessuna azione.
+  // Inizializza apertura blocchi + highlight quando i dati sono disponibili.
   useEffect(() => {
-    if (!candidature || !candidaturaParam) return;
-    const exists = candidature.some((c: any) => c.id === candidaturaParam);
-    if (!exists) return;
-    setHighlightId(candidaturaParam);
-    const el = document.getElementById(`candidatura-${candidaturaParam}`);
-    if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
-    const t = setTimeout(() => setHighlightId(null), 1500);
-    return () => clearTimeout(t);
-  }, [candidature, candidaturaParam]);
+    if (!candidature || openInitialized) return;
+    const targetExists = candidaturaParam && candidature.some((c: any) => c.id === candidaturaParam);
+    if (targetExists) {
+      setOpenIds(new Set([candidaturaParam!]));
+      setHighlightId(candidaturaParam!);
+      queueMicrotask(() => {
+        const el = document.getElementById(`candidatura-${candidaturaParam}`);
+        if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      });
+      const t = setTimeout(() => setHighlightId(null), 1500);
+      setOpenInitialized(true);
+      return () => clearTimeout(t);
+    }
+    if (candidature.length > 0) {
+      setOpenIds(new Set([candidature[0].id]));
+    }
+    setOpenInitialized(true);
+  }, [candidature, candidaturaParam, openInitialized]);
+
+  const toggleOpen = (id: string) => {
+    setOpenIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   if (loadingStudente) {
     return <p className="text-muted-foreground">Caricamento...</p>;
@@ -105,6 +144,10 @@ export default function StudentePage() {
   return (
     <CandidaturaActionsContext.Provider value={actions.ctxValue}>
       <div className="space-y-6">
+        <Button asChild variant="ghost" size="sm" className="-ml-2">
+          <Link to={backTo}><ArrowLeft className="w-4 h-4 mr-1" /> Torna alla lista</Link>
+        </Button>
+
         <Section title="Anagrafica" items={[
           ['Email', studente.email],
           ['Telefono', studente.telefono],
@@ -129,7 +172,14 @@ export default function StudentePage() {
           ) : (
             <div className="space-y-4">
               {candidature!.map((c: any) => (
-                <CandidaturaDetail key={c.id} candidatura={c} studenteId={studenteId} highlight={highlightId === c.id} />
+                <CandidaturaDetail
+                  key={c.id}
+                  candidatura={c}
+                  studenteId={studenteId}
+                  highlight={highlightId === c.id}
+                  open={openIds.has(c.id)}
+                  onToggle={() => toggleOpen(c.id)}
+                />
               ))}
             </div>
           )}
@@ -154,7 +204,7 @@ export default function StudentePage() {
                 if (start) {
                   const to = end ?? new Date();
                   const days = Math.max(1, Math.round((to.getTime() - start.getTime()) / 86400000));
-                  durata = days >= 30 ? `${Math.round(days / 30)} mesi` : `${days} giorni`;
+                  durata = fmtDurata(days);
                 }
                 return (
                   <li key={a.id} className="flex items-center justify-between text-[13px] bg-card border border-border/50 rounded px-3 py-2">

@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
@@ -47,20 +47,25 @@ type SortKey = 'studente' | 'struttura' | 'anno' | 'stato' | 'data';
 
 export default function Candidature() {
   const { strutturaId, isAll } = useStrutturaFilter();
-  const [search, setSearch] = useState('');
-  const [filterStato, setFilterStato] = useState<string>('tutti');
-  const [sortKey, setSortKey] = useState<SortKey>('data');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-  const [page, setPage] = useState(1);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Tutto lo stato della lista vive nell'URL: reload e tasto indietro lo ripristinano.
+  const search = searchParams.get('q') ?? '';
+  const filterStato = searchParams.get('stato') ?? 'tutti';
+  const sortKey = ((searchParams.get('sk') as SortKey) ?? 'data');
+  const sortDir = ((searchParams.get('sd') as 'asc' | 'desc') ?? 'desc');
+  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1);
   const esitoFilter = searchParams.get('esito_da_inviare') === '1';
 
-  useEffect(() => {
-    const stato = searchParams.get('stato');
-    if (stato && stato !== filterStato) setFilterStato(stato);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const patchParams = (patch: Record<string, string | null>, opts: { resetPage?: boolean } = {}) => {
+    const next = new URLSearchParams(searchParams);
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === null || v === '') next.delete(k); else next.set(k, v);
+    }
+    if (opts.resetPage) next.delete('page');
+    setSearchParams(next, { replace: true });
+  };
 
   const { data: candidature } = useQuery({
     queryKey: ['candidature', filterStato, strutturaId],
@@ -120,10 +125,23 @@ export default function Candidature() {
   const pageStart = (currentPage - 1) * PAGE_SIZE;
   const pageItems = filtered.slice(pageStart, pageStart + PAGE_SIZE);
 
+  const setPage = (p: number | ((prev: number) => number)) => {
+    const val = typeof p === 'function' ? p(currentPage) : p;
+    patchParams({ page: val > 1 ? String(val) : null });
+  };
+
   const toggleSort = (key: SortKey) => {
-    if (sortKey === key) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
-    else { setSortKey(key); setSortDir(key === 'data' ? 'desc' : 'asc'); }
-    setPage(1);
+    if (sortKey === key) {
+      patchParams({ sd: sortDir === 'asc' ? 'desc' : 'asc' }, { resetPage: true });
+    } else {
+      patchParams({ sk: key, sd: key === 'data' ? 'desc' : 'asc' }, { resetPage: true });
+    }
+  };
+
+  const openScheda = (c: any) => {
+    const qs = searchParams.toString();
+    const suffix = qs ? `&${qs}` : '';
+    navigate(`/admin/studenti/${c.studente_id}?candidatura=${c.id}&from=candidature${suffix}`);
   };
 
   const SortHeader = ({ k, label }: { k: SortKey; label: string }) => {
@@ -146,9 +164,10 @@ export default function Candidature() {
       <div className="flex gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Cerca per nome o email..." value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} className="pl-9" />
+          <Input placeholder="Cerca per nome o email..." value={search}
+            onChange={e => patchParams({ q: e.target.value || null }, { resetPage: true })} className="pl-9" />
         </div>
-        <Select value={filterStato} onValueChange={(v) => { setFilterStato(v); setPage(1); }}>
+        <Select value={filterStato} onValueChange={(v) => patchParams({ stato: v === 'tutti' ? null : v }, { resetPage: true })}>
           <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="tutti">Tutti gli stati</SelectItem>
@@ -159,7 +178,7 @@ export default function Candidature() {
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => { const next = new URLSearchParams(searchParams); next.delete('esito_da_inviare'); setSearchParams(next); setPage(1); }}
+            onClick={() => patchParams({ esito_da_inviare: null }, { resetPage: true })}
           >
             <MailCheck className="w-4 h-4 mr-2" /> Solo esiti da comunicare · Rimuovi
           </Button>
@@ -226,7 +245,7 @@ export default function Candidature() {
               {pageItems.map((c: any, i: number) => (
                 <motion.tr key={c.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}
                   className="border-b border-border/30 hover:bg-muted/50 cursor-pointer transition-colors"
-                  onClick={() => navigate(`/admin/studenti/${c.studente_id}?candidatura=${c.id}`)}>
+                  onClick={() => openScheda(c)}>
                   <td className="px-4 py-3">
                     <p className="text-sm font-medium">{c.studenti?.nome} {c.studenti?.cognome}</p>
                     <p className="text-[11px] text-muted-foreground">{c.studenti?.email}</p>

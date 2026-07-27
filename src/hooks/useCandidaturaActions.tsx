@@ -63,15 +63,9 @@ export function useCandidaturaActions(options: Options = {}) {
 
   const updateStato = useMutation({
     mutationFn: async ({ id, stato }: { id: string; stato: string }) => {
-      const { data: old } = await supabase.from('candidature').select('stato').eq('id', id).single();
-      await supabase.from('candidature').update({ stato }).eq('id', id);
-      const { data: { user } } = await supabase.auth.getUser();
-      await supabase.from('log_stato_candidature').insert({
-        candidatura_id: id,
-        stato_precedente: old?.stato,
-        stato_nuovo: stato,
-        cambiato_da: user?.id,
-      });
+      const { error } = await supabase.from('candidature').update({ stato }).eq('id', id);
+      if (error) throw error;
+      // La riga di transizione la scrive il trigger DB `candidature_log_stato`.
     },
     onSuccess: () => {
       invalidateAll();

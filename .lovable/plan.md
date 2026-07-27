@@ -1,155 +1,78 @@
-## Obiettivo
+## Parte 1 — Scheda persona: navigazione, collasso, no duplicazione
 
-Sostituire la modale di dettaglio candidatura con una pagina persona-centrica in `/admin/studenti/:id`, e unificare le azioni disponibili su una candidatura in un'unica sorgente condivisa fra lista e scheda.
+### 1. Torna alla lista con stato preservato — nell'URL, non in navigation state
+Motivazione: `Candidature.tsx` legge già `?candidatura` dai query params. Un secondo canale (`location.state`) creerebbe due sorgenti e si perderebbe al reload / tasto indietro.
 
-## Nuova pagina `/admin/studenti/:id`
+- `src/pages/admin/Candidature.tsx`: `search`, `filterStato`, `filterStruttura` (se locale), `page` sincronizzati con `useSearchParams` (`?q=…&stato=…&page=…`). Idratazione al mount da query params; ogni cambio filtro fa `setSearchParams(..., { replace: true })`.
+- Apertura scheda: `navigate('/admin/studenti/:id?candidatura=…&from=candidature&<queryString>')`.
+- `src/pages/admin/Residenti.tsx`: idem per i suoi filtri; apertura scheda con `&from=residenti&<queryString>`.
+- `src/pages/admin/StudentePage.tsx`: link "← Torna alla lista" ricostruito dall'URL leggendo `from` e ripropagando i restanti query params (esclusi `candidatura`/`from`). Fallback a `/admin/candidature` se `from` assente.
 
-Route aggiunta in `src/App.tsx` sotto `AdminLayout`. La pagina imposta il titolo della top bar via `usePageTitle("Cognome Nome")` — nessun titolo stampato nel body.
+Reload e tasto indietro funzionano; la lista si riapre esattamente com'era.
 
-Contenuto, nell'ordine:
+### 2. Blocchi candidatura richiudibili
+- `src/components/admin/candidatura/CandidaturaDetail.tsx` prende `open: boolean` e `onToggle`. Header collassato: data candidatura, anno accademico, badge di stato e `CandidaturaActions.Buttons`. Dettaglio renderizzato solo quando `open`.
+- `StudentePage.tsx`: `openIds: Set<string>` calcolato quando i dati sono disponibili — se `?candidatura=<id>` valido, aperto solo quello; altrimenti solo il più recente. Chevron nell'header alterna il blocco.
 
-1. **Anagrafica** — nome, email, telefono, nazionalità, data di nascita, codice fiscale. Se lo studente ha un'assegnazione attiva, riga "Attualmente a Cam. X · Struttura Y · dal <data>".
-2. **Blocchi candidatura** — uno per candidatura (`candidature` filtrata su `studente_id`, `created_at DESC`). Ogni blocco contiene tutto quello che oggi mostra la modale: header (stato + badge Form completo / Link attivo / Link scaduto / Esito da comunicare / Esito inviato + data), sezioni `Dati studente`, `Dati accademici`, `Preferenze`, `Stile di vita` (se `versione_form === 'completa'`), `Garante` (se presente), `Stato form`, messaggio, documenti (query `documenti` per `candidatura_id`, `DocumentoRow` con signed URL), cronologia (`log_stato_candidature` per `candidatura_id`, ordine cronologico), azioni rese da `<CandidaturaActions.Buttons candidatura={c} />`, e textarea `note_admin`.
-3. **Soggiorni** — `assegnazioni` per `studente_id` (attivi e conclusi) con camera, struttura, `data_inizio → data_fine` (o "in corso") e durata calcolata.
+### 3. Deduplicazione e rinomina sezione
+Rimuovere dalla scheda-candidatura la sezione con email/telefono/nazionalità/data di nascita/CF (già in "Anagrafica" in cima). La sezione superstite contiene solo `indirizzo_residenza` e `documento_identita_n`: rinominarla **"Dichiarazioni per questa candidatura"**.
 
-### Stati vuoti e id inesistente (requisito 4)
+Risposta al punto 3 — mappatura:
+- **Persona (in cima, una volta):** nome, cognome, email, telefono, nazionalità, data di nascita, codice fiscale.
+- **Candidatura (nel blocco):** indirizzo di residenza dichiarato, numero documento d'identità dichiarato, snapshot accademici, tipo studente, preferenze, stile di vita (fase 2), garante, stato form, messaggio, dichiarazioni, documenti, cronologia, note admin, azioni.
 
-- Query studente con `.maybeSingle()`. Se `data` è `null` a fetch completato: rendo empty state (`User` icona dimmed + "Persona non trovata") + link "Torna alle candidature". Nessun throw.
-- Se lo studente esiste ma non ha candidature: empty state dedicato dentro la sezione blocchi ("Nessuna candidatura per questa persona").
-- Se non ha assegnazioni: empty state analogo nella sezione soggiorni.
-- Loading iniziale: `<p className="text-muted-foreground">Caricamento...</p>` come altrove.
+### Uniformare formati (dettagli visti in schermata)
+- `CandidaturaDetail.tsx` Preferenze: `fmtIt(c.periodo_inizio) → fmtIt(c.periodo_fine)` invece del formato ISO.
+- `StudentePage.tsx` durata soggiorno: singolare/plurale corretto (`1 giorno` / `N giorni`, `1 mese` / `N mesi`).
 
-### Evidenziazione blocco da query param (requisito 1)
+## Parte 2 — Registro cambi di stato
 
-`?candidatura=<id>` — l'highlight parte SOLO quando i dati sono resi. Uso `useEffect` con dipendenze `[candidature, candidaturaParam]`: se `candidature` non è ancora arrivato o non contiene un blocco con quell'id, non fa nulla. Quando appare, `document.getElementById(...)` + `scrollIntoView({block:'start'})` e applico classe `ring-2 ring-primary/40` per ~1500ms. Se l'id non appartiene alla persona o non esiste, nessuna azione, nessun toast, nessun errore.
+### 4. Rimozione della doppia scrittura
 
-## Sorgente unica delle azioni
+Verifica sul file attuale (`src/hooks/useCandidaturaActions.tsx`, righe 64-81 e 258-292):
+- La mutazione `updateStato` accetta oggi solo `{ id, stato }` e **non passa alcuna nota** al registro: l'`INSERT` scrive `candidatura_id`, `stato_precedente`, `stato_nuovo`, `cambiato_da` senza `note`.
+- Il dialog `statoConfirm` non ha campo nota.
+- Quindi rimuovendo l'`INSERT` **non si perde alcuna nota**.
 
-Nuovo modulo `src/lib/candidaturaActions.ts`:
+Modifica: in `updateStato` rimuovere il `SELECT stato`, l'`INSERT` in `log_stato_candidature` e la chiamata `auth.getUser()`. Restano solo `UPDATE candidature SET stato = …`. La transizione la scrive il trigger `candidature_log_stato`.
 
-```ts
-type CandidaturaActionId =
-  | 'invia_form_completo' | 'invia_esito' | 'approva' | 'rifiuta'
-  | 'riapri' | 'segna_rinuncia' | 'assegna_camera' | 'contatta' | 'elimina';
+Nessun nuovo campo nota nel dialog: fuori scope. La nota già presente sulla candidatura (`note_admin`) resta l'unico punto di scrittura di annotazioni libere.
 
-interface CandidaturaAction {
-  id: CandidaturaActionId;
-  label: string;
-  icon: LucideIcon;
-  destructive?: boolean;
-  group: 'stato' | 'operativa' | 'pericolosa';
-}
+Restano invariate le righe evento scritte dalle edge functions (`generate-completion-link`, `send-esito-email`) — non toccate.
 
-function getAvailableActions(c: CandidaturaLike): CandidaturaAction[];
-```
+### 5. Timeline: nota mostrata testualmente
+In `CandidaturaDetail.tsx` (e coerentemente in `StoricoCandidature.tsx`):
+- Righe con `stato_precedente = stato_nuovo`: stampare il testo di `note` così com'è nel database. Nessun mapping di stringhe.
+- Righe di transizione: "Stato passato da *X* a *Y*" con `formatStato`.
+- Se una transizione ha anche una nota, mostrare entrambe: la frase di transizione sopra e il testo della nota sotto.
 
-Le regole di disponibilità (stato + `versione_form` + `esito_email_stato` + `token_scade_il`) vivono solo qui.
+### 6. Prima riga della cronologia
+La prima riga si identifica **per posizione cronologica** all'interno della singola candidatura (elemento con `created_at` più antico), non per assenza di `stato_precedente`. Presentazione:
+> "Candidatura ricevuta" (o, se lo stato iniziale registrato non è `ricevuta`: "Candidatura registrata come *{formatStato(stato_nuovo)}*").
 
-Nuovo componente `src/components/admin/CandidaturaActions.tsx` con due varianti:
-- `<CandidaturaActions.Menu candidatura={c} />` per il menu di riga (dentro `RowActions` con `DropdownMenuItem`).
-- `<CandidaturaActions.Buttons candidatura={c} />` per il blocco scheda (`Button size="sm"` in flex-wrap).
+Righe **successive** senza `stato_precedente`:
+- se hanno `note` non vuota → evento descritto dalla nota (testo letterale).
+- altrimenti → registrazione dello stato: "Stato registrato: *{formatStato(stato_nuovo)}*".
 
-Entrambe iterano `getAvailableActions(c)` e chiamano handler passando `c`.
+### 7. `complete-candidatura` fuori dalla macchina a stati
+`supabase/functions/complete-candidatura/index.ts` (riga 194) oggi registra `stato_nuovo: "completata_form"`, valore non presente nella macchina a stati. Correggere in evento: `stato_precedente = cand.stato`, `stato_nuovo = cand.stato`, `note = "Form completo inviato dallo studente"`. Nessun altro cambio.
 
-### Hook condiviso, singola istanza per pagina (requisito 2)
+### 8. Timeline leggibile
+Lista verticale (ordine ascending) con pallino/linea, italiano corrente:
+- **{data ora}** — Candidatura ricevuta *(prima riga per posizione)*
+- **{data ora}** — Stato passato da *Ricevuta* a *Approvata* *(transizione)*
+- **{data ora}** — {testo nota letterale} *(evento)*
 
-`src/hooks/useCandidaturaActions.tsx` espone `{ trigger, dialogs }`:
+## Vincoli
 
-- `trigger(actionId, candidatura)` — chiama sincronizzando lo stato del dialog corrispondente sulla candidatura passata al momento. Nessuno stato "candidatura corrente" implicito.
-- `dialogs` — un unico React node che monta i dialog una sola volta: `AlertDialog` cambio stato, dialog invio link, dialog invio esito, `AlertDialog` conferma rigenerazione link, `AlertDialog` elimina. Ogni dialog tiene `target` interno impostato da `trigger`, così agisce sempre sulla candidatura giusta.
+- Nessuna modifica a stati, vincoli, trigger, migrazioni.
+- Nessuna riga esistente del log cancellata o riscritta.
 
-Regola d'uso: **istanziare l'hook una sola volta**, nella pagina (Candidature per la lista, StudentePage per la scheda). `CandidaturaActions.Menu` / `.Buttons` ricevono `trigger` via un `CandidaturaActionsContext` messo dalla pagina attorno al proprio contenuto, per non forzare prop-drilling attraverso più blocchi. `dialogs` viene renderizzato in coda alla pagina.
-
-Sulla scheda persona, quindi, esiste **un solo** set di dialog condivisi da tutti i blocchi.
-
-### Invalidazioni preservate (requisito 3)
-
-Ricognizione delle mutazioni oggi in `src/pages/admin/Candidature.tsx`:
-
-| Mutazione | Invalidazioni attuali |
-|---|---|
-| `updateStato` (cambio stato + insert su `log_stato_candidature`) | `['candidature']`, `['studenti-approvati']`, `['dashboard-stats']` + toast "Stato aggiornato" |
-| `deleteCandidatura` | `['candidature']`, `['dashboard-stats']` + toast "Candidatura eliminata" + chiusura target + chiusura selected |
-| `sendEsito` (edge fn `send-esito-email`) | `['candidature']`, `['dashboard-stats']` + toast "Comunicazione esito inviata" + reset target/nota |
-| `generateLink` (edge fn `generate-completion-link`, success ramo) | `['candidature']` |
-
-Tutte spostate integralmente dentro `useCandidaturaActions.tsx`, mantenendo:
-- gli stessi query key,
-- gli stessi toast (successo ed errore, con `variant: 'destructive'` quando previsto),
-- lo stesso reset di stato locale (target, nota, linkData, linkCopied),
-- lo stesso comportamento del ramo "regen conferma" per `generateLink` quando esiste un token attivo non scaduto.
-
-Aggiungo inoltre — così le pagine che leggono le nuove query si aggiornano — `['studente', id]`, `['studente-candidature', id]`, `['studente-assegnazioni', id]`, `['studente-log', id]`, `['studente-documenti', id]` alle invalidazioni di `updateStato`, `deleteCandidatura`, `sendEsito`, `generateLink` (in modo coerente con l'ambito toccato). Nessuna invalidazione esistente viene rimossa.
-
-### Note admin — riscontro visibile e coerenza (nota minore)
-
-Verificato in `Candidature.tsx`: `updateStato.mutationFn` fa `update({ stato, note_admin: note ?? undefined })`. Il chiamante (`requestStatoChange`) non passa `note`, quindi in pratica il campo `note_admin` non viene sovrascritto dai cambi stato — ma la definizione della mutazione lo permette e crea un punto di sovrascrittura latente.
-
-Interventi:
-- La textarea `note_admin` salva onBlur e mostra ora un feedback visibile: micro-badge "Salvato" accanto al titolo per ~2s dopo il save, in aggiunta al toast già presente in caso di errore. Aggiungo anche toast di successo "Nota salvata" (già presente oggi ma solo nella modale — mantengo il pattern).
-- `updateStato` in `useCandidaturaActions` rimuove `note_admin` dal payload di update: cambia solo `stato`. Le note restano di competenza esclusiva della textarea. In questo modo i due punti di scrittura non possono più sovrapporsi.
-- Nessun cambio di comportamento visibile per l'utente: nessuna azione oggi passa `note` a `updateStato`.
-
-## Differenze fra menu (riga) e azioni (modale) attuali, risolte
-
-| Azione | Menu di riga (oggi) | Modale (oggi) | Dopo |
-|---|---|---|---|
-| Invia form completo (`versione_form !== 'completa'`) | Sì | **No** | Sì in entrambi |
-| Invia comunicazione esito (`approvata/rifiutata` + `esito_email_stato='da_inviare'`) | Sì | **No** | Sì in entrambi |
-| Approva / Rifiuta (`ricevuta` o `completata`) | Sì | Sì | Uguale |
-| Riapri (`approvata` o `rifiutata`) | Sì | Sì | Uguale |
-| Segna come rinuncia (tutti tranne `ritirata`, `sostituita`) | Sì | **No** | Sì in entrambi |
-| Assegna a camera (`approvata`) | Sì | Sì | Uguale |
-| Contatta studente (email presente) | Sì | Sì | Uguale |
-| Elimina candidatura | Sì | **No** | Sì in entrambi (comportamento invariato) |
-
-Le voci mancanti nella modale vengono ripristinate perché la scheda è il posto naturale per lavorare in profondità. Nessuna azione aggiunta o rimossa rispetto all'unione dei due elenchi.
-
-## Modifiche di navigazione
-
-- `src/pages/admin/Candidature.tsx`: il click sulla riga naviga a `/admin/studenti/<studente_id>?candidatura=<candidatura_id>`. Rimossa la `Dialog` di dettaglio e lo stato `selected` + `documenti`. Il menu di riga usa `<CandidaturaActions.Menu>`; l'hook `useCandidaturaActions` è istanziato una volta a livello pagina e i suoi `dialogs` sono renderizzati in coda.
-- `src/pages/admin/Residenti.tsx`: **anche** il click sulla riga porta a `/admin/studenti/<studente_id>` (allineamento con Candidature — nota minore). La voce di menu "Visualizza profilo" resta e ha la stessa destinazione. Rimossa la `Dialog` profilo e la query `storico`.
-- `src/hooks/usePageTitle.ts`: nessuna modifica alla mappa; titolo persona via override.
-
-## Componenti condivisi estratti
-
-- `src/components/admin/candidatura/CandidaturaDetail.tsx` — un blocco candidatura completo (sezioni + documenti + cronologia + azioni + note). Accetta `candidatura`, `documenti`, `log`, opzionale `highlight`.
-- `src/components/admin/candidatura/DocumentoRow.tsx` — estratto.
-- `src/components/admin/candidatura/Section.tsx` — estratto.
-- `src/components/admin/candidatura/CandidaturaBadges.tsx` — badge stato + form completo + link + esito.
-- `src/components/admin/candidatura/CandidaturaActionsContext.tsx` — context per esporre `trigger` ai componenti azione senza prop-drilling.
-
-## Vincoli rispettati
-
-- Nessuna modifica DB / trigger / stati.
-- Nessuna perdita di informazione rispetto alla modale.
-- Export XLSX in `Candidature.tsx` invariato.
-- Titolo pagina impostato via `usePageTitle`.
-- Design system: token, `motion.div` standard, `RowActions`, `AlertDialog` per azioni distruttive, empty state con icona dimmed + testo `text-[13px] text-muted-foreground`.
-- Eliminazione candidatura invariata (verrà rivista in un passaggio successivo).
-
-## File creati
-
-- `src/pages/admin/StudentePage.tsx`
-- `src/lib/candidaturaActions.ts`
-- `src/hooks/useCandidaturaActions.tsx`
-- `src/components/admin/CandidaturaActions.tsx`
-- `src/components/admin/candidatura/CandidaturaDetail.tsx`
-- `src/components/admin/candidatura/DocumentoRow.tsx`
-- `src/components/admin/candidatura/Section.tsx`
-- `src/components/admin/candidatura/CandidaturaBadges.tsx`
-- `src/components/admin/candidatura/CandidaturaActionsContext.tsx`
-
-## File modificati
-
-- `src/App.tsx` — nuova route `studenti/:id`.
-- `src/pages/admin/Candidature.tsx` — rimossa modale dettaglio e mutazioni locali; riga naviga alla scheda; menu di riga usa `CandidaturaActions.Menu`; `useCandidaturaActions` istanziato una volta.
-- `src/pages/admin/Residenti.tsx` — rimossa modale profilo; click riga + voce menu navigano alla scheda.
-
-## File eliminati
-
-Nessuno (le modali eliminate erano inline nei file modificati).
-
-## Deliverable finale
-
-Al termine riferirò: file creati/modificati, lista invalidazioni preservate (contro l'elenco qui sopra), e conferma che l'hook azioni è istanziato una sola volta per pagina.
+### File toccati
+- `src/pages/admin/StudentePage.tsx` — link ritorno da URL, apertura blocchi, singolare/plurale durata.
+- `src/components/admin/candidatura/CandidaturaDetail.tsx` — collassabile, rimozione "Dati studente", rinomina in "Dichiarazioni per questa candidatura", nuova timeline, `fmtIt` sul periodo.
+- `src/pages/admin/Candidature.tsx` — filtri/ricerca/pagina in `useSearchParams`; navigate con querystring + `from=candidature`.
+- `src/pages/admin/Residenti.tsx` — filtri/ricerca in `useSearchParams`; navigate con querystring + `from=residenti`.
+- `src/hooks/useCandidaturaActions.tsx` — `updateStato` scrive solo `UPDATE candidature`, nessun `INSERT` nel log, nessun nuovo campo nel dialog.
+- `src/pages/admin/storico/StoricoCandidature.tsx` — presentazione coerente, prima riga per posizione cronologica.
+- `supabase/functions/complete-candidatura/index.ts` — log come evento descritto dalla nota.

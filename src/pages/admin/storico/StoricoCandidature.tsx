@@ -10,7 +10,7 @@ import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
   PaginationNext, PaginationPrevious,
 } from '@/components/ui/pagination';
-import { Search, ArrowRight } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { ExportButton } from '@/components/admin/ExportButton';
 import { fmtDateTime } from '@/lib/exportXlsx';
 import { formatStato, STATO_LABELS as STATO_LABELS_CANON } from '@/lib/statoCandidatura';
@@ -33,6 +33,20 @@ export default function StoricoCandidature() {
       return data ?? [];
     },
   });
+
+  // La prima riga della cronologia di una candidatura si identifica per
+  // posizione cronologica (created_at più antico), non per assenza di stato_precedente.
+  const firstLogIdByCandidatura = useMemo(() => {
+    const oldest = new Map<string, { id: string; ts: number }>();
+    for (const l of logs as any[]) {
+      const candId = l.candidatura_id;
+      if (!candId) continue;
+      const ts = new Date(l.created_at).getTime();
+      const cur = oldest.get(candId);
+      if (!cur || ts < cur.ts) oldest.set(candId, { id: l.id, ts });
+    }
+    return new Set(Array.from(oldest.values()).map(v => v.id));
+  }, [logs]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -91,13 +105,15 @@ export default function StoricoCandidature() {
               <tr className="text-left">
                 <th className="px-4 py-3 font-medium">Data</th>
                 <th className="px-4 py-3 font-medium">Studente</th>
-                <th className="px-4 py-3 font-medium">Transizione</th>
-                <th className="px-4 py-3 font-medium">Note</th>
+                <th className="px-4 py-3 font-medium">Evento</th>
               </tr>
             </thead>
             <tbody>
               {pageItems.map((l: any) => {
                 const s = l.candidature?.studenti;
+                const isFirst = firstLogIdByCandidatura.has(l.id);
+                const isTransition = !isFirst && !!l.stato_precedente && l.stato_precedente !== l.stato_nuovo;
+                const hasNote = !!(l.note && String(l.note).trim());
                 return (
                   <tr key={l.id} className="border-t hover:bg-muted/30">
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
@@ -107,24 +123,30 @@ export default function StoricoCandidature() {
                       {s ? `${s.nome} ${s.cognome}` : <span className="text-muted-foreground">—</span>}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        {l.stato_precedente ? (
-                          <Badge variant="outline">{formatStato(l.stato_precedente)}</Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-muted-foreground">—</Badge>
+                      <div className="space-y-0.5">
+                        <div className="text-[13px]">
+                          {isFirst ? (
+                            l.stato_nuovo === 'ricevuta'
+                              ? <>Candidatura ricevuta</>
+                              : <>Candidatura registrata come <strong>{formatStato(l.stato_nuovo)}</strong></>
+                          ) : isTransition ? (
+                            <>Stato passato da <strong>{formatStato(l.stato_precedente)}</strong> a <strong>{formatStato(l.stato_nuovo)}</strong></>
+                          ) : hasNote ? (
+                            <span className="whitespace-pre-wrap">{l.note}</span>
+                          ) : (
+                            <>Stato registrato: <strong>{formatStato(l.stato_nuovo)}</strong></>
+                          )}
+                        </div>
+                        {hasNote && (isFirst || isTransition) && (
+                          <div className="text-[12px] text-muted-foreground whitespace-pre-wrap">{l.note}</div>
                         )}
-                        <ArrowRight className="w-3 h-3 text-muted-foreground" />
-                        <Badge>{formatStato(l.stato_nuovo)}</Badge>
                       </div>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground max-w-md truncate">
-                      {l.note || '—'}
                     </td>
                   </tr>
                 );
               })}
               {pageItems.length === 0 && (
-                <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
+                <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">
                   Nessun evento storico
                 </td></tr>
               )}

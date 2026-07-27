@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
 
     const { data: cand, error: candErr } = await supabase
       .from("candidature")
-      .select("id, token_scade_il, completata_il, studente_id")
+      .select("id, token_scade_il, completata_il, studente_id, stato")
       .eq("completamento_token_hash", hash)
       .maybeSingle();
     if (candErr) throw candErr;
@@ -193,8 +193,8 @@ Deno.serve(async (req) => {
 
     await supabase.from("log_stato_candidature").insert({
       candidatura_id: cand.id,
-      stato_precedente: null,
-      stato_nuovo: "completata_form",
+      stato_precedente: cand.stato,
+      stato_nuovo: cand.stato,
       note: "Form completo inviato dallo studente",
     });
 
