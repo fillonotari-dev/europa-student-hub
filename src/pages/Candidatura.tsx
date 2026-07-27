@@ -20,10 +20,11 @@ import { NATIONALITIES } from '@/lib/nationalities';
 import { UNIVERSITIES } from '@/lib/universities';
 import logoStudentato from '@/assets/logo-studentato.svg';
 import { StepDots } from '@/components/candidatura/StepDots';
+import { MAX_UPLOAD_BYTES, ACCEPTED_UPLOAD_MIME } from '@/lib/uploads';
 
 const STEPS = ['stepPersonal', 'stepAcademic', 'stepPreferences', 'stepDocuments', 'stepDichiarazioni'] as const;
-const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
-const MAX_SIZE = 5 * 1024 * 1024;
+const ACCEPTED_TYPES: readonly string[] = ACCEPTED_UPLOAD_MIME;
+const MAX_SIZE = MAX_UPLOAD_BYTES;
 const TURNSTILE_SITE_KEY = '0x4AAAAAAD-aYq1jX5cywwnC';
 
 declare global {

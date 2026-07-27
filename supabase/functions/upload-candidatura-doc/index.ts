@@ -7,12 +7,11 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 const ALLOWED_MIME = new Set([
   "application/pdf",
   "image/jpeg",
   "image/png",
-  "image/webp",
 ]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -57,10 +56,10 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Invalid tipo" }, 400);
     }
     if (file.size <= 0 || file.size > MAX_BYTES) {
-      return jsonResponse({ error: "File troppo grande (max 10 MB)" }, 400);
+      return jsonResponse({ error: "File troppo grande (max 5 MB)" }, 400);
     }
     if (!ALLOWED_MIME.has(file.type)) {
-      return jsonResponse({ error: "Tipo file non supportato (PDF, JPG, PNG, WEBP)" }, 400);
+      return jsonResponse({ error: "Tipo file non supportato (PDF, JPG, PNG)" }, 400);
     }
 
     // Atomic session guard: single UPDATE that increments upload_count only if

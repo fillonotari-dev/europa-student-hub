@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
     // Documents
     const docsIn: Array<{ tipo: string; nome_file: string; url: string }> = [];
     if (body.documenti !== undefined && body.documenti !== null) {
-      if (!Array.isArray(body.documenti) || body.documenti.length > 20) {
+      if (!Array.isArray(body.documenti) || body.documenti.length > 4) {
         return json({ error: "Documenti non validi" }, 400);
       }
       const expectedPrefix = `pending/${tempId}/`;
