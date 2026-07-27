@@ -28,7 +28,6 @@ import {
   Send, Copy, CheckCircle, MailCheck,
 } from 'lucide-react';
 import { useStrutturaFilter } from '@/hooks/useStrutturaFilter';
-import { StrutturaSelect } from '@/components/admin/StrutturaSelect';
 
 const STATI = ['ricevuta', 'in_completamento', 'completata', 'in_valutazione', 'approvata', 'rifiutata', 'ritirata'] as const;
 const STATO_LABELS: Record<string, string> = {
@@ -96,7 +95,7 @@ const PAGE_SIZE = 15;
 type SortKey = 'studente' | 'struttura' | 'anno' | 'stato' | 'data';
 
 export default function Candidature() {
-  const { strutturaId, setStrutturaId, strutture, isAll } = useStrutturaFilter();
+  const { strutturaId, isAll } = useStrutturaFilter();
   const [search, setSearch] = useState('');
   const [filterStato, setFilterStato] = useState<string>('tutti');
   const [selected, setSelected] = useState<any>(null);
@@ -373,11 +372,6 @@ export default function Candidature() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold tracking-tight">Candidature</h1>
-        <p className="text-[13px] text-muted-foreground">Gestisci le candidature degli studenti</p>
-      </div>
-
       <div className="flex gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -390,11 +384,6 @@ export default function Candidature() {
             {STATI.map(s => <SelectItem key={s} value={s}>{STATO_LABELS[s]}</SelectItem>)}
           </SelectContent>
         </Select>
-        <StrutturaSelect
-          value={strutturaId}
-          onChange={(v) => { setStrutturaId(v); setPage(1); }}
-          strutture={strutture}
-        />
         {esitoFilter && (
           <Button
             variant="secondary"
