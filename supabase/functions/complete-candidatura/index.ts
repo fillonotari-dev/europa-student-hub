@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { DOCUMENTO_TIPI_SET, extractTipoFromPath } from "../_shared/documenti-tipi.ts";
+import { moveDocumentToFinal } from "../_shared/move-documenti.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -172,12 +173,17 @@ Deno.serve(async (req) => {
     if (updErr) throw updErr;
 
     for (const doc of docsIn) {
+      const moved = await moveDocumentToFinal(supabase, {
+        tempPath: doc.url,
+        candidaturaId: cand.id,
+        tipo: doc.tipo,
+      });
       await supabase.from("documenti").insert({
         studente_id: cand.studente_id,
         candidatura_id: cand.id,
         tipo: doc.tipo,
         nome_file: doc.nome_file,
-        url: doc.url,
+        url: moved.path,
         caricato_da: "studente",
       });
     }

@@ -1,66 +1,99 @@
 ## Obiettivo
-Allineare il form di completamento (`/candidatura/completa/:token`) al form pubblico di base e rendere obbligatori i campi utili alla valutazione e all'abbinamento in camera doppia. Le regole vanno replicate anche server-side.
 
-## 1. `src/pages/CandidaturaCompleta.tsx`
+I documenti delle candidature completate con successo devono essere spostati dalla cartella temporanea `pending/{temp_id}/…` a una posizione definitiva legata alla candidatura: `candidature/{candidatura_id}/{tipo}/{nome_file}` nello stesso bucket privato `documenti_studenti`. Così la cartella `pending` conterrà solo file abbandonati, che potranno essere ripuliti in sicurezza.
 
-**Struttura step**
-- `ALL_STEPS` diventa `['stepLifestyle', 'stepGarante', 'stepDocAggiuntivi', 'stepDichiarazioni']`. Lo step `stepReview` e il componente `ReviewSection` vengono rimossi.
-- Il pulsante finale "Invia candidatura" appare sullo step `stepDichiarazioni`. Come nel form base, resta disabilitato finché non sono spuntate tutte e quattro le dichiarazioni:
-  ```
-  const allDichiarazioniAccettate =
-    dichiarazioni.veridicita && dichiarazioni.privacy &&
-    dichiarazioni.info_struttura && dichiarazioni.contatto;
-  ```
-  applicato a `<Button disabled={submitting || !allDichiarazioniAccettate}>`.
-- Le quattro checkbox delle dichiarazioni ricevono l'asterisco rosso, replicando lo stile del `DeclCheckbox` del form base (span `text-destructive` accanto al testo).
+## Cosa NON cambia
 
-**Nuove regole di `validateStep`** (mantengono lo stesso schema toast già in uso):
-- `stepLifestyle`: obbligatori `lingue_parlate`, `orari`, `personalita`, `ordine_pulizia`, `presentazione`; se `personalita === 'altro'`, obbligatorio anche `personalita_altro`. `fumatore` (Switch) resta libero. `orari` deve essere uno dei tre valori esistenti (`mattiniero` | `serale` | `variabile`).
-- `stepGarante`: aggiunto obbligo di `garante_email` con la stessa regex email già usata nello step (`/^[^\s@]+@[^\s@]+\.[^\s@]+$/`).
-- `stepDocAggiuntivi`: invariato (garante obbligatorio).
-- `stepDichiarazioni`: la validazione dentro `validateStep` viene rimossa (irraggiungibile ora che è l'ultimo step); la garanzia reale è il pulsante disabilitato.
+- Il flusso di upload (`upload-candidatura-doc`) continua a scrivere in `pending/{temp_id}/{tipo}/{nome_file}`, perché all'atto del caricamento la candidatura non esiste ancora.
+- La regex `STORAGE_PATH_RE` (`pending/...`) usata per validare l'input dal client in `submit-candidatura` e `complete-candidatura` resta invariata: è un contratto sull'input.
+- `_shared/documenti-tipi.ts` (inclusa `extractTipoFromPath` che parla di `pending/...`) resta invariata.
+- Sessione di candidatura, token, Turnstile, RLS e policy di storage non vengono toccati. Nessun nuovo bucket, nessuna policy di lettura pubblica.
+- La pagina admin `src/pages/admin/Candidature.tsx` — funzione `extractStoragePath` — è già compatibile con `candidature/...` e `pending/...`. Lasciata così finché non elimineremo i vecchi path.
 
-**Asterischi obbligatori** aggiunti alle Label di: `lingueParlate`, `orariPrevalenti`, `personalita` (e input `personalita_altro` quando visibile), `ordinePulizia`, `presentazione`, `garanteEmail`, e alle quattro dichiarazioni. Stile identico agli asterischi già presenti nel file (`<span className="text-destructive ml-0.5">*</span>`).
+## Cosa cambia
 
-**Help text presentazione**: sotto la `<Textarea>` del campo `presentazione`, un `<p className="text-[12px] text-muted-foreground mt-1">` che mostra `t(lang, 'form.presentazioneHelp')`.
+### 1. Helper condiviso `supabase/functions/_shared/move-documenti.ts` (nuovo)
 
-## 2. `src/i18n/translations.ts`
+Funzione `moveDocumentToFinal(supabase, { tempPath, candidaturaId, tipo })`:
 
-- Rimuovere le chiavi orfane usate solo dal riepilogo (verificare `stepReview` se non più referenziato).
-- Rinominare solo le etichette (i valori DB restano `mattiniero`/`serale`/`variabile`):
-  - IT `orariPrevalenti` → "Come sono di solito le tue giornate?"
-  - IT `orariMattiniero` → "Mi sveglio presto e vado a letto presto"
-  - IT `orariSerale` → "Faccio tardi la sera"
-  - IT `orariVariabile` → "Dipende dai giorni"
-  - EN equivalenti neutre: "How do your days usually go?" / "I wake up early and go to bed early" / "I stay up late" / "It depends on the day"
-- Aggiungere `presentazioneHelp` IT/EN: suggerimento su provenienza, corso di studi, interessi.
+- Estrae `filename` come **ultimo segmento di `tempPath`** (già sanificato lato server all'upload). Nessun fallback su `nome_file`.
+- Calcola `finalPath = candidature/{candidaturaId}/{tipo}/{filename}`.
+- Se `tempPath === finalPath`, ritorna `{ path: finalPath, moved: true }` (idempotenza).
+- Chiama `supabase.storage.from('documenti_studenti').move(tempPath, finalPath)`.
+- Successo → `{ path: finalPath, moved: true }`.
+- Errore → `console.error` con dettagli e `{ path: tempPath, moved: false, error }`; il chiamante userà il path originale.
 
-## 3. `src/pages/admin/Candidature.tsx`
+### 2. `supabase/functions/submit-candidatura/index.ts`
 
-Nella mappa etichette (riga 66) sostituire con versioni neutre capitalizzate (coerenti con le altre mappe dello stesso file e con l'export Excel):
+Dopo la `INSERT` in `candidature` e prima del loop di `INSERT` in `documenti`, per ogni elemento in `docsIn` chiamare `moveDocumentToFinal`. Registrare nella tabella il path restituito. Nessun errore restituito al client.
+
+### 3. `supabase/functions/complete-candidatura/index.ts`
+
+Stessa logica: dopo aver aggiornato la candidatura e prima di inserire i `documenti`, spostare i file con `moveDocumentToFinal(cand.id, …)` e persistere il path risultante.
+
+### 4. Migrazione una tantum: edge function `migrate-pending-docs`
+
+Nuova funzione `supabase/functions/migrate-pending-docs/index.ts`. In testa al file, commento chiaro:
+
 ```
-mattiniero: 'Si sveglia presto',
-serale: 'Fa tardi la sera',
-variabile: 'Dipende dai giorni',
+// TEMPORANEA — utility di migrazione one-shot da eliminare dopo
+// che tutti i path 'pending/...' nella tabella documenti sono stati
+// spostati a 'candidature/...'. Non fa parte del sistema runtime.
 ```
 
-## 4. `supabase/functions/complete-candidatura/index.ts`
+Comportamento:
 
-Aggiungere validazione server-side (mantenendo limiti e stile messaggi generici già in uso):
-- `lingue_parlate`, `orari`, `personalita`, `ordine_pulizia`, `presentazione`, `garante_email` diventano obbligatori (aggiunti ai controlli di presenza dopo le validazioni `optStr`).
-- `orari` deve essere in `['mattiniero','serale','variabile']`.
-- Se `personalita === 'altro'`, richiedere `personalita_altro` non vuoto.
-- `garante_email` obbligatoria e già validata con `EMAIL_RE` esistente.
-- Le dichiarazioni restano validate come oggi (già rifiuta se manca uno dei quattro flag).
+- `verify_jwt = true` e verifica in codice che il chiamante abbia ruolo `admin` via `has_role`.
+- Idempotente e ripetibile: opera solo su righe `documenti` con `url LIKE 'pending/%'` e `candidatura_id NOT NULL`.
+- Supporta `?dry_run=true` per contare senza spostare, e `?limit=N` (default 500) per paginare.
+- Per ogni riga:
+  1. Estrae `filename` come **ultimo segmento di `url`** (nessun fallback su `nome_file`).
+  2. Calcola `finalPath = candidature/{candidatura_id}/{tipo}/{filename}`.
+  3. Verifica esistenza del file d'origine con `storage.list` sul prefisso della cartella.
+  4. Se non esiste → salta, `skipped_missing++`, riga invariata.
+  5. Altrimenti `storage.move`. Se fallisce per conflitto di destinazione → `skipped_conflict++`.
+  6. Solo dopo `move` riuscita, `UPDATE documenti SET url = finalPath WHERE id = ...`.
+- Ritorna JSON: `{ scanned, moved, skipped_missing, skipped_conflict, failed, errors: [...] }`.
+- Nessuna scrittura diretta alle tabelle interne dello storage.
 
-## Vincoli rispettati
-- Flusso token, sessione candidatura e upload documenti invariati.
-- Documento garante obbligatorio, aggiuntivo facoltativo.
-- Etichette IT + EN.
-- Nessun colore hard-coded, nessuna riscrittura di componenti shadcn.
+### 5. Come si lancia la migrazione
 
-## File modificati (previsti)
-- `src/pages/CandidaturaCompleta.tsx`
-- `src/i18n/translations.ts`
-- `src/pages/admin/Candidature.tsx`
-- `supabase/functions/complete-candidatura/index.ts`
+Occorre un access token admin valido:
+
+1. Nel browser, autenticati nell'area admin dell'app.
+2. Apri DevTools → Application → Local Storage → l'origin del sito.
+3. Trova la chiave che **inizia con `sb-`** e **termina con `-auth-token`**.
+4. Il valore è JSON: copia il campo `access_token`.
+5. Il token ha validità limitata: se scade fra un batch e l'altro, rigenerarlo ripetendo i passi (basta ricaricare l'area admin).
+
+Poi:
+
+```bash
+# dry run
+curl -X POST "https://<project>.supabase.co/functions/v1/migrate-pending-docs?dry_run=true" \
+  -H "Authorization: Bearer <ACCESS_TOKEN>"
+
+# esecuzione reale (ripetibile finché ritorna moved > 0)
+curl -X POST "https://<project>.supabase.co/functions/v1/migrate-pending-docs" \
+  -H "Authorization: Bearer <ACCESS_TOKEN>"
+```
+
+Il resoconto JSON indica se serve un'altra esecuzione.
+
+Al termine, dopo aver verificato che non restino righe con `url LIKE 'pending/%'`, l'intera cartella `supabase/functions/migrate-pending-docs/` va eliminata.
+
+## File toccati
+
+- `supabase/functions/_shared/move-documenti.ts` — nuovo helper.
+- `supabase/functions/submit-candidatura/index.ts` — sposta file dopo insert candidatura.
+- `supabase/functions/complete-candidatura/index.ts` — sposta file dopo update candidatura.
+- `supabase/functions/migrate-pending-docs/index.ts` — nuova funzione admin-only, **temporanea**.
+- `supabase/config.toml` — registra la nuova funzione temporanea.
+
+Nessuna modifica a `upload-candidatura-doc`, `_shared/documenti-tipi.ts`, `src/pages/admin/Candidature.tsx`, o al DB.
+
+## Note tecniche
+
+- `storage.move` mantiene metadata senza rileggere il contenuto.
+- Ordine (move → insert del path) garantisce coerenza: se `move` fallisce, in tabella resta il path `pending` reale, che il codice admin sa già leggere.
+- Idempotente: rieseguirla dopo un run completo scansiona 0 righe.
