@@ -185,7 +185,6 @@ export type Database = {
           personalita_altro: string | null
           preferenze_note: string | null
           presentazione: string | null
-          risposte_custom: Json
           stato: string | null
           struttura_preferita_id: string | null
           studente_id: string
@@ -232,7 +231,6 @@ export type Database = {
           personalita_altro?: string | null
           preferenze_note?: string | null
           presentazione?: string | null
-          risposte_custom?: Json
           stato?: string | null
           struttura_preferita_id?: string | null
           studente_id: string
@@ -279,7 +277,6 @@ export type Database = {
           personalita_altro?: string | null
           preferenze_note?: string | null
           presentazione?: string | null
-          risposte_custom?: Json
           stato?: string | null
           struttura_preferita_id?: string | null
           studente_id?: string
@@ -440,102 +437,6 @@ export type Database = {
           id?: string
           token?: string
           used_at?: string | null
-        }
-        Relationships: []
-      }
-      form_campi_custom: {
-        Row: {
-          attivo: boolean
-          chiave: string
-          created_at: string
-          descrizione_en: string | null
-          descrizione_it: string | null
-          fase: string
-          id: string
-          label_en: string
-          label_it: string
-          obbligatorio: boolean
-          opzioni: Json | null
-          ordine: number
-          tipo: string
-          updated_at: string
-        }
-        Insert: {
-          attivo?: boolean
-          chiave: string
-          created_at?: string
-          descrizione_en?: string | null
-          descrizione_it?: string | null
-          fase?: string
-          id?: string
-          label_en: string
-          label_it: string
-          obbligatorio?: boolean
-          opzioni?: Json | null
-          ordine?: number
-          tipo: string
-          updated_at?: string
-        }
-        Update: {
-          attivo?: boolean
-          chiave?: string
-          created_at?: string
-          descrizione_en?: string | null
-          descrizione_it?: string | null
-          fase?: string
-          id?: string
-          label_en?: string
-          label_it?: string
-          obbligatorio?: boolean
-          opzioni?: Json | null
-          ordine?: number
-          tipo?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      form_documenti_custom: {
-        Row: {
-          attivo: boolean
-          chiave: string
-          created_at: string
-          descrizione_en: string | null
-          descrizione_it: string | null
-          fase: string
-          id: string
-          label_en: string
-          label_it: string
-          obbligatorio: boolean
-          ordine: number
-          updated_at: string
-        }
-        Insert: {
-          attivo?: boolean
-          chiave: string
-          created_at?: string
-          descrizione_en?: string | null
-          descrizione_it?: string | null
-          fase?: string
-          id?: string
-          label_en: string
-          label_it: string
-          obbligatorio?: boolean
-          ordine?: number
-          updated_at?: string
-        }
-        Update: {
-          attivo?: boolean
-          chiave?: string
-          created_at?: string
-          descrizione_en?: string | null
-          descrizione_it?: string | null
-          fase?: string
-          id?: string
-          label_en?: string
-          label_it?: string
-          obbligatorio?: boolean
-          ordine?: number
-          updated_at?: string
         }
         Relationships: []
       }
