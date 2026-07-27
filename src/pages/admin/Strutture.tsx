@@ -99,7 +99,7 @@ export default function Strutture() {
 
       (candidature ?? []).forEach((c: any) => {
         if (!c.struttura_preferita_id) return;
-        const pendenti = ['ricevuta', 'in_completamento', 'completata', 'in_valutazione'];
+        const pendenti = ['ricevuta', 'in_completamento', 'completata'];
         if (!pendenti.includes(c.stato)) return;
         ensure(c.struttura_preferita_id).candidaturePendenti += 1;
       });
