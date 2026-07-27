@@ -1,7 +1,7 @@
 # Studentato Europa — Gestionale: contesto e funzionamento
 
 **Destinazione:** sezione `/docs` dell'applicazione
-**Ultimo aggiornamento:** 26 luglio 2026
+**Ultimo aggiornamento:** 27 luglio 2026
 **Natura del documento:** riferimento unico sul funzionamento del sistema. Serve a chi ci mette mano — sviluppatore, agente AI, o chi subentra fra sei mesi — per capire cosa fa il sistema, perché è fatto così, e cosa non deve fare.
 
 Le affermazioni in questo documento sono verificate nel codice sorgente salvo dove indicato diversamente.
@@ -43,7 +43,7 @@ Il flusso è **a due fasi**, per esplicita richiesta della direzione: serve un f
 
 ### Fase 1 — Candidatura base (pubblica, senza autenticazione)
 
-Lo studente compila il form su `/candidatura`. Raccoglie:
+Lo studente compila il form su `/candidatura`, articolato in cinque step: anagrafica → dati accademici → preferenze → documenti → dichiarazioni. Non esiste uno step di riepilogo: l'invio parte dallo step dichiarazioni, disponibile solo quando tutte e quattro le spunte sono attive. Raccoglie:
 
 - **Anagrafica:** nome, cognome, email, telefono, data di nascita, nazionalità, codice fiscale, indirizzo di residenza, numero documento d'identità
 - **Dati accademici:** università, dipartimento, corso di studi, anno di corso, tipologia (universitario / Erasmus / master / altro)
@@ -60,11 +60,9 @@ Stato risultante: **`ricevuta`**. Parte in automatico l'email di conferma ricezi
 
 Se il candidato supera il filtro iniziale, l'amministratore genera un link di completamento da `/admin/candidature`. `generate-completion-link` produce un token casuale da 32 byte, ne salva **solo l'hash SHA-256** sul record, imposta una scadenza a 21 giorni e invia in automatico l'email con il link.
 
-Il candidato apre `/candidatura/completa/{token}` e compila il secondo blocco:
+Il candidato apre `/candidatura/completa/{token}` e compila un modulo in quattro step: stile di vita → garante → documenti aggiuntivi → dichiarazioni. Come nella fase 1, non esiste uno step di riepilogo: l'invio parte dallo step dichiarazioni.
 
-- **Stile di vita:** lingue parlate, orari prevalenti, personalità, abitudini di ordine e pulizia, fumatore, presentazione personale
-- **Garante:** nome, relazione, telefono, email
-- **Documenti aggiuntivi:** documento d'identità del garante (obbligatorio), documentazione ulteriore (facoltativa)
+Sono **obbligatori**: lingue parlate, orari prevalenti, personalità (con testo libero se "altro"), abitudini di ordine e pulizia, indicazione esplicita se fumatore, presentazione personale, tutti i campi del garante (nome, relazione, telefono, email), documento d'identità del garante e tutte e quattro le dichiarazioni. La documentazione ulteriore resta facoltativa.
 
 Il token viene validato da `get-completion-form` prima di mostrare il modulo e di nuovo da `complete-candidatura` al momento dell'invio. È monouso: dopo il completamento il link restituisce `410`.
 
@@ -72,7 +70,9 @@ Stato risultante: **`completata`**.
 
 ### Fase 3 — Valutazione e assegnazione
 
-L'amministratore porta la candidatura in `in_valutazione`, poi in `approvata` o `rifiutata`. Il passaggio a uno di questi due stati fa scattare il trigger `candidature_flag_esito_email`, che marca la candidatura come "esito da comunicare" e la fa comparire nella sezione **Task** della Dashboard.
+L'amministratore approva o rifiuta la candidatura. L'azione è disponibile sia da `ricevuta` (candidatura arrivata ma senza il blocco completo) sia da `completata` (candidatura con anche stile di vita, garante e documenti del garante). Il passaggio ad `approvata` o `rifiutata` fa scattare il trigger `candidature_flag_esito_email`, che marca la candidatura come "esito da comunicare" e la fa comparire nella sezione **Task** della Dashboard.
+
+Da `approvata` o `rifiutata` è possibile **riaprire** la candidatura: torna a `completata` se esiste un form completo, altrimenti a `ricevuta` (logica in `reopenStato`, `src/lib/candidaturaActions.ts`). La riapertura non è possibile se esiste già un'assegnazione attiva, per garanzia del trigger `candidature_check_stato_vs_assegnazione`.
 
 L'invio dell'email di esito è **manuale**, non automatico: l'amministratore la conferma dalla scheda candidatura e può aggiungere una nota libera. Scelta deliberata — l'esito di una candidatura è una comunicazione che merita una rilettura umana.
 
@@ -80,7 +80,7 @@ Al candidato approvato viene poi assegnato un posto in una camera specifica. Nas
 
 ### Stati possibili
 
-**Candidature:** `ricevuta` → `in_completamento` → `completata` → `in_valutazione` → `approvata` | `rifiutata`. Più `ritirata` e `sostituita`.
+**Candidature:** `ricevuta` → (`in_completamento` →) `completata` → `approvata` | `rifiutata`. Più `ritirata` (rinuncia del candidato) e `sostituita`. Lo stato intermedio `in_valutazione` non esiste: approvazione e rifiuto avvengono direttamente da `ricevuta` o `completata`.
 
 **Camere:** `libera`, `parzialmente_occupata`, `occupata`, `manutenzione`, `non_disponibile`.
 
@@ -107,13 +107,15 @@ Al candidato approvato viene poi assegnato un posto in una camera specifica. Nas
 
 **Perché i dati accademici sono anche in snapshot su `candidature`:** i campi `universita_snapshot`, `corso_snapshot`, `anno_corso_snapshot` congelano la situazione al momento della candidatura. Se lo studente cambia corso, la candidatura resta leggibile com'era.
 
+### Tabella di sessione candidatura
+
+`candidatura_sessioni` registra ogni apertura del form pubblico: `temp_id` (UUID generato dal client), `origine` (`pubblica` o `completamento`), `upload_count`, `consumata_il`. Serve a due cose: dimostrare che chi carica un documento ha effettivamente aperto il form (validazione Cloudflare Turnstile per il form pubblico, token di completamento per quello su invito) e limitare il numero di upload per sessione.
+
+La tabella è scritta esclusivamente da funzioni `SECURITY DEFINER` (`check_candidatura_sessione`, `consume_candidatura_upload_slot`, `consume_candidatura_sessione`) invocate dalle edge function pubbliche. Ha **RLS attiva e zero policy**: è la configurazione più restrittiva possibile e l'accesso passa solo dal ruolo `service_role`, che non è soggetto alle policy. Non aggiungere policy: una policy scritta larga la aprirebbe invece di chiuderla (vedi §"Rilievi di sicurezza archiviati").
+
 ### Tabelle di infrastruttura email
 
 `email_send_log`, `suppressed_emails`, `email_unsubscribe_tokens`, più le code `pgmq`. Accessibili unicamente dal ruolo `service_role`: nessun accesso applicativo, per design.
-
-### Tabelle del form configurabile
-
-`form_campi_custom`, `form_documenti_custom` e la colonna `candidature.risposte_custom` permettono di aggiungere campi al form senza toccare il codice. **Questa funzionalità è di fatto inutilizzata ed è stata concordata la sua rimozione** (intervento M7 nell'audit). Non costruirci sopra.
 
 ---
 
@@ -133,6 +135,15 @@ Questa è la scelta architetturale più importante del sistema, e va rispettata:
 C'è anche un indice univoco parziale su `(camera_id, posto)` per le assegnazioni attive: due persone non possono occupare lo stesso posto nemmeno in caso di scrittura concorrente.
 
 **Conseguenza pratica:** non scrivere mai `camere.stato` dal codice applicativo. Lo fa il trigger. Scritture ridondanti sono già state rimosse una volta e non vanno reintrodotte.
+
+### Registro dei cambi di stato: transizioni vs eventi
+
+Le righe di `log_stato_candidature` sono di due tipi:
+
+- **Righe di transizione** (`stato_precedente` ≠ `stato_nuovo`): scritte **esclusivamente** dal trigger `candidature_log_stato` a ogni `UPDATE` di `candidature.stato`. Il codice applicativo non deve mai inserire righe di transizione: farebbe duplicati e/o incoerenze rispetto allo stato reale della candidatura.
+- **Righe di evento** (`stato_precedente = stato_nuovo`, con `note`): scritte dalle funzioni server per lasciare traccia di azioni che non cambiano lo stato ma sono rilevanti nella cronologia. Oggi l'unico caso è `complete-candidatura`, che inserisce una riga di evento con nota "Form completo inviato dallo studente" quando il candidato invia la fase 2.
+
+La scheda persona (§ Area amministrativa) presenta le due categorie in una timeline narrativa unica.
 
 ---
 
@@ -178,23 +189,61 @@ Uno scanner di sicurezza segnalerà a ripetizione che "gli studenti non possono 
 
 Cinque edge function sono raggiungibili senza autenticazione: `submit-candidatura`, `complete-candidatura`, `get-completion-form`, `upload-candidatura-doc`, e il webhook `auth-email-hook`.
 
-Tutte validano server-side: tipi, lunghezze massime, regex su email e date, formato UUID, formato dei path di storage, tetto ai campi personalizzati. La validazione lato client esiste per l'esperienza d'uso, non per la sicurezza, e questo è già corretto nel codice.
-
-`upload-candidatura-doc` impone tetto di 10 MB, allowlist MIME (PDF, JPG, PNG, WEBP), sanificazione del nome file e path forzato. **Nota:** il client blocca a 5 MB. La discrepanza è cosmetica ma va allineata.
+Tutte validano server-side: tipi, lunghezze massime, regex su email e date, formato UUID, formato dei path di storage. La validazione lato client esiste per l'esperienza d'uso, non per la sicurezza.
 
 I messaggi di errore verso l'utente sono generici, il dettaglio finisce nei log lato server. Non introdurre messaggi che espongano nomi di tabella o struttura delle query.
 
-### Documenti
+### Documenti e storage
 
-Il bucket `documenti_studenti` è privato. Gli amministratori leggono tramite signed URL a scadenza breve. Nessuna lettura pubblica.
+Il bucket `documenti_studenti` è privato: gli amministratori leggono tramite signed URL a scadenza breve, nessuna lettura pubblica.
+
+I file dei candidati vivono in due posizioni distinte:
+
+- **Cartella temporanea `pending/{temp_id}/{tipo}/{filename}`**: dove `upload-candidatura-doc` deposita ogni file caricato dal form. `temp_id` è l'UUID della sessione di candidatura, non della candidatura definitiva (che ancora non esiste al momento dell'upload).
+- **Cartella definitiva `candidature/{candidatura_id}/{tipo}/{filename}`**: destinazione finale, legata alla candidatura reale.
+
+Lo spostamento avviene al momento dell'invio andato a buon fine, tramite l'helper condiviso `moveDocumentToFinal` (`supabase/functions/_shared/move-documenti.ts`), chiamato da `submit-candidatura` (fase 1) e da `complete-candidatura` (fase 2). Se lo spostamento fallisce, il file **resta nella cartella temporanea** e nel record `documenti` viene salvato il path originale: la candidatura si registra comunque, l'errore viene loggato lato server e il file resta accessibile.
+
+**Tipi documento accettati.** Un insieme fisso: `documento_identita`, `certificato_iscrizione`, `documento_garante`, `documento_aggiuntivo`. La definizione unica è in `supabase/functions/_shared/documenti-tipi.ts` e viene applicata sia dalle edge function di upload/submit sia dal vincolo `documenti_tipo_check` sulla tabella `documenti`. Non riscrivere l'elenco altrove.
+
+**Limiti di caricamento**:
+
+| Limite | Valore | Dove |
+|---|---|---|
+| Dimensione massima per file | 5 MB | `MAX_BYTES` in `upload-candidatura-doc/index.ts` (server) e `MAX_UPLOAD_BYTES` in `src/lib/uploads.ts` (client) |
+| Formati accettati | PDF, JPG, PNG | Allowlist MIME server + `ACCEPTED_UPLOAD_MIME` client |
+| Caricamenti per sessione | 4 | Funzione atomica `consume_candidatura_upload_slot` (RPC), che incrementa `candidatura_sessioni.upload_count` solo se `< 4` e la sessione non è consumata |
 
 ---
 
 ## 8. Multi-struttura
 
-Il sistema nasce multi-sede. Il filtro struttura è centralizzato in `useStrutturaFilter` e `StrutturaSelect`, e va usato in ogni nuova pagina che mostri dati filtrabili per sede. Non reimplementare filtri locali: è già successo una volta e ha prodotto incoerenze fra pagine.
+Il sistema nasce multi-sede. Il filtro sede non è un filtro locale di pagina ma un **contesto globale** dell'area amministrativa, con sorgente unica in `StrutturaFilterProvider` (`src/hooks/useStrutturaFilter.ts`) e presentato nella top bar. Ogni pagina admin lo legge via `useStrutturaFilter()` e rifetcha automaticamente al cambio di valore. Non reimplementare filtri locali: è già successo una volta e ha prodotto incoerenze fra pagine.
+
+**Eccezione**: la pagina `/admin/strutture` elenca sempre tutte le sedi (attive e disattivate), indipendentemente dal valore del filtro globale, perché è la pagina in cui le sedi si gestiscono.
 
 Attenzione a una distinzione che ha già causato un bug: `candidature.struttura_preferita_id` è una **preferenza espressa dal candidato**, non un'occupazione. L'occupazione reale si legge dalle assegnazioni attive risalendo alla struttura della camera. Le metriche di occupazione devono usare la seconda, mai la prima.
+
+---
+
+## 8bis. Area amministrativa
+
+L'area `/admin` è organizzata attorno a `AdminLayout`, che fornisce:
+
+- una **sidebar** con le voci principali (Dashboard, Candidature, Residenti, Camere, Strutture, Storico);
+- una **top bar globale** con titolo della pagina corrente e selettore struttura.
+
+Le pagine sotto `/admin` **non** stampano più un proprio titolo o sottotitolo: iniziano direttamente dalla toolbar filtri o dal contenuto. Il titolo mostrato in top bar è risolto in ordine da un override esplicito (`usePageTitle(label)` per rotte con parametri variabili, es. `"Rossi Mario"` sulla pagina persona) oppure da una mappa statica `rotta → label` per le rotte fisse.
+
+### Pagina persona
+
+La finestra modale di dettaglio candidatura è sostituita da una pagina dedicata: `/admin/studenti/:id` (`src/pages/admin/StudentePage.tsx`). Contiene, nell'ordine:
+
+1. anagrafica della persona, mostrata una sola volta in alto;
+2. i **blocchi delle sue candidature**, collassabili singolarmente (aperto solo quello indicato nell'URL o, in assenza, il più recente), ciascuno con le dichiarazioni congelate a quella candidatura, i documenti caricati, la timeline dei cambi di stato e le note admin;
+3. lo **storico dei soggiorni**.
+
+Le liste (Candidature, Residenti) navigano a questa pagina preservando i filtri correnti tramite query string: il tasto "Torna alla lista" ricostruisce l'URL di partenza. Le azioni disponibili nel menu di riga e nella scheda persona sono lette dalla stessa definizione condivisa (`getAvailableActions` in `src/lib/candidaturaActions.ts`), così lista e scheda non possono divergere.
 
 ---
 
@@ -208,17 +257,17 @@ Le due sedi sono finanziate nell'ambito del **PNRR Missione 4 Componente 1** (Mi
 
 ### Protezione dei dati
 
-L'informativa pubblicata è su `studentatoeuropa.it/it/privacy-policy/`. Titolare: Navona S.r.l.
+L'informativa pubblicata è su `studentatoeuropa.it/privacy-policy`. Titolare: Navona S.r.l.
 
-**L'informativa non copre adeguatamente ciò che l'app raccoglie.** Al 26 luglio 2026:
+La spunta privacy del form di candidatura è formulata come **presa visione** ("Dichiaro di aver preso visione dell'informativa privacy") e rimanda al documento pubblicato tramite `PRIVACY_POLICY_URL` (`src/lib/privacy.ts`). La formulazione è coerente con la base giuridica dichiarata nell'informativa, che non poggia sul consenso.
+
+**L'informativa non copre adeguatamente ciò che l'app raccoglie.** I rilievi seguenti risultano tutti aperti:
 
 - Due segnaposto non compilati sono pubblicati sulla pagina live: l'indirizzo della sede legale e il nome del fornitore del gestionale (quest'ultimo compare due volte)
 - Il §2.2 descrive un modulo di contatto con nome, email, telefono e messaggio. L'app raccoglie molto di più: codice fiscale, numero e scansione del documento d'identità, indirizzo di residenza, certificato di iscrizione, dati accademici, informazioni sullo stile di vita e una presentazione personale
 - Il §2.3 copre gli studenti **che hanno sottoscritto un contratto**. I candidati respinti o mai contrattualizzati non sono coperti da nessuna sezione, e non esiste un periodo di conservazione dichiarato per le loro candidature
 - **Il garante non è menzionato.** I suoi dati e il suo documento d'identità sono caricati da un terzo, e lui non ha mai visitato il sito. È una raccolta indiretta che richiede un'informativa dedicata
 - Non sono menzionati il sottodominio `app.studentatoeuropa.it`, i sub-responsabili infrastrutturali, né la localizzazione dei dati
-
-Il form dell'app chiede una spunta di consenso privacy che **oggi non rimanda ad alcun documento**. Il collegamento va inserito.
 
 ### Fiscalità
 
@@ -256,6 +305,13 @@ Contratti e fatturazione sono oggetto di una proposta integrativa separata (Fase
 | Token di completamento salvato come hash | Chi legge il database non può usare i link |
 | Email in coda asincrona | Un fallimento di invio non deve mai far perdere una candidatura |
 | Gestionale su misura invece di un PMS di mercato | I PMS alberghieri costano 100–400 €/mese per funzioni non pertinenti e mancano di ciò che serve; i gestionali immobiliari sono sovradimensionati per 82 posti |
+| Rimozione del form configurabile | La funzionalità era di fatto inutilizzata; il modello dati resta più semplice e chiude una superficie di rischio |
+| Rimozione dello stato intermedio `in_valutazione` | Il flusso reale ha un solo passaggio decisionale (approva/rifiuta): uno stato in mezzo era rumore |
+| Documenti spostati fuori da `pending/` a fine invio | Separa il temporaneo dal definitivo, riduce residui e rende chiaro cosa appartiene a una candidatura reale |
+| Insieme fisso dei tipi documento in un modulo condiviso | Impedisce che client, edge function e vincolo DB divergano nel tempo |
+| Filtro sede come contesto globale dell'area admin | Impedisce filtri locali reimplementati per pagina, che avevano già prodotto incoerenze |
+| Pagina persona al posto della modale di dettaglio | Dà spazio ai dati, permette navigazione con URL condivisibile e distingue la persona dalla singola candidatura |
+| Azioni candidatura definite in un unico punto | Lista e scheda leggono dalla stessa definizione: non possono mostrare azioni diverse per la stessa candidatura |
 
 ---
 
@@ -271,3 +327,18 @@ Contratti e fatturazione sono oggetto di una proposta integrativa separata (Fase
 8. **Prima di dichiarare chiuso un intervento, rileggere il codice.** È già successo che un fix riportato come completato non fosse presente.
 9. **Il design system è in `design-system.md`** e va rispettato: token semantici, mai colori hard-coded, componenti shadcn mai riscritti.
 10. **Se una modifica tocca dati personali, verificare che l'informativa la copra** prima di rilasciarla.
+11. **Non scrivere righe di transizione in `log_stato_candidature` dal codice applicativo.** Lo fa il trigger. Le funzioni server possono inserire solo righe di evento (`stato_precedente = stato_nuovo`) con una nota che ne spiega il significato.
+12. **I tipi documento si prendono da `supabase/functions/_shared/documenti-tipi.ts`.** Non riscrivere l'elenco in edge function o componenti: divergerebbe dal vincolo DB.
+13. **Il filtro sede si legge da `useStrutturaFilter`.** Non reimplementare selettori locali per pagina.
+14. **Lo stato di una lista (ricerca, filtri, pagina) vive nell'indirizzo (query params).** Non in navigation state, non in `useState` locale che va perso alla navigazione: la pagina persona deve poter ricostruire l'URL di ritorno.
+15. **Le azioni disponibili su una candidatura si leggono da `getAvailableActions`** in `src/lib/candidaturaActions.ts`. Lista e scheda persona non devono mai calcolarle in modo indipendente.
+
+---
+
+## 13. Rilievi di sicurezza archiviati
+
+Rilievi già esaminati e chiusi come non applicabili al perimetro attuale. Sono elencati qui insieme alla **condizione che li renderebbe di nuovo rilevanti**, così che in una prossima revisione non vengano riaperti per abitudine.
+
+- **Formule negli export.** Gli export sono in formato **XLSX**, dove il tipo della cella è dichiarato nel file e il testo non viene reinterpretato come formula. Il rilievo tornerebbe rilevante se venisse introdotto un export in **CSV**, formato in cui i valori che iniziano per `=`, `+`, `-`, `@` vengono interpretati come formula da alcuni fogli di calcolo.
+- **`candidatura_sessioni` senza policy RLS.** La tabella ha **RLS attiva e nessuna policy**, che è la configurazione più restrittiva possibile: la lettura e la scrittura passano solo dal ruolo `service_role`, che non è soggetto alle policy. Aggiungere una policy scritta larga la aprirebbe invece di chiuderla. Il rilievo tornerebbe rilevante solo se si volesse esporre la tabella a un ruolo applicativo (`anon` o `authenticated`).
+- **Restrizione delle origini (CORS) sulle edge function.** Non applicata deliberatamente: il CORS è imposto dal browser e non protegge da chiamate non-browser, mentre gli endpoint amministrativi richiedono comunque un token valido. Il rilievo tornerebbe rilevante se un endpoint si autenticasse tramite cookie (soggetto a CSRF) o se restituisse dati sensibili senza autenticazione.
