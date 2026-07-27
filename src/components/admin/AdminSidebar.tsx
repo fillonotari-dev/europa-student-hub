@@ -40,14 +40,14 @@ export function AdminSidebar() {
     <Sidebar collapsible="icon" className="border-r bg-card/95 backdrop-blur-md">
       <SidebarContent>
         <SidebarGroup>
-          <div className="px-3 py-4 mb-2 flex items-center gap-2">
+          <div className={`py-4 mb-2 flex items-center gap-2 ${collapsed ? 'justify-center px-0' : 'px-3'}`}>
             {!collapsed && (
               <div className="flex items-center gap-2 flex-1 min-w-0">
                 <img src={logoStudentato} alt="Studentato Europa" className="w-8 h-8 object-contain shrink-0" />
                 <p className="text-sm font-bold truncate">Studentato Europa</p>
               </div>
             )}
-            <SidebarTrigger className={collapsed ? 'mx-auto' : 'ml-auto'} />
+            <SidebarTrigger />
           </div>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -60,7 +60,7 @@ export function AdminSidebar() {
                       className="hover:bg-muted"
                       activeClassName="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
                     >
-                      <item.icon className="mr-2 h-4 w-4" />
+                      <item.icon className={`h-4 w-4 ${collapsed ? '' : 'mr-2'}`} />
                       {!collapsed && <span>{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
@@ -76,7 +76,7 @@ export function AdminSidebar() {
                       className="hover:bg-muted"
                       activeClassName="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
                     >
-                      <History className="mr-2 h-4 w-4" />
+                      <History className="h-4 w-4" />
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -118,7 +118,7 @@ export function AdminSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton onClick={handleLogout} className="text-muted-foreground hover:text-foreground hover:bg-muted">
-              <LogOut className="mr-2 h-4 w-4" />
+              <LogOut className={`h-4 w-4 ${collapsed ? '' : 'mr-2'}`} />
               {!collapsed && <span>Esci</span>}
             </SidebarMenuButton>
           </SidebarMenuItem>
