@@ -1,78 +1,87 @@
-## Parte 1 — Scheda persona: navigazione, collasso, no duplicazione
+# Allineamento `docs/Context.md` e `docs/design-system.md`
 
-### 1. Torna alla lista con stato preservato — nell'URL, non in navigation state
-Motivazione: `Candidature.tsx` legge già `?candidatura` dai query params. Un secondo canale (`location.state`) creerebbe due sorgenti e si perderebbe al reload / tasto indietro.
+Documento riscritto per punti, mantenendo tono di riferimento (presente, non changelog) e struttura esistente. Ogni affermazione qui sotto è stata verificata nel codice.
 
-- `src/pages/admin/Candidature.tsx`: `search`, `filterStato`, `filterStruttura` (se locale), `page` sincronizzati con `useSearchParams` (`?q=…&stato=…&page=…`). Idratazione al mount da query params; ogni cambio filtro fa `setSearchParams(..., { replace: true })`.
-- Apertura scheda: `navigate('/admin/studenti/:id?candidatura=…&from=candidature&<queryString>')`.
-- `src/pages/admin/Residenti.tsx`: idem per i suoi filtri; apertura scheda con `&from=residenti&<queryString>`.
-- `src/pages/admin/StudentePage.tsx`: link "← Torna alla lista" ricostruito dall'URL leggendo `from` e ripropagando i restanti query params (esclusi `candidatura`/`from`). Fallback a `/admin/candidature` se `from` assente.
+## `docs/Context.md`
 
-Reload e tasto indietro funzionano; la lista si riapre esattamente com'era.
+### §3 Ciclo di vita
+- Rimuovere lo stato `in_valutazione` dalla sequenza. Nuovo flusso: `ricevuta` → (opz. `in_completamento` →) `completata` → `approvata` | `rifiutata`, più `ritirata` (rinuncia del candidato) e `sostituita`.
+- Riscrivere "Fase 3": approvazione e rifiuto sono oggi possibili sia da `ricevuta` sia da `completata` (verificato in `getAvailableActions` di `src/lib/candidaturaActions.ts`).
+- Descrivere la riapertura: da `approvata` / `rifiutata` riporta a `completata` se esiste un form completo, altrimenti a `ricevuta` (funzione `reopenStato`).
+- Aggiornare l'elenco degli stati eliminando `in_valutazione`.
+- Rinominare `ritirata` in "Rinuncia del candidato" nella descrizione.
 
-### 2. Blocchi candidatura richiudibili
-- `src/components/admin/candidatura/CandidaturaDetail.tsx` prende `open: boolean` e `onToggle`. Header collassato: data candidatura, anno accademico, badge di stato e `CandidaturaActions.Buttons`. Dettaglio renderizzato solo quando `open`.
-- `StudentePage.tsx`: `openIds: Set<string>` calcolato quando i dati sono disponibili — se `?candidatura=<id>` valido, aperto solo quello; altrimenti solo il più recente. Chevron nell'header alterna il blocco.
+### §4 Modello dati
+- Eliminare la sotto-sezione "Tabelle del form configurabile" e ogni riferimento a `form_campi_custom`, `form_documenti_custom`, `candidature.risposte_custom` (tabelle e colonna droppate nella migration `20260727074958`).
+- Aggiungere una nuova sotto-sezione "Tabella di sessione candidatura" per `candidatura_sessioni`: registra ogni apertura del form pubblico (`temp_id`, `origine`, `upload_count`, `consumata_il`); è scritta solo da funzioni `SECURITY DEFINER` (`check_candidatura_sessione`, `consume_candidatura_upload_slot`, `consume_candidatura_sessione`) invocate dalle edge function pubbliche; ha RLS attiva e **zero policy** (accesso solo via `service_role`), che è la configurazione più restrittiva possibile.
 
-### 3. Deduplicazione e rinomina sezione
-Rimuovere dalla scheda-candidatura la sezione con email/telefono/nazionalità/data di nascita/CF (già in "Anagrafica" in cima). La sezione superstite contiene solo `indirizzo_residenza` e `documento_identita_n`: rinominarla **"Dichiarazioni per questa candidatura"**.
+### §5 Documenti e storage (integra §7 attuale sui documenti)
+- I file arrivano prima in `pending/{temp_id}/{tipo}/{filename}` tramite `upload-candidatura-doc`.
+- Al momento dell'invio andato a buon fine (`submit-candidatura` e `complete-candidatura`) l'helper `moveDocumentToFinal` (in `supabase/functions/_shared/move-documenti.ts`) sposta ciascun file in `candidature/{candidatura_id}/{tipo}/{filename}`.
+- Se lo spostamento fallisce, il file resta nella cartella temporanea e nel record `documenti` viene salvato il path originale, così la candidatura non si perde; l'errore viene loggato lato server.
+- L'insieme dei tipi accettati è fisso — `documento_identita`, `certificato_iscrizione`, `documento_garante`, `documento_aggiuntivo` — definito in un unico modulo condiviso `supabase/functions/_shared/documenti-tipi.ts` e applicato sia dalle edge function sia dal vincolo `documenti_tipo_check` sulla tabella `documenti`.
 
-Risposta al punto 3 — mappatura:
-- **Persona (in cima, una volta):** nome, cognome, email, telefono, nazionalità, data di nascita, codice fiscale.
-- **Candidatura (nel blocco):** indirizzo di residenza dichiarato, numero documento d'identità dichiarato, snapshot accademici, tipo studente, preferenze, stile di vita (fase 2), garante, stato form, messaggio, dichiarazioni, documenti, cronologia, note admin, azioni.
+### §? Limiti di caricamento
+- Dimensione massima: **5 MB per file**, sia server (`MAX_BYTES` in `upload-candidatura-doc`) sia client (`MAX_UPLOAD_BYTES` in `src/lib/uploads.ts`).
+- Formati accettati: **PDF, JPG, PNG**, sia lato client (`ACCEPTED_UPLOAD_MIME`) sia lato server (allowlist MIME).
+- Caricamenti massimi per sessione: **4 file**, imposti atomicamente dalla RPC `consume_candidatura_upload_slot` (migration più recente `20260727104357`).
+- Rimuovere dal §7 attuale la menzione dei 10 MB e di WEBP.
 
-### Uniformare formati (dettagli visti in schermata)
-- `CandidaturaDetail.tsx` Preferenze: `fmtIt(c.periodo_inizio) → fmtIt(c.periodo_fine)` invece del formato ISO.
-- `StudentePage.tsx` durata soggiorno: singolare/plurale corretto (`1 giorno` / `N giorni`, `1 mese` / `N mesi`).
+### §5 Regole di dominio
+- Nella tabella dei trigger mantenere `candidature_log_stato`, ma chiarire nel testo: le righe di **transizione** (`stato_precedente` ≠ `stato_nuovo`) sono scritte esclusivamente dal trigger; il codice applicativo non deve inserire righe di transizione. Le funzioni server inseriscono soltanto righe di **evento** (es. `complete-candidatura` scrive `stato_precedente = stato_nuovo` con nota "Form completo inviato dallo studente") per lasciare traccia di azioni che non cambiano stato.
 
-## Parte 2 — Registro cambi di stato
+### §8 Multi-struttura (area amministrativa)
+- Chiarire che il filtro sede non è per pagina ma **contesto globale** dell'area admin, con sorgente unica in `StrutturaFilterProvider` (`src/hooks/useStrutturaFilter.ts`), letta da tutte le pagine via `useStrutturaFilter()` e presentata nella top bar.
+- Eccezione documentata: `/admin/strutture` mostra sempre tutte le sedi (attive e non), indipendentemente dal filtro globale.
 
-### 4. Rimozione della doppia scrittura
+### Nuova §"Area amministrativa"
+- Layout `AdminLayout` con sidebar + **top bar globale** che ospita titolo della pagina corrente e selettore struttura.
+- Le pagine sotto `/admin` non stampano più titolo proprio: partono dalla toolbar filtri.
+- Il titolo mostrato in top bar è risolto da `usePageTitle` (override per rotte con parametri) o dalla mappa statica rotta→label.
+- La finestra di dettaglio candidatura è sostituita dalla **pagina persona** `/admin/studenti/:id` (in `src/pages/admin/StudentePage.tsx`): anagrafica in alto, blocchi collassabili per ciascuna candidatura, storico soggiorni. Le liste (Candidature, Residenti) navigano a questa pagina preservando i filtri via URL.
 
-Verifica sul file attuale (`src/hooks/useCandidaturaActions.tsx`, righe 64-81 e 258-292):
-- La mutazione `updateStato` accetta oggi solo `{ id, stato }` e **non passa alcuna nota** al registro: l'`INSERT` scrive `candidatura_id`, `stato_precedente`, `stato_nuovo`, `cambiato_da` senza `note`.
-- Il dialog `statoConfirm` non ha campo nota.
-- Quindi rimuovendo l'`INSERT` **non si perde alcuna nota**.
+### §3 Form pubblico e §3 Form di completamento
+- Il form pubblico non ha più lo step "informazioni aggiuntive": gli step attuali sono anagrafica → dati accademici → preferenze → documenti → dichiarazioni, e l'invio parte dallo step dichiarazioni (verificato: `STEPS` in `Candidatura.tsx`).
+- Il form di completamento non ha più il riepilogo finale: step attuali `stile di vita → garante → documenti aggiuntivi → dichiarazioni`, invio dallo step dichiarazioni. Elencare come obbligatori: lingue parlate, orari, personalità (con "altro" testo), ordine/pulizia, fumatore (booleano esplicito), presentazione, garante (nome, relazione, telefono, email), documento d'identità del garante; la documentazione aggiuntiva resta facoltativa.
 
-Modifica: in `updateStato` rimuovere il `SELECT stato`, l'`INSERT` in `log_stato_candidature` e la chiamata `auth.getUser()`. Restano solo `UPDATE candidature SET stato = …`. La transizione la scrive il trigger `candidature_log_stato`.
+### §9 Protezione dei dati
+- La spunta privacy del form ora rimanda all'informativa pubblicata (`PRIVACY_POLICY_URL = https://studentatoeuropa.it/privacy-policy`) ed è formulata come **presa visione** ("Dichiaro di aver preso visione dell'informativa privacy") e non come autorizzazione — coerente con la base giuridica dichiarata nell'informativa.
+- Mantenere invariati tutti i rilievi sull'informativa pubblicata (segnaposto non compilati, §2.2 sottodimensionato, mancata copertura dei candidati non contrattualizzati, garante non menzionato, mancanza di sub-responsabili e localizzazione dati): non risultano risolti.
 
-Nessun nuovo campo nota nel dialog: fuori scope. La nota già presente sulla candidatura (`note_admin`) resta l'unico punto di scrittura di annotazioni libere.
+### §11 Decisioni prese
+Aggiungere righe (stesso stile motivo → beneficio):
+- Rimozione del form configurabile — semplifica il modello dati e chiude una superficie non usata.
+- Rimozione dello stato intermedio `in_valutazione` — il flusso reale ha un solo passaggio decisionale.
+- Documenti spostati fuori da `pending/` a fine invio — separa il temporaneo dal definitivo e riduce residui.
+- Insieme fisso dei tipi documento in un unico modulo — impedisce divergenze fra client, edge function e DB.
+- Filtro sede come contesto globale — impedisce filtri locali incoerenti fra pagine.
+- Pagina persona al posto della modale di dettaglio — dà spazio ai dati e permette navigazione con URL.
+- Azioni candidatura definite in un unico punto (`src/lib/candidaturaActions.ts`) — lista e scheda non possono divergere.
 
-Restano invariate le righe evento scritte dalle edge functions (`generate-completion-link`, `send-esito-email`) — non toccate.
+### §12 Regole per chi ci mette mano
+Aggiungere, in stile imperativo, queste voci:
+- Non scrivere righe di transizione in `log_stato_candidature` dal codice applicativo: lo fa il trigger; le funzioni server inseriscono al massimo righe di evento con nota.
+- I tipi documento si prendono da `supabase/functions/_shared/documenti-tipi.ts`, non si riscrivono altrove.
+- Il filtro sede si legge da `useStrutturaFilter`, mai reimplementato localmente.
+- Lo stato di una lista (ricerca, filtri, pagina) vive nell'indirizzo (query params), non in navigation state.
+- Le azioni disponibili su una candidatura si leggono da `getAvailableActions` in `candidaturaActions.ts`.
 
-### 5. Timeline: nota mostrata testualmente
-In `CandidaturaDetail.tsx` (e coerentemente in `StoricoCandidature.tsx`):
-- Righe con `stato_precedente = stato_nuovo`: stampare il testo di `note` così com'è nel database. Nessun mapping di stringhe.
-- Righe di transizione: "Stato passato da *X* a *Y*" con `formatStato`.
-- Se una transizione ha anche una nota, mostrare entrambe: la frase di transizione sopra e il testo della nota sotto.
+### Nuova sezione "Rilievi di sicurezza archiviati"
+Rilievi esaminati e chiusi come non applicabili, con condizione di riapertura:
+- **Formule negli export**: gli export sono XLSX, dove il tipo cella è dichiarato nel file e il testo non viene reinterpretato. Tornerebbe rilevante se venisse introdotto un export in CSV.
+- **`candidatura_sessioni` senza policy**: la tabella ha RLS attiva e zero policy, ossia la configurazione più restrittiva; l'accesso avviene solo tramite `service_role`, che non è soggetto alle policy. Una policy scritta larga la aprirebbe invece di chiuderla.
+- **Restrizione delle origini (CORS) sulle edge function**: non applicata deliberatamente; il CORS è imposto dal browser e non protegge da chiamate non-browser, mentre gli endpoint amministrativi richiedono comunque un token. Tornerebbe rilevante se un endpoint iniziasse ad autenticarsi tramite cookie o restituisse dati sensibili senza autenticazione.
 
-### 6. Prima riga della cronologia
-La prima riga si identifica **per posizione cronologica** all'interno della singola candidatura (elemento con `created_at` più antico), non per assenza di `stato_precedente`. Presentazione:
-> "Candidatura ricevuta" (o, se lo stato iniziale registrato non è `ricevuta`: "Candidatura registrata come *{formatStato(stato_nuovo)}*").
+## `docs/design-system.md`
 
-Righe **successive** senza `stato_precedente`:
-- se hanno `note` non vuota → evento descritto dalla nota (testo letterale).
-- altrimenti → registrazione dello stato: "Stato registrato: *{formatStato(stato_nuovo)}*".
+### §3 Tipografia (tabella)
+- Rimuovere le righe "H1 pagina" e "Sottotitolo / descrizione" (non esistono più titoli interni alle pagine admin).
+- Aggiungere una riga "Titolo pagina (top bar)" — reso da `AdminTopBar` con `text-sm font-semibold` (verificare in `AdminTopBar.tsx`) — e chiarire che le pagine non stampano un proprio H1 né sottotitolo; iniziano dalla toolbar filtri o dal contenuto.
 
-### 7. `complete-candidatura` fuori dalla macchina a stati
-`supabase/functions/complete-candidatura/index.ts` (riga 194) oggi registra `stato_nuovo: "completata_form"`, valore non presente nella macchina a stati. Correggere in evento: `stato_precedente = cand.stato`, `stato_nuovo = cand.stato`, `note = "Form completo inviato dallo studente"`. Nessun altro cambio.
+## Chiusura del lavoro
+Al termine, elencare nel messaggio finale:
+1. i punti dove il codice è risultato diverso da quanto indicato nella richiesta (es. numeri o percorsi da rileggere);
+2. le parti dei documenti lasciate invariate perché già corrette (es. §5 trigger già presente, §8 struttura filtro già menzionata parzialmente in `design-system.md`).
 
-### 8. Timeline leggibile
-Lista verticale (ordine ascending) con pallino/linea, italiano corrente:
-- **{data ora}** — Candidatura ricevuta *(prima riga per posizione)*
-- **{data ora}** — Stato passato da *Ricevuta* a *Approvata* *(transizione)*
-- **{data ora}** — {testo nota letterale} *(evento)*
-
-## Vincoli
-
-- Nessuna modifica a stati, vincoli, trigger, migrazioni.
-- Nessuna riga esistente del log cancellata o riscritta.
-
-### File toccati
-- `src/pages/admin/StudentePage.tsx` — link ritorno da URL, apertura blocchi, singolare/plurale durata.
-- `src/components/admin/candidatura/CandidaturaDetail.tsx` — collassabile, rimozione "Dati studente", rinomina in "Dichiarazioni per questa candidatura", nuova timeline, `fmtIt` sul periodo.
-- `src/pages/admin/Candidature.tsx` — filtri/ricerca/pagina in `useSearchParams`; navigate con querystring + `from=candidature`.
-- `src/pages/admin/Residenti.tsx` — filtri/ricerca in `useSearchParams`; navigate con querystring + `from=residenti`.
-- `src/hooks/useCandidaturaActions.tsx` — `updateStato` scrive solo `UPDATE candidature`, nessun `INSERT` nel log, nessun nuovo campo nel dialog.
-- `src/pages/admin/storico/StoricoCandidature.tsx` — presentazione coerente, prima riga per posizione cronologica.
-- `supabase/functions/complete-candidatura/index.ts` — log come evento descritto dalla nota.
+## Nota tecnica
+Solo modifiche a `docs/Context.md` e `docs/design-system.md`. Nessuna modifica al codice, alle migration o alle edge function.
