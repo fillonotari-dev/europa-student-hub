@@ -1,61 +1,74 @@
-## Modifiche etichette e opzioni form candidatura
 
-### 1. `src/i18n/translations.ts` (IT + EN)
-- **Ordine/pulizia** — domanda + opzioni:
-  - IT: `ordinePulizia` → "Come ti comporti con ordine e pulizia?"; `ordineMolto` → "Rimetto tutto a posto subito"; `ordineAbbastanza` → "Rimetto a posto, ma non sempre subito"; rimuovere `ordineFlessibile`, aggiungere `ordinePoco` → "Tendo a lasciare le cose in giro".
-  - EN: `ordinePulizia` → "How do you handle tidiness and cleaning?"; `ordineMolto` → "I put everything back right away"; `ordineAbbastanza` → "I tidy up, but not always straight away"; `ordinePoco` → "I tend to leave things lying around".
-- **Fumatore**: IT `fumatore` → "Fumi?"; EN → "Do you smoke?".
-- **Garante relazione**: IT `garanteRelazione` → "Che rapporto ha con te?"; EN → "What is their relationship to you?".
-- **Tipo studente** (etichette, valori DB invariati). La versione EN deve coprire gli stessi insiemi della IT (triennale + magistrale nella prima; post-laurea + dottorato nella terza):
-  - IT: `tipoStudente` → "Percorso di studi"; `tipoStudenteUniversitario` → "Corso di laurea"; `tipoStudenteErasmus` → "Erasmus o scambio"; `tipoStudenteMaster` → "Master o dottorato"; `tipoStudenteAltro` → "Altro".
-  - EN: `tipoStudente` → "Study path"; `tipoStudenteUniversitario` → "Undergraduate or graduate degree"; `tipoStudenteErasmus` → "Erasmus or exchange"; `tipoStudenteMaster` → "Postgraduate course or PhD"; `tipoStudenteAltro` → "Other".
-- **Privacy (punto 8)**: sostituire `dichPrivacy` con tre chiavi da comporre nel JSX:
-  - `dichPrivacyBefore` IT "Dichiaro di aver preso visione dell'" / EN "I confirm I have read the ".
-  - `dichPrivacyLink` IT "informativa privacy" / EN "privacy policy".
-  - `dichPrivacyAfter` IT "." / EN "." (punto finale anche in inglese, per coerenza con le altre dichiarazioni).
-  - Rimuovere `dichPrivacy`.
+## Obiettivo
+Trasformare l'header admin in una barra funzionale con titolo di pagina e selettore struttura globale. Rimuovere intestazioni locali e istanze duplicate del filtro. Fissare il bug per cui il filtro non propaga il ricaricamento dati tra pagine.
 
-### 2. `src/lib/privacy.ts` (nuovo)
-Costante condivisa `PRIVACY_POLICY_URL = 'https://studentatoeuropa.it/privacy-policy'`.
+## 1. Filtro struttura come contesto globale
 
-### 3. `src/pages/Candidatura.tsx` e `src/pages/CandidaturaCompleta.tsx`
-- Aggiungere `SelectItem value="poco"` per ordine/pulizia con label `form.ordinePoco`. Rimuovere l'item `flessibile`.
-- **Struttura riga privacy** — nessun link annidato in una `<label>`, e nessun tentativo di bloccare la propagazione (non affidabile: l'attivazione della label è comportamento nativo del browser, non intercettabile in React). Ristrutturare la riga come contenitore `div` (non `label`) con l'aspetto visivo attuale (border, padding, hover). Dentro:
-  - `<Checkbox id="dich-privacy" ... />` con la propria area cliccabile.
-  - `<label htmlFor="dich-privacy">` che avvolge SOLO il testo statico precedente/successivo al link e l'asterisco obbligatorio. Il link `<a>` sta FUORI da `<label>`, come sibling all'interno del contenitore.
-  - Il link: `<a href={PRIVACY_POLICY_URL} target="_blank" rel="noopener noreferrer" className="underline text-primary hover:text-primary/80">`.
-  - Layout inline (`flex items-start gap-3`, testo in `<span className="text-[13px] leading-relaxed">` con i frammenti inline) per mantenere l'aspetto identico all'attuale.
-- Le altre tre dichiarazioni restano `<label>` cliccabili come oggi.
-- In `CandidaturaCompleta.tsx` estrarre `privacy` dal `.map()` e renderla con il markup speciale sopra; le altre tre restano nel map.
-- Import `PRIVACY_POLICY_URL` dal modulo condiviso in entrambi i file.
+`src/hooks/useStrutturaFilter.ts` diventa un vero React Context:
+- Nuovo `StrutturaFilterProvider` che tiene stato + persistenza `localStorage` in un unico posto.
+- Hook `useStrutturaFilter()` legge dal context. Tutte le pagine che lo usano condividono la stessa istanza: cambiare valore nella top bar aggiorna `strutturaId` in ogni consumer, e le `useQuery` che lo hanno in `queryKey` si rifetchano automaticamente.
+- API pubblica invariata (`strutturaId`, `setStrutturaId`, `strutture`, `nomeSelezionato`, `isAll`) — nessuna pagina consumer va toccata a livello di logica dati.
 
-### 4. `src/pages/admin/Candidature.tsx`
-- `TIPO_STUDENTE_LABELS`: `universitario: 'Corso di laurea'`, `erasmus: 'Erasmus o scambio'`, `master: 'Master o dottorato'`, `altro: 'Altro'`.
-- `PERSONALITA_LABELS`: `tranquilla: 'Persona tranquilla'`, `socievole: 'Persona socievole'`, `riservata: 'Persona riservata'`, `altro: 'Altro'`.
-- `ORDINE_LABELS`: `molto: 'Rimette tutto a posto subito'`, `abbastanza: 'Rimette a posto, ma non sempre subito'`, `poco: 'Tende a lasciare le cose in giro'`. Rimuovere `flessibile`.
+Bug corretto: oggi ogni chiamata ad `useStrutturaFilter` inizializza un `useState` locale, quindi il valore in una pagina non è lo stesso oggetto reattivo dell'altra. Con il context, un solo `setStrutturaId` invalida tutte le query in tutte le pagine.
 
-### 5. `supabase/functions/complete-candidatura/index.ts`
-Aggiungere validazione whitelist per `ordine_pulizia`, allineata a quella di `orari`:
-```ts
-if (!["molto", "abbastanza", "poco"].includes(ordine_pulizia)) {
-  return json({ error: "Valore ordine/pulizia non valido" }, 400);
-}
-```
+## 2. Top bar admin
 
-### 6. Verifica chiavi i18n
-Al termine, riferire eventuali chiavi usate nei form ma mancanti in IT o EN (attese: nessuna; verificare `ordinePoco`, `dichPrivacyBefore/Link/After` presenti in entrambe le lingue e `dichPrivacy` non più referenziato).
+`src/pages/admin/AdminLayout.tsx`:
+- Avvolge il tree con `StrutturaFilterProvider` (dentro `SidebarProvider`).
+- `<header>` diventa: `SidebarTrigger` a sinistra, titolo pagina al centro-sinistra, `StrutturaSelect` a destra.
+- Altezza header invariata.
 
-### Vincoli rispettati
-- Nessuna migration DB. Valori salvati invariati.
-- Nessuna modifica a logica form, obbligatorietà, sessioni o upload.
+### Titolo pagina — mappa + override esplicito
+Nuovo piccolo contesto `PageTitleContext` (nello stesso file layout o in `src/hooks/usePageTitle.ts`):
+- Mappa statica `route → label` per le rotte fisse note:
+  - `/admin` → "Home"
+  - `/admin/candidature` → "Candidature"
+  - `/admin/residenti` → "Residenti"
+  - `/admin/camere` → "Camere"
+  - `/admin/strutture` → "Strutture"
+  - `/admin/storico/candidature` → "Storico · Candidature" (idem residenti/camere)
+- Se il pathname corrente non è nella mappa (es. futura `/admin/candidature/:id`), il layout mostra il titolo fornito dalla pagina tramite hook `usePageTitle(label)`, che scrive in `PageTitleContext` con `useEffect` (e resetta all'unmount). Se nessuna pagina lo imposta, fallback vuoto (no crash, nessuna stringa segnaposto).
+- Precedenza: override della pagina > mappa. Così le pagine di dettaglio che verranno potranno impostare un titolo dinamico (es. "Candidatura · Mario Rossi") senza toccare il layout.
 
-### Output finale
-File modificati:
-1. `src/i18n/translations.ts`
-2. `src/lib/privacy.ts` (nuovo)
-3. `src/pages/Candidatura.tsx`
-4. `src/pages/CandidaturaCompleta.tsx`
-5. `src/pages/admin/Candidature.tsx`
-6. `supabase/functions/complete-candidatura/index.ts`
+## 3. Rimozione intestazioni locali e filtri duplicati
 
-+ report chiavi di traduzione mancanti.
+Per ogni pagina admin: rimosso il blocco `<h1>` + sottotitolo iniziale e ogni `<StrutturaSelect>` nella barra filtri.
+- `src/pages/admin/Dashboard.tsx` — rimuove header locale e `StrutturaSelect` (mantiene tutta la logica query).
+- `src/pages/admin/Candidature.tsx` — idem.
+- `src/pages/admin/Camere.tsx` — idem.
+- `src/pages/admin/Residenti.tsx` — idem.
+- `src/pages/admin/Strutture.tsx` — rimuove il blocco titolo + descrizione; la pagina inizia direttamente con la griglia delle card, allineata alle altre. **Il filtro globale NON si applica**: la pagina elenca sempre tutte le sedi (attive e disattivate come oggi), altrimenti sarebbe impossibile modificare una sede diversa da quella selezionata in top bar. Il `StrutturaSelect` in top bar resta comunque visibile e continua a governare le altre pagine.
+- `src/pages/admin/storico/StoricoLayout.tsx` e le tre sotto-pagine — rimossi header locali (icona `History` + titolo + descrizione); resta la `Tabs` di navigazione tra candidature/residenti/camere. Il titolo "Storico · Candidature/Residenti/Camere" arriva dalla mappa in top bar.
+
+Le barre filtri residue (stato, ricerca, ecc.) restano identiche.
+
+## 4. Dashboard — metrica "Posti liberi"
+
+`src/pages/admin/Dashboard.tsx`: nell'array `metrics`, la card "Studenti registrati" viene rimossa. "Posti liberi" (`stats.postiLiberi`) è già presente. La riga passa da 4 a **3 card** (Candidature ricevute, In valutazione, Posti liberi). Nessuna nuova card aggiunta: l'assetto verrà rivisto nel prossimo intervento quando sparirà anche "In valutazione". La griglia resta `sm:grid-cols-2 lg:grid-cols-4` per non introdurre variazioni di layout premature (le tre card si distribuiranno naturalmente).
+
+Il calcolo `postiLiberi = totalePosti − postiOccupati` è già in `stats`, filtrato per struttura selezionata: nessuna nuova query.
+
+## 5. Design system doc
+
+`docs/design-system.md`, sezione "8. Pattern di pagina admin":
+- Rimosso il blocco `<h1>` + descrizione dallo scheletro standard.
+- Nuovo pattern: la pagina inizia direttamente con la toolbar filtri (o il contenuto principale); titolo e selettore struttura vivono nella top bar globale.
+- Aggiunta nota su `usePageTitle` per le pagine di dettaglio con rotte parametrizzate.
+- Menzionato `StrutturaFilterProvider` come sorgente unica del filtro sede, con eccezione esplicita per la pagina Strutture (che gestisce le sedi stesse).
+
+## File modificati (previsti)
+- `src/hooks/useStrutturaFilter.ts`
+- `src/hooks/usePageTitle.ts` (nuovo)
+- `src/pages/admin/AdminLayout.tsx`
+- `src/pages/admin/Dashboard.tsx`
+- `src/pages/admin/Candidature.tsx`
+- `src/pages/admin/Camere.tsx`
+- `src/pages/admin/Residenti.tsx`
+- `src/pages/admin/Strutture.tsx`
+- `src/pages/admin/storico/StoricoLayout.tsx`
+- `src/pages/admin/storico/StoricoCandidature.tsx`
+- `src/pages/admin/storico/StoricoResidenti.tsx`
+- `src/pages/admin/storico/StoricoCamere.tsx`
+- `docs/design-system.md`
+
+Nessuna modifica a DB, edge functions, stati o azioni. `StrutturaSelect` e componenti shadcn non toccati.
