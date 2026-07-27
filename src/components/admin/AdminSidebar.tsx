@@ -5,7 +5,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
-  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, useSidebar,
+  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, SidebarTrigger, useSidebar,
   SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton,
 } from '@/components/ui/sidebar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -40,16 +40,14 @@ export function AdminSidebar() {
     <Sidebar collapsible="icon" className="border-r bg-card/95 backdrop-blur-md">
       <SidebarContent>
         <SidebarGroup>
-          <div className="px-3 py-4 mb-2">
+          <div className="px-3 py-4 mb-2 flex items-center gap-2">
             {!collapsed && (
-              <div className="flex items-center gap-2">
-                <img src={logoStudentato} alt="Studentato Europa" className="w-8 h-8 object-contain" />
-                <div>
-                  <p className="text-sm font-bold">Studentato Europa</p>
-                  <p className="text-[11px] text-muted-foreground">Gestionale</p>
-                </div>
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <img src={logoStudentato} alt="Studentato Europa" className="w-8 h-8 object-contain shrink-0" />
+                <p className="text-sm font-bold truncate">Studentato Europa</p>
               </div>
             )}
+            <SidebarTrigger className={collapsed ? 'mx-auto' : 'ml-auto'} />
           </div>
           <SidebarGroupContent>
             <SidebarMenu>
