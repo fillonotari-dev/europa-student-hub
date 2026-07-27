@@ -24,7 +24,6 @@ import { RowActions } from '@/components/admin/RowActions';
 import { useToast } from '@/hooks/use-toast';
 import { ExportButton } from '@/components/admin/ExportButton';
 import { useStrutturaFilter } from '@/hooks/useStrutturaFilter';
-import { StrutturaSelect } from '@/components/admin/StrutturaSelect';
 import {
   DoorOpen, User, X, ArrowUp, ArrowDown, ArrowUpDown, Plus,
   Pencil, Wrench, RotateCcw, Trash2, Settings,
@@ -82,7 +81,7 @@ export default function Camere() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { strutturaId, setStrutturaId, strutture, isAll } = useStrutturaFilter();
+  const { strutturaId, isAll } = useStrutturaFilter();
 
   const { data: camere } = useQuery({
     queryKey: ['camere', strutturaId],
@@ -319,17 +318,8 @@ export default function Camere() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">Camere e Occupazione</h1>
-          <p className="text-[13px] text-muted-foreground">Elenco camere per struttura, piano e stato</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <StrutturaSelect
-            value={strutturaId}
-            onChange={(v) => { setStrutturaId(v); setPage(1); }}
-            strutture={strutture}
-          />
+      <div className="flex items-center justify-end">
+        <div className="flex items-center gap-2 flex-wrap">
           <Select value={filterStato} onValueChange={setFilterStato}>
             <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
             <SelectContent>
