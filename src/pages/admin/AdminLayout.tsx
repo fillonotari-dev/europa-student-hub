@@ -3,7 +3,7 @@ import { useNavigate, Outlet } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
-import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { SidebarProvider } from '@/components/ui/sidebar';
 import { StrutturaFilterProvider, useStrutturaFilter } from '@/hooks/useStrutturaFilter';
 import { PageTitleProvider, useResolvedPageTitle } from '@/hooks/usePageTitle';
 import { StrutturaSelect } from '@/components/admin/StrutturaSelect';
@@ -13,7 +13,6 @@ function AdminTopBar() {
   const { strutturaId, setStrutturaId, strutture } = useStrutturaFilter();
   return (
     <header className="h-14 flex items-center gap-3 border-b bg-card/80 backdrop-blur-sm px-4">
-      <SidebarTrigger />
       <h1 className="text-sm font-semibold tracking-tight truncate">{title}</h1>
       <div className="ml-auto">
         <StrutturaSelect value={strutturaId} onChange={setStrutturaId} strutture={strutture} />
