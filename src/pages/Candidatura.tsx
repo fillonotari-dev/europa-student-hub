@@ -558,30 +558,6 @@ export default function Candidatura() {
                 </div>
               </div>
             )}
-            {stepKey === 'stepInfoAggiuntive' && (
-              <div className="space-y-4">
-                {campiCustom.map(c => (
-                  <CustomFieldRenderer
-                    key={c.id}
-                    lang={lang}
-                    campo={c}
-                    value={customAnswers[c.chiave]}
-                    onChange={(v) => setCustomAnswers(a => ({ ...a, [c.chiave]: v }))}
-                  />
-                ))}
-                {documentiCustom.map(d => (
-                  <FileUpload
-                    key={d.id}
-                    label={`${labelOf(lang, d.label_it, d.label_en)}${d.descrizione_it || d.descrizione_en ? ` — ${labelOf(lang, d.descrizione_it ?? '', d.descrizione_en ?? '')}` : ''}`}
-                    hint={t(lang, 'form.uploadHint')}
-                    file={customFiles[d.chiave] ?? null}
-                    error={customFileErrors[d.chiave]}
-                    onChange={(f) => handleCustomFile(d.chiave, f)}
-                    required={d.obbligatorio}
-                  />
-                ))}
-              </div>
-            )}
           </motion.div>
         </AnimatePresence>
 
