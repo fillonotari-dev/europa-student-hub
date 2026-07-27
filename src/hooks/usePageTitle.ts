@@ -50,9 +50,10 @@ export function useResolvedPageTitle(): string {
  */
 export function usePageTitle(title: string | null | undefined) {
   const ctx = useContext(PageTitleContext);
+  const setOverride = ctx?.setOverride;
   useEffect(() => {
-    if (!ctx) return;
-    ctx.setOverride(title ?? null);
-    return () => ctx.setOverride(null);
-  }, [ctx, title]);
+    if (!setOverride) return;
+    setOverride(title ?? null);
+    return () => setOverride(null);
+  }, [setOverride, title]);
 }
