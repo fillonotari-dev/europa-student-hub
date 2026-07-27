@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
@@ -22,7 +21,7 @@ import { UNIVERSITIES } from '@/lib/universities';
 import logoStudentato from '@/assets/logo-studentato.svg';
 import { StepDots } from '@/components/candidatura/StepDots';
 
-const BASE_STEPS = ['stepPersonal', 'stepAcademic', 'stepPreferences', 'stepDocuments', 'stepDichiarazioni'] as const;
+const STEPS = ['stepPersonal', 'stepAcademic', 'stepPreferences', 'stepDocuments', 'stepDichiarazioni'] as const;
 const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 const MAX_SIZE = 5 * 1024 * 1024;
 const TURNSTILE_SITE_KEY = '0x4AAAAAAD-aYq1jX5cywwnC';
@@ -36,32 +35,6 @@ declare global {
     };
   }
 }
-
-type CampoOpzione = { value: string; label_it: string; label_en: string };
-type CampoCustom = {
-  id: string;
-  chiave: string;
-  tipo: 'text' | 'textarea' | 'number' | 'date' | 'boolean' | 'select' | 'multiselect';
-  label_it: string;
-  label_en: string;
-  descrizione_it: string | null;
-  descrizione_en: string | null;
-  opzioni: CampoOpzione[] | null;
-  obbligatorio: boolean;
-  ordine: number;
-};
-type DocumentoCustom = {
-  id: string;
-  chiave: string;
-  label_it: string;
-  label_en: string;
-  descrizione_it: string | null;
-  descrizione_en: string | null;
-  obbligatorio: boolean;
-  ordine: number;
-};
-
-const labelOf = (lang: Lang, it: string, en: string) => (lang === 'it' ? it : en);
 
 export default function Candidatura() {
   const [lang, setLang] = useState<Lang>('it');
@@ -89,9 +62,6 @@ export default function Candidatura() {
   });
   const allDichiarazioniAccettate = dichiarazioni.veridicita && dichiarazioni.privacy && dichiarazioni.info_struttura && dichiarazioni.contatto;
   const [fileErrors, setFileErrors] = useState<{ documento_identita?: string; certificato_iscrizione?: string }>({});
-  const [customAnswers, setCustomAnswers] = useState<Record<string, any>>({});
-  const [customFiles, setCustomFiles] = useState<Record<string, File | null>>({});
-  const [customFileErrors, setCustomFileErrors] = useState<Record<string, string | undefined>>({});
   const [turnstileToken, setTurnstileToken] = useState<string>('');
   const turnstileWidgetIdRef = useRef<string | null>(null);
   const turnstileContainerRef = useRef<HTMLDivElement | null>(null);
@@ -104,44 +74,6 @@ export default function Candidatura() {
     },
   });
 
-  const { data: campiCustom = [] } = useQuery({
-    queryKey: ['form-campi-custom-public'],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('form_campi_custom')
-        .select('*')
-        .eq('attivo', true)
-        .order('ordine');
-      return (data ?? []) as unknown as CampoCustom[];
-    },
-  });
-
-  const { data: documentiCustom = [] } = useQuery({
-    queryKey: ['form-documenti-custom-public'],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('form_documenti_custom')
-        .select('*')
-        .eq('attivo', true)
-        .order('ordine');
-      return (data ?? []) as unknown as DocumentoCustom[];
-    },
-  });
-
-  const hasInfoExtra = campiCustom.length > 0 || documentiCustom.length > 0;
-  // Dichiarazioni è sempre l'ultimo step; se ci sono campi/documenti custom
-  // li mettiamo prima delle dichiarazioni.
-  const STEPS = useMemo<string[]>(
-    () => {
-      const base: string[] = [...BASE_STEPS];
-      const dichIdx = base.indexOf('stepDichiarazioni');
-      if (hasInfoExtra && dichIdx >= 0) {
-        base.splice(dichIdx, 0, 'stepInfoAggiuntive');
-      }
-      return base;
-    },
-    [hasInfoExtra]
-  );
   const stepKey = STEPS[step];
 
   // Load Turnstile script once at mount
