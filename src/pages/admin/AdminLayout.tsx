@@ -5,14 +5,23 @@ import { supabase } from '@/integrations/supabase/client';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { StrutturaFilterProvider, useStrutturaFilter } from '@/hooks/useStrutturaFilter';
-import { PageTitleProvider, useResolvedPageTitle } from '@/hooks/usePageTitle';
+import { PageTitleProvider, useResolvedPageTitle, usePageBackTo } from '@/hooks/usePageTitle';
 import { StrutturaSelect } from '@/components/admin/StrutturaSelect';
+import { Link } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 function AdminTopBar() {
   const title = useResolvedPageTitle();
+  const backTo = usePageBackTo();
   const { strutturaId, setStrutturaId, strutture } = useStrutturaFilter();
   return (
     <header className="h-14 flex items-center gap-3 border-b bg-card/80 backdrop-blur-sm px-4">
+      {backTo && (
+        <Button asChild size="icon" variant="ghost" className="h-8 w-8 -ml-1">
+          <Link to={backTo} aria-label="Torna alla lista"><ArrowLeft className="w-4 h-4" /></Link>
+        </Button>
+      )}
       <h1 className="text-sm font-semibold tracking-tight truncate">{title}</h1>
       <div className="ml-auto">
         <StrutturaSelect value={strutturaId} onChange={setStrutturaId} strutture={strutture} />

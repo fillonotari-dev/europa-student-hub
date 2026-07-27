@@ -25,13 +25,16 @@ const ROUTE_TITLES: Record<string, string> = {
 type Ctx = {
   override: string | null;
   setOverride: (v: string | null) => void;
+  backTo: string | null;
+  setBackTo: (v: string | null) => void;
 };
 
 const PageTitleContext = createContext<Ctx | null>(null);
 
 export function PageTitleProvider({ children }: { children: ReactNode }) {
   const [override, setOverride] = useState<string | null>(null);
-  const value = useMemo(() => ({ override, setOverride }), [override]);
+  const [backTo, setBackTo] = useState<string | null>(null);
+  const value = useMemo(() => ({ override, setOverride, backTo, setBackTo }), [override, backTo]);
   return createElement(PageTitleContext.Provider, { value }, children);
 }
 
@@ -42,6 +45,21 @@ export function useResolvedPageTitle(): string {
   if (ctx?.override) return ctx.override;
   const clean = pathname.replace(/\/+$/, '') || '/admin';
   return ROUTE_TITLES[clean] ?? '';
+}
+
+export function usePageBackTo(): string | null {
+  const ctx = useContext(PageTitleContext);
+  return ctx?.backTo ?? null;
+}
+
+export function usePageBack(to: string | null | undefined) {
+  const ctx = useContext(PageTitleContext);
+  const setBackTo = ctx?.setBackTo;
+  useEffect(() => {
+    if (!setBackTo) return;
+    setBackTo(to ?? null);
+    return () => setBackTo(null);
+  }, [setBackTo, to]);
 }
 
 /**

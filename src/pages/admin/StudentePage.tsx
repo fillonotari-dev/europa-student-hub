@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { usePageTitle } from '@/hooks/usePageTitle';
+import { usePageTitle, usePageBack } from '@/hooks/usePageTitle';
 import { useCandidaturaActions, CandidaturaActionsContext } from '@/hooks/useCandidaturaActions';
 import { CandidaturaDetail } from '@/components/admin/candidatura/CandidaturaDetail';
 import { Section } from '@/components/admin/candidatura/Section';
@@ -49,6 +49,7 @@ export default function StudentePage() {
   });
 
   usePageTitle(studente ? `${studente.cognome ?? ''} ${studente.nome ?? ''}`.trim() : null);
+  usePageBack(backTo);
 
   const { data: candidature } = useQuery({
     queryKey: ['studente-candidature', studenteId],
@@ -144,10 +145,6 @@ export default function StudentePage() {
   return (
     <CandidaturaActionsContext.Provider value={actions.ctxValue}>
       <div className="space-y-6">
-        <Button asChild variant="ghost" size="sm" className="-ml-2">
-          <Link to={backTo}><ArrowLeft className="w-4 h-4 mr-1" /> Torna alla lista</Link>
-        </Button>
-
         <Section title="Anagrafica" items={[
           ['Email', studente.email],
           ['Telefono', studente.telefono],
