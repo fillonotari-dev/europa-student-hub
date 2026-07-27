@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import logoStudentato from '@/assets/logo-studentato.svg';
 import { StepDots } from '@/components/candidatura/StepDots';
 import { MAX_UPLOAD_BYTES, ACCEPTED_UPLOAD_MIME } from '@/lib/uploads';
+import { PRIVACY_POLICY_URL } from '@/lib/privacy';
 
 const ALL_STEPS = ['stepLifestyle', 'stepGarante', 'stepDocAggiuntivi', 'stepDichiarazioni'] as const;
 const ACCEPTED_TYPES: readonly string[] = ACCEPTED_UPLOAD_MIME;
@@ -327,7 +328,7 @@ export default function CandidaturaCompleta() {
                     <SelectContent>
                       <SelectItem value="molto">{t(lang, 'form.ordineMolto')}</SelectItem>
                       <SelectItem value="abbastanza">{t(lang, 'form.ordineAbbastanza')}</SelectItem>
-                      <SelectItem value="flessibile">{t(lang, 'form.ordineFlessibile')}</SelectItem>
+                      <SelectItem value="poco">{t(lang, 'form.ordinePoco')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -377,7 +378,6 @@ export default function CandidaturaCompleta() {
                 <p className="text-[13px] text-muted-foreground">{t(lang, 'form.dichiarazioniIntro')}</p>
                 {([
                   ['veridicita', 'form.dichVeridicita'],
-                  ['privacy', 'form.dichPrivacy'],
                   ['info_struttura', 'form.dichInfoStruttura'],
                   ['contatto', 'form.dichContatto'],
                 ] as const).map(([k, key]) => (
@@ -388,6 +388,31 @@ export default function CandidaturaCompleta() {
                     </span>
                   </label>
                 ))}
+                <div className="flex items-start gap-3 border rounded-lg p-3 hover:bg-muted/40 transition-colors">
+                  <Checkbox
+                    id="dich-privacy"
+                    checked={dichiarazioni.privacy}
+                    onCheckedChange={(c) => setDichiarazioni(d => ({ ...d, privacy: !!c }))}
+                    className="mt-0.5"
+                  />
+                  <span className="text-[13px] leading-relaxed">
+                    <label htmlFor="dich-privacy" className="cursor-pointer">
+                      {t(lang, 'form.dichPrivacyBefore')}
+                    </label>
+                    <a
+                      href={PRIVACY_POLICY_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline text-primary hover:text-primary/80"
+                    >
+                      {t(lang, 'form.dichPrivacyLink')}
+                    </a>
+                    <label htmlFor="dich-privacy" className="cursor-pointer">
+                      {t(lang, 'form.dichPrivacyAfter')}
+                      <span className="text-destructive ml-0.5">*</span>
+                    </label>
+                  </span>
+                </div>
               </div>
             )}
           </motion.div>
