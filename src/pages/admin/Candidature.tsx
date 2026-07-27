@@ -28,24 +28,12 @@ import {
   Send, Copy, CheckCircle, MailCheck,
 } from 'lucide-react';
 import { useStrutturaFilter } from '@/hooks/useStrutturaFilter';
+import { STATO_LABELS, STATO_COLORS, formatStato } from '@/lib/statoCandidatura';
 
-const STATI = ['ricevuta', 'in_completamento', 'completata', 'in_valutazione', 'approvata', 'rifiutata', 'ritirata'] as const;
-const STATO_LABELS: Record<string, string> = {
-  ricevuta: 'Ricevuta', in_completamento: 'In completamento', completata: 'Completata',
-  in_valutazione: 'In valutazione', approvata: 'Approvata',
-  rifiutata: 'Rifiutata', ritirata: 'Ritirata', sostituita: 'Sostituita',
-};
-const STATO_COLORS: Record<string, string> = {
-  ricevuta: 'bg-primary/10 text-primary',
-  in_completamento: 'bg-accent/20 text-foreground',
-  completata: 'bg-success/10 text-success',
-  in_valutazione: 'bg-warning/10 text-warning',
-  approvata: 'bg-success/10 text-success', rifiutata: 'bg-destructive/10 text-destructive',
-  ritirata: 'bg-muted text-muted-foreground', sostituita: 'bg-muted text-muted-foreground',
-};
+const STATI = ['ricevuta', 'in_completamento', 'completata', 'approvata', 'rifiutata', 'ritirata'] as const;
 const STATO_ORDER: Record<string, number> = {
-  ricevuta: 0, in_completamento: 1, completata: 2, in_valutazione: 3,
-  approvata: 4, rifiutata: 5, ritirata: 6, sostituita: 7,
+  ricevuta: 0, in_completamento: 1, completata: 2,
+  approvata: 3, rifiutata: 4, ritirata: 5, sostituita: 6,
 };
 const TIPO_DOC_LABELS: Record<string, string> = {
   documento_identita: 'Documento di identità',
@@ -183,7 +171,7 @@ export default function Candidature() {
   const requestStatoChange = (c: any, nextStato: string) => {
     // Cambio stato "rischioso" su candidatura con assegnazione attiva.
     const rischioso = hasAssegnazioneAttiva(c) &&
-      (nextStato === 'rifiutata' || nextStato === 'ritirata' || nextStato === 'in_valutazione');
+      (nextStato === 'rifiutata' || nextStato === 'ritirata' || nextStato === 'ricevuta' || nextStato === 'completata');
     // Approvazione senza form completo: chiediamo conferma esplicita.
     const approvaIncompleta = nextStato === 'approvata' && c.versione_form !== 'completa';
     if (rischioso || approvaIncompleta) {
@@ -192,6 +180,11 @@ export default function Candidature() {
     }
     updateStato.mutate({ id: c.id, stato: nextStato });
   };
+
+  // Stato di "riapertura" dopo approvazione/rifiuto:
+  // torna a 'completata' se la candidatura aveva completato la fase 2, altrimenti a 'ricevuta'.
+  const reopenStato = (c: any): string =>
+    (c.versione_form === 'completa' || c.completata_il) ? 'completata' : 'ricevuta';
 
   const { data: documenti } = useQuery({
     queryKey: ['documenti', selected?.id],
