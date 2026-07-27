@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { enqueueTransactional, SITE_NAME } from "../_shared/enqueue-transactional.ts";
 import { CandidaturaRicevutaEmail } from "../_shared/email-templates/candidatura-ricevuta.tsx";
+import { DOCUMENTO_TIPI_SET, extractTipoFromPath } from "../_shared/documenti-tipi.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,7 +12,6 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const ANNO_ACC_RE = /^\d{4}\/\d{4}$/;
-const DOC_KEY_RE = /^[a-z][a-z0-9_]{0,99}$/;
 const STORAGE_PATH_RE = /^pending\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[a-z][a-z0-9_]{0,99}\/[A-Za-z0-9._-]{1,200}$/;
 
 const GENERIC_ERROR = "Si è verificato un errore. Riprova più tardi.";
@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
       nome, cognome, email, telefono, data_nascita, nazionalita, codice_fiscale,
       universita, dipartimento, corso_di_studi, anno_di_corso, matricola,
       struttura_preferita_id, tipo_camera_preferito, periodo_inizio, periodo_fine,
-      anno_accademico, messaggio, documenti, risposte_custom,
+      anno_accademico, messaggio, documenti,
       indirizzo_residenza, documento_identita_n, tipo_studente, tipo_studente_altro,
       data_arrivo_prevista, come_conosciuto, come_conosciuto_altro, preferenze_note,
       dichiarazioni, lingua, temp_id,
@@ -158,82 +158,16 @@ Deno.serve(async (req) => {
         const tipo = typeof d.tipo === "string" ? d.tipo : "";
         const nome_file = typeof d.nome_file === "string" ? d.nome_file : "";
         const url = typeof d.url === "string" ? d.url : "";
-        if (!DOC_KEY_RE.test(tipo)) return bad("Tipo documento non valido");
+        if (!DOCUMENTO_TIPI_SET.has(tipo)) return bad("Tipo documento non valido");
         if (!nome_file || nome_file.length > 200) return bad("Nome file non valido");
         if (!STORAGE_PATH_RE.test(url)) return bad("Riferimento documento non valido");
         if (!url.startsWith(expectedPrefix)) return bad("Riferimento documento non corrispondente alla sessione");
+        if (extractTipoFromPath(url) !== tipo) return bad("Riferimento documento non valido");
         docsIn.push({ tipo, nome_file, url });
       }
     }
 
     const corsoCompleto = vDipartimento ? `${vCorso} — ${vDipartimento}` : vCorso;
-
-    // Validate custom required fields and documents
-    const safeRisposte = (risposte_custom && typeof risposte_custom === "object" && !Array.isArray(risposte_custom))
-      ? risposte_custom as Record<string, unknown>
-      : {};
-
-    // Enforce limits on risposte_custom to prevent DB bloat
-    const RISPOSTE_KEYS_MAX = 50;
-    const RISPOSTE_STR_MAX = 5000;
-    const RISPOSTE_ARR_MAX = 50;
-    const risposteKeys = Object.keys(safeRisposte);
-    if (risposteKeys.length > RISPOSTE_KEYS_MAX) return bad("Troppi campi personalizzati");
-    for (const k of risposteKeys) {
-      if (!DOC_KEY_RE.test(k)) return bad("Chiave risposta non valida");
-      const v = safeRisposte[k];
-      if (v === null || v === undefined || typeof v === "boolean" || typeof v === "number") continue;
-      if (typeof v === "string") {
-        if (v.length > RISPOSTE_STR_MAX) return bad(`Risposta troppo lunga: ${k}`);
-        continue;
-      }
-      if (Array.isArray(v)) {
-        if (v.length > RISPOSTE_ARR_MAX) return bad(`Troppi valori per: ${k}`);
-        for (const item of v) {
-          if (item === null || typeof item === "boolean" || typeof item === "number") continue;
-          if (typeof item !== "string" || item.length > RISPOSTE_STR_MAX) {
-            return bad(`Valore non valido in: ${k}`);
-          }
-        }
-        continue;
-      }
-      return bad(`Tipo risposta non supportato: ${k}`);
-    }
-
-    const { data: campiAttivi } = await supabase
-      .from("form_campi_custom")
-      .select("chiave, obbligatorio, tipo, label_it")
-      .eq("attivo", true);
-
-    for (const c of campiAttivi ?? []) {
-      if (!c.obbligatorio) continue;
-      const v = safeRisposte[c.chiave];
-      const empty =
-        v === undefined || v === null || v === "" ||
-        (Array.isArray(v) && v.length === 0);
-      if (empty) {
-        return new Response(JSON.stringify({ error: `Campo obbligatorio mancante: ${c.label_it}` }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-    }
-
-    const { data: docsAttivi } = await supabase
-      .from("form_documenti_custom")
-      .select("chiave, obbligatorio, label_it")
-      .eq("attivo", true);
-
-    const docTipiCaricati = new Set(docsIn.map((d) => d.tipo));
-    for (const d of docsAttivi ?? []) {
-      if (!d.obbligatorio) continue;
-      if (!docTipiCaricati.has(d.chiave)) {
-        return new Response(JSON.stringify({ error: `Documento obbligatorio mancante: ${d.label_it}` }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-    }
 
     // Check if student exists by email
     const { data: existingStudent } = await supabase
@@ -303,7 +237,6 @@ Deno.serve(async (req) => {
         corso_snapshot: corsoCompleto,
         anno_corso_snapshot: vAnnoCorso,
         matricola_snapshot: vMatricola,
-        risposte_custom: safeRisposte,
         versione_form: "pre_screening",
         indirizzo_residenza: vIndirizzo,
         documento_identita_n: vDocIdN,
