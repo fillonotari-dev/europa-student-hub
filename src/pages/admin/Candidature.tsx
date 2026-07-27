@@ -400,7 +400,7 @@ export default function Candidature() {
               'Anno corso': c.anno_corso_snapshot ?? '',
               'Matricola': c.matricola_snapshot ?? '',
               'Tipo studente': c.tipo_studente === 'altro' ? (c.tipo_studente_altro ?? 'Altro') : (TIPO_STUDENTE_LABELS[c.tipo_studente] ?? c.tipo_studente ?? ''),
-              'Stato': STATO_LABELS[c.stato] ?? c.stato,
+              'Stato': formatStato(c.stato),
               'Versione form': c.versione_form === 'completa' ? 'Completa' : 'Pre-screening',
               'Anno accademico': c.anno_accademico ?? '',
               'Periodo inizio': fmtDate(c.periodo_inizio),
@@ -465,8 +465,8 @@ export default function Candidature() {
                   <td className="px-4 py-3 text-sm">{c.strutture?.nome || '-'}</td>
                   <td className="px-4 py-3 text-sm">{c.anno_accademico}</td>
                   <td className="px-4 py-3">
-                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${STATO_COLORS[c.stato]}`}>
-                      {STATO_LABELS[c.stato]}
+                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${STATO_COLORS[c.stato] ?? 'bg-muted text-muted-foreground'}`}>
+                      {formatStato(c.stato)}
                     </span>
                     {(c.stato === 'approvata' || c.stato === 'rifiutata') && c.esito_email_stato === 'da_inviare' && (
                       <span className="block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-warning/10 text-warning">
@@ -710,7 +710,7 @@ export default function Candidature() {
                 {statoConfirm && hasAssegnazioneAttiva(statoConfirm.c) && (
                   <p>
                     Esiste già un'<strong>assegnazione attiva</strong> per questa candidatura.
-                    Cambiare stato a "{STATO_LABELS[statoConfirm.nextStato]}" non chiude l'assegnazione:
+                    Cambiare stato a "{formatStato(statoConfirm.nextStato)}" non chiude l'assegnazione:
                     lo studente resterà residente. Per concludere il soggiorno vai in <strong>Residenti</strong>.
                   </p>
                 )}
