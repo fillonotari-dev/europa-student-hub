@@ -154,7 +154,6 @@ export default function Candidatura() {
       stepAcademic: ['universita', 'corso_di_studi', 'periodo_inizio', 'periodo_fine'],
       stepPreferences: [],
       stepDocuments: ['_documenti'],
-      stepInfoAggiuntive: ['_info_extra'],
       stepDichiarazioni: ['_dichiarazioni'],
     };
     const fields = requiredByKey[stepKey] || [];
