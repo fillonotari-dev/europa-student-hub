@@ -203,44 +203,7 @@ export default function Candidature() {
     },
   });
 
-  // Configurazione campi/documenti custom (per label e export)
-  const { data: campiCustomAll = [] } = useQuery({
-    queryKey: ['form-campi-custom-all'],
-    queryFn: async () => {
-      const { data } = await supabase.from('form_campi_custom').select('*').order('ordine');
-      return (data ?? []) as any[];
-    },
-  });
-  const { data: documentiCustomAll = [] } = useQuery({
-    queryKey: ['form-documenti-custom-all'],
-    queryFn: async () => {
-      const { data } = await supabase.from('form_documenti_custom').select('*').order('ordine');
-      return (data ?? []) as any[];
-    },
-  });
-
-  const docLabelMap = useMemo(() => {
-    const m: Record<string, string> = { ...TIPO_DOC_LABELS };
-    for (const d of documentiCustomAll) m[d.chiave] = d.label_it;
-    return m;
-  }, [documentiCustomAll]);
-
-  const formatCustomAnswer = (campo: any, value: any): string => {
-    if (value === undefined || value === null || value === '') return '-';
-    if (campo.tipo === 'boolean') return value ? 'Sì' : 'No';
-    if (campo.tipo === 'select') {
-      const o = (campo.opzioni ?? []).find((x: any) => x.value === value);
-      return o ? o.label_it : String(value);
-    }
-    if (campo.tipo === 'multiselect') {
-      if (!Array.isArray(value) || value.length === 0) return '-';
-      return value.map(v => {
-        const o = (campo.opzioni ?? []).find((x: any) => x.value === v);
-        return o ? o.label_it : String(v);
-      }).join(', ');
-    }
-    return String(value);
-  };
+  const docLabelMap = TIPO_DOC_LABELS;
 
   const updateStato = useMutation({
     mutationFn: async ({ id, stato, note }: { id: string; stato: string; note?: string }) => {
@@ -481,10 +444,6 @@ export default function Candidature() {
               'Data candidatura': fmtDate(c.created_at),
               'Completata il': fmtDate(c.completata_il),
             };
-            const risp = (c.risposte_custom ?? {}) as Record<string, any>;
-            for (const cc of campiCustomAll) {
-              base[cc.label_it] = formatCustomAnswer(cc, risp[cc.chiave]);
-            }
             return base;
           })}
         />
@@ -659,33 +618,6 @@ export default function Candidature() {
                     <p className="text-sm">{selected.messaggio}</p>
                   </div>
                 )}
-
-                {(() => {
-                  const risp = (selected.risposte_custom ?? {}) as Record<string, any>;
-                  const knownKeys = new Set(campiCustomAll.map((c: any) => c.chiave));
-                  const orphanKeys = Object.keys(risp).filter(k => !knownKeys.has(k));
-                  const hasContent = campiCustomAll.length > 0 || orphanKeys.length > 0;
-                  if (!hasContent) return null;
-                  return (
-                    <div>
-                      <p className="text-sm font-semibold mb-2">Informazioni aggiuntive</p>
-                      <div className="bg-muted/30 rounded-lg p-3 space-y-2">
-                        {campiCustomAll.map((c: any) => (
-                          <div key={c.id} className="flex justify-between gap-3 text-[13px]">
-                            <span className="text-muted-foreground">{c.label_it}</span>
-                            <span className="font-medium text-right">{formatCustomAnswer(c, risp[c.chiave])}</span>
-                          </div>
-                        ))}
-                        {orphanKeys.map(k => (
-                          <div key={k} className="flex justify-between gap-3 text-[13px]">
-                            <span className="text-muted-foreground font-mono text-[12px]">{k}</span>
-                            <span className="font-medium text-right">{String(risp[k] ?? '-')}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
 
                 <div>
                   <p className="text-sm font-semibold mb-2">Documenti caricati</p>
