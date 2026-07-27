@@ -56,7 +56,7 @@ const TIPO_DOC_LABELS: Record<string, string> = {
 };
 
 const TIPO_STUDENTE_LABELS: Record<string, string> = {
-  universitario: 'Universitario', erasmus: 'Erasmus', master: 'Master', altro: 'Altro',
+  universitario: 'Corso di laurea', erasmus: 'Erasmus o scambio', master: 'Master o dottorato', altro: 'Altro',
 };
 const COME_CONOSCIUTO_LABELS: Record<string, string> = {
   instagram: 'Instagram', google: 'Google', universita: 'Università', esn: 'ESN',
@@ -66,10 +66,10 @@ const ORARI_LABELS: Record<string, string> = {
   mattiniero: 'Si sveglia presto', serale: 'Fa tardi la sera', variabile: 'Dipende dai giorni',
 };
 const PERSONALITA_LABELS: Record<string, string> = {
-  tranquilla: 'Tranquilla', socievole: 'Socievole', riservata: 'Riservata', altro: 'Altro',
+  tranquilla: 'Persona tranquilla', socievole: 'Persona socievole', riservata: 'Persona riservata', altro: 'Altro',
 };
 const ORDINE_LABELS: Record<string, string> = {
-  molto: 'Molto ordinato', abbastanza: 'Abbastanza ordinato', flessibile: 'Flessibile',
+  molto: 'Rimette tutto a posto subito', abbastanza: 'Rimette a posto, ma non sempre subito', poco: 'Tende a lasciare le cose in giro',
 };
 const fmtIt = (v: string | null | undefined) => v ? new Date(v).toLocaleDateString('it-IT') : '';
 const fmtItDateTime = (v: string | null | undefined) => v ? new Date(v).toLocaleString('it-IT') : '';

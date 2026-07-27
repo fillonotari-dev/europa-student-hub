@@ -106,6 +106,9 @@ Deno.serve(async (req) => {
     if (!["mattiniero", "serale", "variabile"].includes(orari)) {
       return json({ error: "Valore orari non valido" }, 400);
     }
+    if (!["molto", "abbastanza", "poco"].includes(ordine_pulizia)) {
+      return json({ error: "Valore ordine/pulizia non valido" }, 400);
+    }
     if (personalita === "altro" && !personalita_altro) {
       return json({ error: "Specifica la personalità" }, 400);
     }
