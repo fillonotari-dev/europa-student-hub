@@ -63,7 +63,7 @@ const COME_CONOSCIUTO_LABELS: Record<string, string> = {
   amici: 'Amici', sito: 'Sito web', altro: 'Altro',
 };
 const ORARI_LABELS: Record<string, string> = {
-  mattiniero: 'Mattiniero', serale: 'Serale', variabile: 'Variabile',
+  mattiniero: 'Si sveglia presto', serale: 'Fa tardi la sera', variabile: 'Dipende dai giorni',
 };
 const PERSONALITA_LABELS: Record<string, string> = {
   tranquilla: 'Tranquilla', socievole: 'Socievole', riservata: 'Riservata', altro: 'Altro',

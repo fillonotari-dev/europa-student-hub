@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
          garante_nome, garante_relazione, garante_telefono, garante_email].includes(undefined as any)) {
       return json({ error: "Campo non valido" }, 400);
     }
-    if (garante_email && !EMAIL_RE.test(garante_email)) {
+    if (!garante_email || !EMAIL_RE.test(garante_email)) {
       return json({ error: "Email garante non valida" }, 400);
     }
     const fumatore = typeof body.fumatore === "boolean" ? body.fumatore : null;
@@ -96,6 +96,17 @@ Deno.serve(async (req) => {
     // Required: garante_nome, garante_relazione, garante_telefono
     if (!garante_nome || !garante_relazione || !garante_telefono) {
       return json({ error: "Dati garante obbligatori mancanti" }, 400);
+    }
+
+    // Required lifestyle fields
+    if (!lingue_parlate || !orari || !personalita || !ordine_pulizia || !presentazione) {
+      return json({ error: "Compila tutti i campi obbligatori dello stile di vita" }, 400);
+    }
+    if (!["mattiniero", "serale", "variabile"].includes(orari)) {
+      return json({ error: "Valore orari non valido" }, 400);
+    }
+    if (personalita === "altro" && !personalita_altro) {
+      return json({ error: "Specifica la personalità" }, 400);
     }
 
     // Declarations

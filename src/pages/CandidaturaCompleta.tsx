@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 import logoStudentato from '@/assets/logo-studentato.svg';
 import { StepDots } from '@/components/candidatura/StepDots';
 
-const ALL_STEPS = ['stepLifestyle', 'stepGarante', 'stepDocAggiuntivi', 'stepDichiarazioni', 'stepReview'] as const;
+const ALL_STEPS = ['stepLifestyle', 'stepGarante', 'stepDocAggiuntivi', 'stepDichiarazioni'] as const;
 const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 const MAX_SIZE = 5 * 1024 * 1024;
 
@@ -90,12 +90,26 @@ export default function CandidaturaCompleta() {
   const stepKey = STEPS[step] as typeof ALL_STEPS[number];
 
   const validateStep = (): boolean => {
+    if (stepKey === 'stepLifestyle') {
+      if (!form.lingue_parlate.trim() || !form.orari || !form.personalita || !form.ordine_pulizia || !form.presentazione.trim()) {
+        toast({ title: t(lang, 'form.required'), variant: 'destructive' });
+        return false;
+      }
+      if (!['mattiniero', 'serale', 'variabile'].includes(form.orari)) {
+        toast({ title: t(lang, 'form.required'), variant: 'destructive' });
+        return false;
+      }
+      if (form.personalita === 'altro' && !form.personalita_altro.trim()) {
+        toast({ title: t(lang, 'form.required'), variant: 'destructive' });
+        return false;
+      }
+    }
     if (stepKey === 'stepGarante') {
       if (!form.garante_nome.trim() || !form.garante_relazione.trim() || !form.garante_telefono.trim()) {
         toast({ title: t(lang, 'form.required'), variant: 'destructive' });
         return false;
       }
-      if (form.garante_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.garante_email)) {
+      if (!form.garante_email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.garante_email)) {
         toast({ title: t(lang, 'form.invalidEmail'), variant: 'destructive' });
         return false;
       }
@@ -106,14 +120,12 @@ export default function CandidaturaCompleta() {
         return false;
       }
     }
-    if (stepKey === 'stepDichiarazioni') {
-      if (!dichiarazioni.veridicita || !dichiarazioni.privacy || !dichiarazioni.info_struttura || !dichiarazioni.contatto) {
-        toast({ title: t(lang, 'form.required'), variant: 'destructive' });
-        return false;
-      }
-    }
     return true;
   };
+
+  const allDichiarazioniAccettate =
+    dichiarazioni.veridicita && dichiarazioni.privacy &&
+    dichiarazioni.info_struttura && dichiarazioni.contatto;
 
   const next = () => { if (validateStep()) setStep(s => Math.min(s + 1, STEPS.length - 1)); };
   const prev = () => setStep(s => Math.max(s - 1, 0));
@@ -272,11 +284,11 @@ export default function CandidaturaCompleta() {
             {stepKey === 'stepLifestyle' && (
               <div className="space-y-4">
                 <div>
-                  <Label>{t(lang, 'form.lingueParlate')}</Label>
+                  <Label>{t(lang, 'form.lingueParlate')}<span className="text-destructive ml-0.5">*</span></Label>
                   <Input value={form.lingue_parlate} onChange={e => set('lingue_parlate', e.target.value)} className="mt-1.5" maxLength={300} />
                 </div>
                 <div>
-                  <Label>{t(lang, 'form.orariPrevalenti')}</Label>
+                  <Label>{t(lang, 'form.orariPrevalenti')}<span className="text-destructive ml-0.5">*</span></Label>
                   <Select value={form.orari} onValueChange={v => set('orari', v)}>
                     <SelectTrigger className="mt-1.5"><SelectValue placeholder={t(lang, 'form.selectOption')} /></SelectTrigger>
                     <SelectContent>
@@ -287,7 +299,7 @@ export default function CandidaturaCompleta() {
                   </Select>
                 </div>
                 <div>
-                  <Label>{t(lang, 'form.personalita')}</Label>
+                  <Label>{t(lang, 'form.personalita')}<span className="text-destructive ml-0.5">*</span></Label>
                   <Select value={form.personalita} onValueChange={v => set('personalita', v)}>
                     <SelectTrigger className="mt-1.5"><SelectValue placeholder={t(lang, 'form.selectOption')} /></SelectTrigger>
                     <SelectContent>
@@ -308,7 +320,7 @@ export default function CandidaturaCompleta() {
                   )}
                 </div>
                 <div>
-                  <Label>{t(lang, 'form.ordinePulizia')}</Label>
+                  <Label>{t(lang, 'form.ordinePulizia')}<span className="text-destructive ml-0.5">*</span></Label>
                   <Select value={form.ordine_pulizia} onValueChange={v => set('ordine_pulizia', v)}>
                     <SelectTrigger className="mt-1.5"><SelectValue placeholder={t(lang, 'form.selectOption')} /></SelectTrigger>
                     <SelectContent>
@@ -323,8 +335,9 @@ export default function CandidaturaCompleta() {
                   <Switch checked={form.fumatore} onCheckedChange={v => set('fumatore', v)} />
                 </div>
                 <div>
-                  <Label>{t(lang, 'form.presentazione')}</Label>
+                  <Label>{t(lang, 'form.presentazione')}<span className="text-destructive ml-0.5">*</span></Label>
                   <Textarea value={form.presentazione} onChange={e => set('presentazione', e.target.value)} placeholder={t(lang, 'form.presentazionePlaceholder')} className="mt-1.5" rows={4} maxLength={2000} />
+                  <p className="text-[12px] text-muted-foreground mt-1">{t(lang, 'form.presentazioneHelp')}</p>
                 </div>
               </div>
             )}
@@ -345,7 +358,7 @@ export default function CandidaturaCompleta() {
                   <Input value={form.garante_telefono} onChange={e => set('garante_telefono', e.target.value)} className="mt-1.5" maxLength={30} />
                 </div>
                 <div>
-                  <Label>{t(lang, 'form.garanteEmail')}</Label>
+                  <Label>{t(lang, 'form.garanteEmail')}<span className="text-destructive ml-0.5">*</span></Label>
                   <Input type="email" value={form.garante_email} onChange={e => set('garante_email', e.target.value)} className="mt-1.5" maxLength={255} />
                 </div>
               </div>
@@ -369,33 +382,11 @@ export default function CandidaturaCompleta() {
                 ] as const).map(([k, key]) => (
                   <label key={k} className="flex items-start gap-3 cursor-pointer border rounded-lg p-3 hover:bg-muted/40 transition-colors">
                     <Checkbox checked={(dichiarazioni as any)[k]} onCheckedChange={(c) => setDichiarazioni(d => ({ ...d, [k]: !!c }))} className="mt-0.5" />
-                    <span className="text-[13px] leading-relaxed">{t(lang, key)}</span>
+                    <span className="text-[13px] leading-relaxed">
+                      {t(lang, key)}<span className="text-destructive ml-0.5">*</span>
+                    </span>
                   </label>
                 ))}
-              </div>
-            )}
-
-            {stepKey === 'stepReview' && (
-              <div className="space-y-4">
-                <ReviewSection title={t(lang, 'form.stepLifestyle')} items={[
-                  [t(lang, 'form.lingueParlate'), form.lingue_parlate],
-                  [t(lang, 'form.orariPrevalenti'), form.orari],
-                  [t(lang, 'form.personalita'), form.personalita === 'altro' ? form.personalita_altro : form.personalita],
-                  [t(lang, 'form.ordinePulizia'), form.ordine_pulizia],
-                  [t(lang, 'form.fumatore'), form.fumatore ? t(lang, 'form.yes') : t(lang, 'form.no')],
-                ]} />
-                <ReviewSection title={t(lang, 'form.stepGarante')} items={[
-                  [t(lang, 'form.garanteNome'), form.garante_nome],
-                  [t(lang, 'form.garanteRelazione'), form.garante_relazione],
-                  [t(lang, 'form.garanteTelefono'), form.garante_telefono],
-                  [t(lang, 'form.garanteEmail'), form.garante_email],
-                ]} />
-                {(files.documento_garante || files.documento_aggiuntivo) && (
-                  <ReviewSection title={t(lang, 'form.stepDocAggiuntivi')} items={[
-                    [t(lang, 'form.documentoGarante'), files.documento_garante?.name || '-'],
-                    [t(lang, 'form.documentoAggiuntivo'), files.documento_aggiuntivo?.name || '-'],
-                  ]} />
-                )}
               </div>
             )}
           </motion.div>
@@ -410,7 +401,7 @@ export default function CandidaturaCompleta() {
               {t(lang, 'form.next')} <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
           ) : (
-            <Button onClick={handleSubmit} disabled={submitting}>
+            <Button onClick={handleSubmit} disabled={submitting || !allDichiarazioniAccettate}>
               {submitting ? t(lang, 'form.submitting') : t(lang, 'form.submit')}
             </Button>
           )}
@@ -433,22 +424,6 @@ function FileUpload({ label, hint, file, error, onChange, required }: { label: s
         )}
       </div>
       {error && <p className="text-[12px] text-destructive mt-1">{error}</p>}
-    </div>
-  );
-}
-
-function ReviewSection({ title, items }: { title: string; items: [string, string][] }) {
-  return (
-    <div className="bg-card border rounded-lg p-4">
-      <h3 className="text-sm font-semibold mb-3">{title}</h3>
-      <div className="space-y-2">
-        {items.map(([label, value]) => (
-          <div key={label} className="flex justify-between text-[13px]">
-            <span className="text-muted-foreground">{label}</span>
-            <span className="font-medium">{value || '-'}</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
