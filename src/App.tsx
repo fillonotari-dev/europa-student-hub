@@ -15,6 +15,7 @@ import Candidature from "./pages/admin/Candidature";
 import Residenti from "./pages/admin/Residenti";
 import Camere from "./pages/admin/Camere";
 import Strutture from "./pages/admin/Strutture";
+import StudentePage from "./pages/admin/StudentePage";
 import StoricoLayout from "./pages/admin/storico/StoricoLayout";
 import StoricoCandidature from "./pages/admin/storico/StoricoCandidature";
 import StoricoResidenti from "./pages/admin/storico/StoricoResidenti";
@@ -39,6 +40,7 @@ const App = () => (
             <Route index element={<Dashboard />} />
             <Route path="candidature" element={<Candidature />} />
             <Route path="residenti" element={<Residenti />} />
+            <Route path="studenti/:id" element={<StudentePage />} />
             <Route path="camere" element={<Camere />} />
             <Route path="strutture" element={<Strutture />} />
             <Route path="storico" element={<StoricoLayout />}>
