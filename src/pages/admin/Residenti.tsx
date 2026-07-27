@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
@@ -32,12 +33,12 @@ type SortKey = 'nome' | 'email' | 'nazionalita' | 'camera' | 'struttura';
 
 export default function Residenti() {
   const { strutturaId, isAll } = useStrutturaFilter();
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('nome');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(1);
 
-  const [profileTarget, setProfileTarget] = useState<any>(null);
   const [transferTarget, setTransferTarget] = useState<any>(null);
   const [transferCameraId, setTransferCameraId] = useState<string>('');
   const [transferData, setTransferData] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -71,19 +72,6 @@ export default function Residenti() {
     queryKey: ['assegnazioni-attive'],
     queryFn: async () => {
       const { data } = await supabase.from('assegnazioni').select('camera_id').eq('stato', 'attiva');
-      return data ?? [];
-    },
-  });
-
-  const { data: storico } = useQuery({
-    queryKey: ['storico-studente', profileTarget?.studenti?.id],
-    enabled: !!profileTarget?.studenti?.id,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('assegnazioni')
-        .select('id, data_inizio, data_fine, stato, posto, camere(numero, strutture(nome))')
-        .eq('studente_id', profileTarget.studenti.id)
-        .order('data_inizio', { ascending: false });
       return data ?? [];
     },
   });
@@ -242,15 +230,16 @@ export default function Residenti() {
           <tbody>
             {pageItems.map((a: any, i: number) => (
               <motion.tr key={a.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}
-                className="border-b border-border/30 hover:bg-muted/50 transition-colors">
+                className="border-b border-border/30 hover:bg-muted/50 cursor-pointer transition-colors"
+                onClick={() => a.studenti?.id && navigate(`/admin/studenti/${a.studenti.id}`)}>
                 <td className="px-4 py-3 text-sm font-medium">{a.studenti?.cognome} {a.studenti?.nome}</td>
                 <td className="px-4 py-3 text-sm text-muted-foreground">{a.studenti?.email}</td>
                 <td className="px-4 py-3 text-sm">{a.studenti?.nazionalita || '-'}</td>
                 <td className="px-4 py-3 text-sm">{a.camere?.numero || '-'}</td>
                 <td className="px-4 py-3 text-sm">{a.camere?.strutture?.nome || '-'}</td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                   <RowActions>
-                    <DropdownMenuItem onClick={() => setProfileTarget(a)}>
+                    <DropdownMenuItem onClick={() => a.studenti?.id && navigate(`/admin/studenti/${a.studenti.id}`)}>
                       <User className="w-4 h-4 mr-2" /> Visualizza profilo
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => { setTransferTarget(a); setTransferCameraId(''); setTransferData(new Date().toISOString().split('T')[0]); }}>
@@ -307,46 +296,6 @@ export default function Residenti() {
           )}
         </div>
       )}
-
-      {/* Profile dialog */}
-      <Dialog open={!!profileTarget} onOpenChange={open => !open && setProfileTarget(null)}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-          {profileTarget && (
-            <>
-              <DialogHeader>
-                <DialogTitle>{profileTarget.studenti?.cognome} {profileTarget.studenti?.nome}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 mt-2">
-                <div className="bg-muted/30 rounded-lg p-3 space-y-1.5 text-[13px]">
-                  <Row label="Email" value={profileTarget.studenti?.email} />
-                  <Row label="Telefono" value={profileTarget.studenti?.telefono} />
-                  <Row label="Nazionalità" value={profileTarget.studenti?.nazionalita} />
-                  <Row label="Università" value={profileTarget.studenti?.universita} />
-                  <Row label="Corso" value={profileTarget.studenti?.corso_di_studi} />
-                  <Row label="Anno" value={profileTarget.studenti?.anno_di_corso} />
-                  <Row label="Matricola" value={profileTarget.studenti?.matricola} />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold mb-2">Storico assegnazioni</p>
-                  <div className="space-y-1.5">
-                    {(storico ?? []).map((s: any) => (
-                      <div key={s.id} className="flex items-center justify-between text-[13px] p-2 rounded bg-muted/30">
-                        <span>
-                          Cam. {s.camere?.numero} ({s.camere?.strutture?.nome})
-                        </span>
-                        <span className="text-muted-foreground">
-                          {s.data_inizio} → {s.data_fine ?? 'in corso'} · {s.stato}
-                        </span>
-                      </div>
-                    ))}
-                    {(storico?.length ?? 0) === 0 && <p className="text-[13px] text-muted-foreground">Nessun dato</p>}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* Transfer dialog */}
       <Dialog open={!!transferTarget} onOpenChange={open => { if (!open) { setTransferTarget(null); setTransferCameraId(''); } }}>

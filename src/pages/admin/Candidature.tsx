@@ -6,42 +6,26 @@ import { motion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
   PaginationNext, PaginationPrevious,
 } from '@/components/ui/pagination';
-import { DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
-import { RowActions } from '@/components/admin/RowActions';
-import { useToast } from '@/hooks/use-toast';
 import { ExportButton } from '@/components/admin/ExportButton';
 import { fmtDate } from '@/lib/exportXlsx';
 import {
   Search, FileText, Download, ArrowUp, ArrowDown, ArrowUpDown,
-  PlayCircle, CheckCircle2, XCircle, RotateCcw, Mail, DoorOpen, Trash2, Archive,
-  ExternalLink, FileIcon,
-  Send, Copy, CheckCircle, MailCheck,
+  MailCheck,
 } from 'lucide-react';
 import { useStrutturaFilter } from '@/hooks/useStrutturaFilter';
 import { STATO_LABELS, STATO_COLORS, formatStato } from '@/lib/statoCandidatura';
+import { useCandidaturaActions, CandidaturaActionsContext } from '@/hooks/useCandidaturaActions';
+import { CandidaturaActions } from '@/components/admin/CandidaturaActions';
 
 const STATI = ['ricevuta', 'in_completamento', 'completata', 'approvata', 'rifiutata', 'ritirata'] as const;
 const STATO_ORDER: Record<string, number> = {
   ricevuta: 0, in_completamento: 1, completata: 2,
   approvata: 3, rifiutata: 4, ritirata: 5, sostituita: 6,
 };
-const TIPO_DOC_LABELS: Record<string, string> = {
-  documento_identita: 'Documento di identità',
-  certificato_iscrizione: 'Certificato di iscrizione',
-  documento_garante: 'Documento garante',
-  documento_aggiuntivo: 'Documento aggiuntivo',
-};
-
 const TIPO_STUDENTE_LABELS: Record<string, string> = {
   universitario: 'Corso di laurea', erasmus: 'Erasmus o scambio', master: 'Master o dottorato', altro: 'Altro',
 };
@@ -58,27 +42,6 @@ const PERSONALITA_LABELS: Record<string, string> = {
 const ORDINE_LABELS: Record<string, string> = {
   molto: 'Rimette tutto a posto subito', abbastanza: 'Rimette a posto, ma non sempre subito', poco: 'Tende a lasciare le cose in giro',
 };
-const fmtIt = (v: string | null | undefined) => v ? new Date(v).toLocaleDateString('it-IT') : '';
-const fmtItDateTime = (v: string | null | undefined) => v ? new Date(v).toLocaleString('it-IT') : '';
-
-// Estrae il path interno al bucket "documenti_studenti" da un URL pubblico/signed Supabase
-function extractStoragePath(url: string): string | null {
-  if (!url) return null;
-  const marker = '/documenti_studenti/';
-  const idx = url.indexOf(marker);
-  let path: string;
-  if (idx === -1) {
-    // Nuovo formato: salviamo direttamente il path interno al bucket
-    path = url;
-  } else {
-    path = url.substring(idx + marker.length);
-  }
-  // rimuove eventuali query string (es. ?token=...)
-  const q = path.indexOf('?');
-  if (q !== -1) path = path.substring(0, q);
-  try { path = decodeURIComponent(path); } catch {}
-  return path;
-}
 const PAGE_SIZE = 15;
 type SortKey = 'studente' | 'struttura' | 'anno' | 'stato' | 'data';
 
@@ -86,22 +49,9 @@ export default function Candidature() {
   const { strutturaId, isAll } = useStrutturaFilter();
   const [search, setSearch] = useState('');
   const [filterStato, setFilterStato] = useState<string>('tutti');
-  const [selected, setSelected] = useState<any>(null);
   const [sortKey, setSortKey] = useState<SortKey>('data');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
-  const [deleteTarget, setDeleteTarget] = useState<any>(null);
-  const [linkTarget, setLinkTarget] = useState<any>(null);
-  const [linkData, setLinkData] = useState<{ url: string; scade_il: string } | null>(null);
-  const [linkLoading, setLinkLoading] = useState(false);
-  const [linkCopied, setLinkCopied] = useState(false);
-  const [statoConfirm, setStatoConfirm] = useState<{ c: any; nextStato: string } | null>(null);
-  const [regenConfirm, setRegenConfirm] = useState<any>(null);
-  const [esitoTarget, setEsitoTarget] = useState<any>(null);
-  const [esitoNota, setEsitoNota] = useState('');
-  const [esitoLoading, setEsitoLoading] = useState(false);
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const esitoFilter = searchParams.get('esito_da_inviare') === '1';
@@ -111,34 +61,6 @@ export default function Candidature() {
     if (stato && stato !== filterStato) setFilterStato(stato);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const generateLink = async (c: any) => {
-    // Se esiste già un token attivo, chiediamo conferma prima di rigenerare.
-    if (c.token_scade_il && new Date(c.token_scade_il) > new Date() && !regenConfirm) {
-      setRegenConfirm(c);
-      return;
-    }
-    setRegenConfirm(null);
-    setLinkTarget(c);
-    setLinkData(null);
-    setLinkLoading(true);
-    setLinkCopied(false);
-    try {
-      const { data, error } = await supabase.functions.invoke('generate-completion-link', {
-        body: { candidatura_id: c.id, origin: window.location.origin },
-      });
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
-      const url = `${window.location.origin}/candidatura/completa/${(data as any).token}`;
-      setLinkData({ url, scade_il: (data as any).scade_il });
-      queryClient.invalidateQueries({ queryKey: ['candidature'] });
-    } catch (e: any) {
-      toast({ title: 'Errore', description: e?.message ?? 'Impossibile generare il link', variant: 'destructive' });
-      setLinkTarget(null);
-    } finally {
-      setLinkLoading(false);
-    }
-  };
 
   const { data: candidature } = useQuery({
     queryKey: ['candidature', filterStato, strutturaId],
@@ -166,91 +88,8 @@ export default function Candidature() {
     },
   });
 
-  const hasAssegnazioneAttiva = (c: any) => !!candidatureConAssegnazione?.has(c.id);
-
-  const requestStatoChange = (c: any, nextStato: string) => {
-    // Cambio stato "rischioso" su candidatura con assegnazione attiva.
-    const rischioso = hasAssegnazioneAttiva(c) &&
-      (nextStato === 'rifiutata' || nextStato === 'ritirata' || nextStato === 'ricevuta' || nextStato === 'completata');
-    // Approvazione senza form completo: chiediamo conferma esplicita.
-    const approvaIncompleta = nextStato === 'approvata' && c.versione_form !== 'completa';
-    if (rischioso || approvaIncompleta) {
-      setStatoConfirm({ c, nextStato });
-      return;
-    }
-    updateStato.mutate({ id: c.id, stato: nextStato });
-  };
-
-  // Stato di "riapertura" dopo approvazione/rifiuto:
-  // torna a 'completata' se la candidatura aveva completato la fase 2, altrimenti a 'ricevuta'.
-  const reopenStato = (c: any): string =>
-    (c.versione_form === 'completa' || c.completata_il) ? 'completata' : 'ricevuta';
-
-  const { data: documenti } = useQuery({
-    queryKey: ['documenti', selected?.id],
-    enabled: !!selected,
-    queryFn: async () => {
-      const { data } = await supabase.from('documenti').select('*').eq('candidatura_id', selected.id);
-      return data ?? [];
-    },
-  });
-
-  const docLabelMap = TIPO_DOC_LABELS;
-
-  const updateStato = useMutation({
-    mutationFn: async ({ id, stato, note }: { id: string; stato: string; note?: string }) => {
-      const { data: old } = await supabase.from('candidature').select('stato').eq('id', id).single();
-      await supabase.from('candidature').update({ stato, note_admin: note ?? undefined }).eq('id', id);
-      const { data: { user } } = await supabase.auth.getUser();
-      await supabase.from('log_stato_candidature').insert({
-        candidatura_id: id, stato_precedente: old?.stato, stato_nuovo: stato, cambiato_da: user?.id, note,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['candidature'] });
-      queryClient.invalidateQueries({ queryKey: ['studenti-approvati'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      toast({ title: 'Stato aggiornato' });
-    },
-  });
-
-  const deleteCandidatura = useMutation({
-    mutationFn: async (id: string) => {
-      const { count } = await supabase
-        .from('assegnazioni')
-        .select('id', { count: 'exact', head: true })
-        .eq('candidatura_id', id);
-      if ((count ?? 0) > 0) throw new Error('Esiste un\'assegnazione collegata: impossibile eliminare.');
-      const { error } = await supabase.from('candidature').delete().eq('id', id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['candidature'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      toast({ title: 'Candidatura eliminata' });
-      setDeleteTarget(null);
-      setSelected(null);
-    },
-    onError: (e: any) => toast({ title: 'Errore', description: e.message, variant: 'destructive' }),
-  });
-
-  const sendEsito = useMutation({
-    mutationFn: async ({ id, nota }: { id: string; nota: string }) => {
-      const { data, error } = await supabase.functions.invoke('send-esito-email', {
-        body: { candidatura_id: id, nota: nota || null },
-      });
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['candidature'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      toast({ title: 'Comunicazione esito inviata' });
-      setEsitoTarget(null);
-      setEsitoNota('');
-    },
-    onError: (e: any) => toast({ title: 'Errore', description: e?.message ?? 'Invio fallito', variant: 'destructive' }),
-    onSettled: () => setEsitoLoading(false),
+  const actions = useCandidaturaActions({
+    candidatureConAssegnazione: candidatureConAssegnazione ?? null,
   });
 
   const filtered = (candidature ?? [])
@@ -301,64 +140,8 @@ export default function Candidature() {
     );
   };
 
-  const ActionsMenu = ({ c }: { c: any }) => {
-    const stato = c.stato;
-    const mailto = c.studenti?.email
-      ? `mailto:${c.studenti.email}?subject=${encodeURIComponent('La tua candidatura - Studentato Europa')}`
-      : null;
-    return (
-      <RowActions>
-        <DropdownMenuLabel>Cambia stato</DropdownMenuLabel>
-        {c.versione_form !== 'completa' && (
-          <DropdownMenuItem onClick={() => generateLink(c)}>
-            <Send className="w-4 h-4 mr-2" /> Invia form completo
-          </DropdownMenuItem>
-        )}
-        {(stato === 'approvata' || stato === 'rifiutata') && c.esito_email_stato === 'da_inviare' && (
-          <DropdownMenuItem onClick={() => { setEsitoNota(''); setEsitoTarget(c); }}>
-            <MailCheck className="w-4 h-4 mr-2" /> Invia comunicazione esito
-          </DropdownMenuItem>
-        )}
-        {(stato === 'ricevuta' || stato === 'completata') && (
-          <>
-            <DropdownMenuItem onClick={() => requestStatoChange(c, 'approvata')}>
-              <CheckCircle2 className="w-4 h-4 mr-2" /> Approva
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => requestStatoChange(c, 'rifiutata')}>
-              <XCircle className="w-4 h-4 mr-2" /> Rifiuta
-            </DropdownMenuItem>
-          </>
-        )}
-        {(stato === 'approvata' || stato === 'rifiutata') && (
-          <DropdownMenuItem onClick={() => requestStatoChange(c, reopenStato(c))}>
-            <RotateCcw className="w-4 h-4 mr-2" /> Riapri
-          </DropdownMenuItem>
-        )}
-        {stato !== 'ritirata' && stato !== 'sostituita' && (
-          <DropdownMenuItem onClick={() => requestStatoChange(c, 'ritirata')}>
-            <Archive className="w-4 h-4 mr-2" /> Segna come rinuncia
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuSeparator />
-        {stato === 'approvata' && (
-          <DropdownMenuItem onClick={() => navigate(`/admin/camere?candidatura=${c.id}`)}>
-            <DoorOpen className="w-4 h-4 mr-2" /> Assegna a camera
-          </DropdownMenuItem>
-        )}
-        {mailto && (
-          <DropdownMenuItem asChild>
-            <a href={mailto}><Mail className="w-4 h-4 mr-2" /> Contatta studente</a>
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteTarget(c)}>
-          <Trash2 className="w-4 h-4 mr-2" /> Elimina candidatura
-        </DropdownMenuItem>
-      </RowActions>
-    );
-  };
-
   return (
+    <CandidaturaActionsContext.Provider value={actions.ctxValue}>
     <div className="space-y-6">
       <div className="flex gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
@@ -442,7 +225,8 @@ export default function Candidature() {
             <tbody>
               {pageItems.map((c: any, i: number) => (
                 <motion.tr key={c.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}
-                  className="border-b border-border/30 hover:bg-muted/50 cursor-pointer transition-colors" onClick={() => setSelected(c)}>
+                  className="border-b border-border/30 hover:bg-muted/50 cursor-pointer transition-colors"
+                  onClick={() => navigate(`/admin/studenti/${c.studente_id}?candidatura=${c.id}`)}>
                   <td className="px-4 py-3">
                     <p className="text-sm font-medium">{c.studenti?.nome} {c.studenti?.cognome}</p>
                     <p className="text-[11px] text-muted-foreground">{c.studenti?.email}</p>
@@ -481,7 +265,7 @@ export default function Candidature() {
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">{new Date(c.created_at).toLocaleDateString('it-IT')}</td>
                   <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                    <ActionsMenu c={c} />
+                    <CandidaturaActions.Menu candidatura={c} />
                   </td>
                 </motion.tr>
               ))}
@@ -522,417 +306,8 @@ export default function Candidature() {
         </div>
       )}
 
-      {/* Detail Dialog */}
-      <Dialog open={!!selected} onOpenChange={open => !open && setSelected(null)}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-          {selected && (
-            <>
-              <DialogHeader>
-                <DialogTitle>{selected.studenti?.nome} {selected.studenti?.cognome}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 mt-4">
-                <Section title="Dati studente" items={[
-                  ['Email', selected.studenti?.email],
-                  ['Telefono', selected.studenti?.telefono],
-                  ['Nazionalità', selected.studenti?.nazionalita],
-                  ['Data di nascita', fmtIt(selected.studenti?.data_nascita)],
-                  ['Codice fiscale', selected.studenti?.codice_fiscale],
-                  ['Indirizzo residenza', selected.indirizzo_residenza],
-                  ['N. documento identità', selected.documento_identita_n],
-                ]} />
-                <Section title="Dati accademici" items={[
-                  ['Università', selected.universita_snapshot],
-                  ['Corso', selected.corso_snapshot],
-                  ['Anno', selected.anno_corso_snapshot],
-                  ['Matricola', selected.matricola_snapshot],
-                  ['Tipo studente', selected.tipo_studente === 'altro'
-                    ? (selected.tipo_studente_altro || 'Altro')
-                    : (TIPO_STUDENTE_LABELS[selected.tipo_studente] || selected.tipo_studente)],
-                ]} />
-                <Section title="Preferenze" items={[
-                  ['Struttura', selected.strutture?.nome || '-'],
-                  ['Tipo camera', selected.tipo_camera_preferito || '-'],
-                  ['Periodo', `${selected.periodo_inizio || ''} → ${selected.periodo_fine || ''}`],
-                  ['Anno acc.', selected.anno_accademico],
-                  ['Data arrivo prevista', fmtIt(selected.data_arrivo_prevista)],
-                  ['Come ci ha conosciuti', selected.come_conosciuto === 'altro'
-                    ? (selected.come_conosciuto_altro || 'Altro')
-                    : (COME_CONOSCIUTO_LABELS[selected.come_conosciuto] || selected.come_conosciuto)],
-                  ['Note preferenze', selected.preferenze_note],
-                ]} />
-
-                {selected.versione_form === 'completa' && (
-                  <Section title="Stile di vita" items={[
-                    ['Lingue parlate', selected.lingue_parlate],
-                    ['Orari', ORARI_LABELS[selected.orari] || selected.orari],
-                    ['Personalità', selected.personalita === 'altro'
-                      ? (selected.personalita_altro || 'Altro')
-                      : (PERSONALITA_LABELS[selected.personalita] || selected.personalita)],
-                    ['Ordine/pulizia', ORDINE_LABELS[selected.ordine_pulizia] || selected.ordine_pulizia],
-                    ['Fumatore', selected.fumatore === true ? 'Sì' : selected.fumatore === false ? 'No' : ''],
-                    ['Presentazione', selected.presentazione],
-                  ]} />
-                )}
-
-                {(selected.garante_nome || selected.garante_telefono || selected.garante_email) && (
-                  <Section title="Garante" items={[
-                    ['Nome', selected.garante_nome],
-                    ['Relazione', selected.garante_relazione],
-                    ['Telefono', selected.garante_telefono],
-                    ['Email', selected.garante_email],
-                  ]} />
-                )}
-
-                <Section title="Stato form" items={[
-                  ['Versione', selected.versione_form === 'completa' ? 'Completa' : 'Pre-screening'],
-                  ['Completato il', fmtItDateTime(selected.completata_il)],
-                  ['Dichiarazioni firmate il', fmtItDateTime(selected.dichiarazioni?.firmate_il)],
-                ]} />
-
-                {selected.messaggio && (
-                  <div className="bg-muted/50 rounded-lg p-3">
-                    <p className="text-[11px] font-medium text-muted-foreground mb-1">Messaggio</p>
-                    <p className="text-sm">{selected.messaggio}</p>
-                  </div>
-                )}
-
-                <div>
-                  <p className="text-sm font-semibold mb-2">Documenti caricati</p>
-                  {documenti && documenti.length > 0 ? (
-                    <div className="space-y-2">
-                      {documenti.map((d: any) => (
-                        <DocumentoRow key={d.id} doc={d} labelMap={docLabelMap} />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="bg-muted/30 rounded-lg p-3 text-[13px] text-muted-foreground flex items-center gap-2">
-                      <FileText className="w-4 h-4" />
-                      Nessun documento caricato
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <p className="text-sm font-semibold mb-2">Azioni</p>
-                  <div className="flex flex-wrap gap-2">
-                    {(selected.stato === 'ricevuta' || selected.stato === 'completata') && (
-                      <>
-                        <Button size="sm" onClick={() => requestStatoChange(selected, 'approvata')}>
-                          <CheckCircle2 className="w-4 h-4 mr-1" /> Approva
-                        </Button>
-                        <Button size="sm" variant="destructive" onClick={() => requestStatoChange(selected, 'rifiutata')}>
-                          <XCircle className="w-4 h-4 mr-1" /> Rifiuta
-                        </Button>
-                      </>
-                    )}
-                    {(selected.stato === 'approvata' || selected.stato === 'rifiutata') && (
-                      <Button size="sm" variant="outline" onClick={() => requestStatoChange(selected, reopenStato(selected))}>
-                        <RotateCcw className="w-4 h-4 mr-1" /> Riapri
-                      </Button>
-                    )}
-                    {selected.stato === 'approvata' && (
-                      <Button size="sm" variant="outline" onClick={() => { setSelected(null); navigate(`/admin/camere?candidatura=${selected.id}`); }}>
-                        <DoorOpen className="w-4 h-4 mr-1" /> Assegna a camera
-                      </Button>
-                    )}
-                    {selected.studenti?.email && (
-                      <Button size="sm" variant="outline" asChild>
-                        <a href={`mailto:${selected.studenti.email}?subject=${encodeURIComponent('La tua candidatura - Studentato Europa')}`}>
-                          <Mail className="w-4 h-4 mr-1" /> Contatta
-                        </a>
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-sm font-semibold mb-2">Note admin</p>
-                  <Textarea
-                    defaultValue={selected.note_admin || ''}
-                    placeholder="Note interne..."
-                    onBlur={e => {
-                      if (e.target.value !== (selected.note_admin || '')) {
-                        supabase.from('candidature').update({ note_admin: e.target.value }).eq('id', selected.id).then(({ error }) => {
-                          if (error) {
-                            toast({ title: 'Errore', description: 'Nota non salvata', variant: 'destructive' });
-                          } else {
-                            queryClient.invalidateQueries({ queryKey: ['candidature'] });
-                            toast({ title: 'Nota salvata' });
-                          }
-                        });
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete confirm */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={open => { if (!open) setDeleteTarget(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare la candidatura?</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-2">
-                <p><strong>{deleteTarget?.studenti?.nome} {deleteTarget?.studenti?.cognome}</strong></p>
-                <p>L'operazione è irreversibile. Verrà eliminata la candidatura, ma:</p>
-                <ul className="list-disc pl-5 text-[13px] space-y-1">
-                  <li>i <strong>documenti caricati</strong> resteranno in archivio fino a pulizia manuale</li>
-                  <li>lo <strong>storico cambi di stato</strong> resta nei log</li>
-                  <li>l'eliminazione <strong>fallirà</strong> se esiste un'assegnazione collegata</li>
-                </ul>
-                <p className="text-[13px] text-muted-foreground">Per registrare una rinuncia senza perdere i dati, usa "Segna come rinuncia".</p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => deleteTarget && deleteCandidatura.mutate(deleteTarget.id)}
-            >
-              Elimina
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Conferma cambio stato rischioso */}
-      <AlertDialog open={!!statoConfirm} onOpenChange={open => { if (!open) setStatoConfirm(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confermare il cambio di stato?</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-2 text-[13px]">
-                {statoConfirm && hasAssegnazioneAttiva(statoConfirm.c) && (
-                  <p>
-                    Esiste già un'<strong>assegnazione attiva</strong> per questa candidatura.
-                    Cambiare stato a "{formatStato(statoConfirm.nextStato)}" non chiude l'assegnazione:
-                    lo studente resterà residente. Per concludere il soggiorno vai in <strong>Residenti</strong>.
-                  </p>
-                )}
-                {statoConfirm && statoConfirm.nextStato === 'approvata' && statoConfirm.c.versione_form !== 'completa' && (
-                  <p>
-                    Lo studente <strong>non ha ancora compilato il form completo</strong> (stile di vita, garante,
-                    documenti aggiuntivi). Confermi di volerlo approvare comunque?
-                  </p>
-                )}
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (statoConfirm) updateStato.mutate({ id: statoConfirm.c.id, stato: statoConfirm.nextStato });
-                setStatoConfirm(null);
-              }}
-            >
-              Procedi
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Conferma rigenerazione link */}
-      <AlertDialog open={!!regenConfirm} onOpenChange={open => { if (!open) setRegenConfirm(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Rigenerare il link?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esiste già un link valido fino al{' '}
-              <strong>{regenConfirm?.token_scade_il && new Date(regenConfirm.token_scade_il).toLocaleDateString('it-IT')}</strong>.
-              Rigenerandolo, il <strong>vecchio link smetterà di funzionare</strong> e dovrai inviare il nuovo allo studente.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={() => regenConfirm && generateLink(regenConfirm)}>
-              Rigenera link
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Completion link modal */}
-      <Dialog open={!!linkTarget} onOpenChange={open => { if (!open) { setLinkTarget(null); setLinkData(null); } }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Invia form completo</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {linkLoading && <p className="text-sm text-muted-foreground">Generazione link in corso...</p>}
-            {linkData && linkTarget && (
-              <>
-                <p className="text-[13px] text-muted-foreground">
-                  Copia il link e invialo via email a <strong>{linkTarget.studenti?.email}</strong>. Scade il{' '}
-                  {new Date(linkData.scade_il).toLocaleDateString('it-IT')}.
-                </p>
-                <div className="flex gap-2">
-                  <Input readOnly value={linkData.url} className="font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
-                  <Button
-                    size="sm"
-                    onClick={async () => {
-                      await navigator.clipboard.writeText(linkData.url);
-                      setLinkCopied(true);
-                      setTimeout(() => setLinkCopied(false), 2000);
-                    }}
-                  >
-                    {linkCopied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  </Button>
-                </div>
-                {linkTarget.studenti?.email && (
-                  <Button asChild className="w-full" variant="outline">
-                    <a
-                      href={`mailto:${linkTarget.studenti.email}?subject=${encodeURIComponent('Completa la tua candidatura - Studentato Europa')}&body=${encodeURIComponent(
-                        `Ciao ${linkTarget.studenti?.nome ?? ''},\n\nla tua candidatura è stata pre-approvata. Per completarla, compila il form al seguente link (valido fino al ${new Date(linkData.scade_il).toLocaleDateString('it-IT')}):\n\n${linkData.url}\n\nGrazie,\nStudentato Europa`
-                      )}`}
-                    >
-                      <Mail className="w-4 h-4 mr-2" /> Apri client email
-                    </a>
-                  </Button>
-                )}
-                <p className="text-[11px] text-muted-foreground">
-                  Per sicurezza il link viene mostrato solo una volta. Se lo perdi, puoi rigenerarlo.
-                </p>
-              </>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Invio comunicazione esito */}
-      <Dialog open={!!esitoTarget} onOpenChange={open => { if (!open && !esitoLoading) { setEsitoTarget(null); setEsitoNota(''); } }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              {esitoTarget?.stato === 'approvata' ? 'Comunica esito: Approvata' : 'Comunica esito: Rifiutata'}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-[13px] text-muted-foreground">
-              Invieremo un'email a <strong>{esitoTarget?.studenti?.email}</strong> con l'esito della candidatura.
-              {esitoTarget?.stato === 'approvata'
-                ? " Successivamente potrai assegnare lo studente a una camera."
-                : " Puoi aggiungere una nota che verrà inclusa nell'email."}
-            </p>
-            <div>
-              <label className="text-[12px] font-medium">Nota per lo studente (opzionale)</label>
-              <Textarea
-                value={esitoNota}
-                onChange={e => setEsitoNota(e.target.value.slice(0, 2000))}
-                rows={5}
-                placeholder="Aggiungi eventuali indicazioni personali per lo studente..."
-                className="mt-1"
-              />
-              <p className="text-[11px] text-muted-foreground mt-1">{esitoNota.length}/2000</p>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" disabled={esitoLoading} onClick={() => { setEsitoTarget(null); setEsitoNota(''); }}>
-                Annulla
-              </Button>
-              <Button
-                disabled={esitoLoading}
-                onClick={() => {
-                  if (!esitoTarget) return;
-                  setEsitoLoading(true);
-                  sendEsito.mutate({ id: esitoTarget.id, nota: esitoNota.trim() });
-                }}
-              >
-                <MailCheck className="w-4 h-4 mr-2" />
-                {esitoLoading ? 'Invio in corso...' : 'Conferma e invia email'}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {actions.dialogs}
     </div>
-  );
-}
-
-function Section({ title, items }: { title: string; items: [string, string | null | undefined][] }) {
-  return (
-    <div>
-      <p className="text-sm font-semibold mb-2">{title}</p>
-      <div className="bg-muted/30 rounded-lg p-3 space-y-1.5">
-        {items.map(([label, value]) => (
-          <div key={label} className="flex justify-between text-[13px]">
-            <span className="text-muted-foreground">{label}</span>
-            <span className="font-medium">{value || '-'}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function DocumentoRow({ doc, labelMap }: { doc: any; labelMap?: Record<string, string> }) {
-  const { toast } = useToast();
-  const [loading, setLoading] = useState<'open' | 'download' | null>(null);
-  const path = extractStoragePath(doc.url);
-  const label = (labelMap && labelMap[doc.tipo]) || TIPO_DOC_LABELS[doc.tipo] || doc.tipo || 'Documento';
-
-  const getSignedUrl = async (download = false) => {
-    if (!path) throw new Error('Percorso file non valido');
-    const { data, error } = await supabase
-      .storage
-      .from('documenti_studenti')
-      .createSignedUrl(path, 60, download ? { download: doc.nome_file } : undefined);
-    if (error || !data?.signedUrl) throw error ?? new Error('Impossibile generare il link');
-    return data.signedUrl;
-  };
-
-  const handleOpen = async () => {
-    try {
-      setLoading('open');
-      const url = await getSignedUrl(false);
-      window.open(url, '_blank', 'noopener,noreferrer');
-    } catch (e: any) {
-      toast({ title: 'Errore', description: e?.message ?? 'Impossibile aprire il file', variant: 'destructive' });
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const handleDownload = async () => {
-    try {
-      setLoading('download');
-      const url = await getSignedUrl(true);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = doc.nome_file;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    } catch (e: any) {
-      toast({ title: 'Errore', description: e?.message ?? 'Impossibile scaricare il file', variant: 'destructive' });
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  return (
-    <div className="flex items-center gap-3 bg-muted/30 rounded-lg p-3">
-      <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-        <FileIcon className="w-4 h-4 text-primary" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-medium truncate">{label}</p>
-        <p className="text-[11px] text-muted-foreground truncate">{doc.nome_file}</p>
-      </div>
-      <div className="flex items-center gap-1 shrink-0">
-        <Button size="sm" variant="outline" onClick={handleOpen} disabled={loading !== null || !path}>
-          <ExternalLink className="w-3.5 h-3.5 mr-1" />
-          {loading === 'open' ? '...' : 'Apri'}
-        </Button>
-        <Button size="sm" onClick={handleDownload} disabled={loading !== null || !path}>
-          <Download className="w-3.5 h-3.5 mr-1" />
-          {loading === 'download' ? '...' : 'Scarica'}
-        </Button>
-      </div>
-    </div>
+    </CandidaturaActionsContext.Provider>
   );
 }
