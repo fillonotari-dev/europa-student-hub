@@ -13,11 +13,9 @@ import {
 import { Search, ArrowRight } from 'lucide-react';
 import { ExportButton } from '@/components/admin/ExportButton';
 import { fmtDateTime } from '@/lib/exportXlsx';
+import { formatStato, STATO_LABELS as STATO_LABELS_CANON } from '@/lib/statoCandidatura';
 
-const STATO_LABELS: Record<string, string> = {
-  ricevuta: 'Ricevuta', in_valutazione: 'In valutazione', approvata: 'Approvata',
-  rifiutata: 'Rifiutata', ritirata: 'Ritirata', sostituita: 'Sostituita',
-};
+const STATO_LABELS = STATO_LABELS_CANON;
 const PAGE_SIZE = 20;
 
 export default function StoricoCandidature() {
@@ -59,8 +57,8 @@ export default function StoricoCandidature() {
             'Data': fmtDateTime(l.created_at),
             'Studente': l.candidature?.studenti ? `${l.candidature.studenti.nome} ${l.candidature.studenti.cognome}` : '',
             'Email': l.candidature?.studenti?.email ?? '',
-            'Stato precedente': l.stato_precedente ? (STATO_LABELS[l.stato_precedente] ?? l.stato_precedente) : '',
-            'Stato nuovo': STATO_LABELS[l.stato_nuovo] ?? l.stato_nuovo,
+            'Stato precedente': l.stato_precedente ? formatStato(l.stato_precedente) : '',
+            'Stato nuovo': formatStato(l.stato_nuovo),
             'Note': l.note ?? '',
           }))}
         />
@@ -111,12 +109,12 @@ export default function StoricoCandidature() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         {l.stato_precedente ? (
-                          <Badge variant="outline">{STATO_LABELS[l.stato_precedente] ?? l.stato_precedente}</Badge>
+                          <Badge variant="outline">{formatStato(l.stato_precedente)}</Badge>
                         ) : (
                           <Badge variant="outline" className="text-muted-foreground">—</Badge>
                         )}
                         <ArrowRight className="w-3 h-3 text-muted-foreground" />
-                        <Badge>{STATO_LABELS[l.stato_nuovo] ?? l.stato_nuovo}</Badge>
+                        <Badge>{formatStato(l.stato_nuovo)}</Badge>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground max-w-md truncate">

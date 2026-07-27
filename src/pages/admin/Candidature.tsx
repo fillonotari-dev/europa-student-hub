@@ -28,24 +28,12 @@ import {
   Send, Copy, CheckCircle, MailCheck,
 } from 'lucide-react';
 import { useStrutturaFilter } from '@/hooks/useStrutturaFilter';
+import { STATO_LABELS, STATO_COLORS, formatStato } from '@/lib/statoCandidatura';
 
-const STATI = ['ricevuta', 'in_completamento', 'completata', 'in_valutazione', 'approvata', 'rifiutata', 'ritirata'] as const;
-const STATO_LABELS: Record<string, string> = {
-  ricevuta: 'Ricevuta', in_completamento: 'In completamento', completata: 'Completata',
-  in_valutazione: 'In valutazione', approvata: 'Approvata',
-  rifiutata: 'Rifiutata', ritirata: 'Ritirata', sostituita: 'Sostituita',
-};
-const STATO_COLORS: Record<string, string> = {
-  ricevuta: 'bg-primary/10 text-primary',
-  in_completamento: 'bg-accent/20 text-foreground',
-  completata: 'bg-success/10 text-success',
-  in_valutazione: 'bg-warning/10 text-warning',
-  approvata: 'bg-success/10 text-success', rifiutata: 'bg-destructive/10 text-destructive',
-  ritirata: 'bg-muted text-muted-foreground', sostituita: 'bg-muted text-muted-foreground',
-};
+const STATI = ['ricevuta', 'in_completamento', 'completata', 'approvata', 'rifiutata', 'ritirata'] as const;
 const STATO_ORDER: Record<string, number> = {
-  ricevuta: 0, in_completamento: 1, completata: 2, in_valutazione: 3,
-  approvata: 4, rifiutata: 5, ritirata: 6, sostituita: 7,
+  ricevuta: 0, in_completamento: 1, completata: 2,
+  approvata: 3, rifiutata: 4, ritirata: 5, sostituita: 6,
 };
 const TIPO_DOC_LABELS: Record<string, string> = {
   documento_identita: 'Documento di identità',
@@ -183,7 +171,7 @@ export default function Candidature() {
   const requestStatoChange = (c: any, nextStato: string) => {
     // Cambio stato "rischioso" su candidatura con assegnazione attiva.
     const rischioso = hasAssegnazioneAttiva(c) &&
-      (nextStato === 'rifiutata' || nextStato === 'ritirata' || nextStato === 'in_valutazione');
+      (nextStato === 'rifiutata' || nextStato === 'ritirata' || nextStato === 'ricevuta' || nextStato === 'completata');
     // Approvazione senza form completo: chiediamo conferma esplicita.
     const approvaIncompleta = nextStato === 'approvata' && c.versione_form !== 'completa';
     if (rischioso || approvaIncompleta) {
@@ -192,6 +180,11 @@ export default function Candidature() {
     }
     updateStato.mutate({ id: c.id, stato: nextStato });
   };
+
+  // Stato di "riapertura" dopo approvazione/rifiuto:
+  // torna a 'completata' se la candidatura aveva completato la fase 2, altrimenti a 'ricevuta'.
+  const reopenStato = (c: any): string =>
+    (c.versione_form === 'completa' || c.completata_il) ? 'completata' : 'ricevuta';
 
   const { data: documenti } = useQuery({
     queryKey: ['documenti', selected?.id],
@@ -326,12 +319,7 @@ export default function Candidature() {
             <MailCheck className="w-4 h-4 mr-2" /> Invia comunicazione esito
           </DropdownMenuItem>
         )}
-        {stato === 'ricevuta' && (
-          <DropdownMenuItem onClick={() => requestStatoChange(c, 'in_valutazione')}>
-            <PlayCircle className="w-4 h-4 mr-2" /> Prendi in carico
-          </DropdownMenuItem>
-        )}
-        {stato === 'in_valutazione' && (
+        {(stato === 'ricevuta' || stato === 'completata') && (
           <>
             <DropdownMenuItem onClick={() => requestStatoChange(c, 'approvata')}>
               <CheckCircle2 className="w-4 h-4 mr-2" /> Approva
@@ -342,13 +330,13 @@ export default function Candidature() {
           </>
         )}
         {(stato === 'approvata' || stato === 'rifiutata') && (
-          <DropdownMenuItem onClick={() => requestStatoChange(c, 'in_valutazione')}>
-            <RotateCcw className="w-4 h-4 mr-2" /> Rimetti in valutazione
+          <DropdownMenuItem onClick={() => requestStatoChange(c, reopenStato(c))}>
+            <RotateCcw className="w-4 h-4 mr-2" /> Riapri
           </DropdownMenuItem>
         )}
         {stato !== 'ritirata' && stato !== 'sostituita' && (
           <DropdownMenuItem onClick={() => requestStatoChange(c, 'ritirata')}>
-            <Archive className="w-4 h-4 mr-2" /> Segna come ritirata
+            <Archive className="w-4 h-4 mr-2" /> Segna come rinuncia
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
@@ -412,7 +400,7 @@ export default function Candidature() {
               'Anno corso': c.anno_corso_snapshot ?? '',
               'Matricola': c.matricola_snapshot ?? '',
               'Tipo studente': c.tipo_studente === 'altro' ? (c.tipo_studente_altro ?? 'Altro') : (TIPO_STUDENTE_LABELS[c.tipo_studente] ?? c.tipo_studente ?? ''),
-              'Stato': STATO_LABELS[c.stato] ?? c.stato,
+              'Stato': formatStato(c.stato),
               'Versione form': c.versione_form === 'completa' ? 'Completa' : 'Pre-screening',
               'Anno accademico': c.anno_accademico ?? '',
               'Periodo inizio': fmtDate(c.periodo_inizio),
@@ -477,8 +465,8 @@ export default function Candidature() {
                   <td className="px-4 py-3 text-sm">{c.strutture?.nome || '-'}</td>
                   <td className="px-4 py-3 text-sm">{c.anno_accademico}</td>
                   <td className="px-4 py-3">
-                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${STATO_COLORS[c.stato]}`}>
-                      {STATO_LABELS[c.stato]}
+                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${STATO_COLORS[c.stato] ?? 'bg-muted text-muted-foreground'}`}>
+                      {formatStato(c.stato)}
                     </span>
                     {(c.stato === 'approvata' || c.stato === 'rifiutata') && c.esito_email_stato === 'da_inviare' && (
                       <span className="block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-warning/10 text-warning">
@@ -627,12 +615,7 @@ export default function Candidature() {
                 <div>
                   <p className="text-sm font-semibold mb-2">Azioni</p>
                   <div className="flex flex-wrap gap-2">
-                    {selected.stato === 'ricevuta' && (
-                      <Button size="sm" onClick={() => requestStatoChange(selected, 'in_valutazione')}>
-                        <PlayCircle className="w-4 h-4 mr-1" /> Prendi in carico
-                      </Button>
-                    )}
-                    {selected.stato === 'in_valutazione' && (
+                    {(selected.stato === 'ricevuta' || selected.stato === 'completata') && (
                       <>
                         <Button size="sm" onClick={() => requestStatoChange(selected, 'approvata')}>
                           <CheckCircle2 className="w-4 h-4 mr-1" /> Approva
@@ -643,8 +626,8 @@ export default function Candidature() {
                       </>
                     )}
                     {(selected.stato === 'approvata' || selected.stato === 'rifiutata') && (
-                      <Button size="sm" variant="outline" onClick={() => requestStatoChange(selected, 'in_valutazione')}>
-                        <RotateCcw className="w-4 h-4 mr-1" /> Rimetti in valutazione
+                      <Button size="sm" variant="outline" onClick={() => requestStatoChange(selected, reopenStato(selected))}>
+                        <RotateCcw className="w-4 h-4 mr-1" /> Riapri
                       </Button>
                     )}
                     {selected.stato === 'approvata' && (
@@ -701,7 +684,7 @@ export default function Candidature() {
                   <li>lo <strong>storico cambi di stato</strong> resta nei log</li>
                   <li>l'eliminazione <strong>fallirà</strong> se esiste un'assegnazione collegata</li>
                 </ul>
-                <p className="text-[13px] text-muted-foreground">Per ritirare una candidatura senza perdere i dati, usa "Segna come ritirata".</p>
+                <p className="text-[13px] text-muted-foreground">Per registrare una rinuncia senza perdere i dati, usa "Segna come rinuncia".</p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -727,7 +710,7 @@ export default function Candidature() {
                 {statoConfirm && hasAssegnazioneAttiva(statoConfirm.c) && (
                   <p>
                     Esiste già un'<strong>assegnazione attiva</strong> per questa candidatura.
-                    Cambiare stato a "{STATO_LABELS[statoConfirm.nextStato]}" non chiude l'assegnazione:
+                    Cambiare stato a "{formatStato(statoConfirm.nextStato)}" non chiude l'assegnazione:
                     lo studente resterà residente. Per concludere il soggiorno vai in <strong>Residenti</strong>.
                   </p>
                 )}

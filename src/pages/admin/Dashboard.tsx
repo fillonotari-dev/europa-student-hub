@@ -7,6 +7,7 @@ import {
   ClipboardCheck, UserPlus, Wrench, CalendarClock, CheckCircle2, AlertTriangle, MailCheck,
 } from 'lucide-react';
 import { useStrutturaFilter } from '@/hooks/useStrutturaFilter';
+import { STATO_COLORS, formatStato } from '@/lib/statoCandidatura';
 
 export default function Dashboard() {
   const { strutturaId, nomeSelezionato, isAll } = useStrutturaFilter();
@@ -47,7 +48,7 @@ export default function Dashboard() {
 
       return {
         candidatureRicevute: cand.filter(c => c.stato === 'ricevuta').length,
-        candidatureInValutazione: cand.filter(c => c.stato === 'in_valutazione').length,
+        candidatureInAttesaDecisione: cand.filter(c => c.stato === 'completata').length,
         candidatureApprovate: cand.filter(c => c.stato === 'approvata').length,
         candidatureTotali: cand.length,
         totalePosti: totalPosti,
@@ -102,11 +103,11 @@ export default function Dashboard() {
       };
 
       const [
-        ricevute, valutazione, approvate, assegnAttive, manutenzione, scadenza,
+        ricevute, inAttesaDecisione, approvate, assegnAttive, manutenzione, scadenza,
         ricevuteVecchie, tokenScaduti, manutenzioneVecchia, assegnScadute, esitiDaComunicare,
       ] = await Promise.all([
         candFilter(supabase.from('candidature').select('id', { count: 'exact', head: true }).eq('stato', 'ricevuta')),
-        candFilter(supabase.from('candidature').select('id', { count: 'exact', head: true }).eq('stato', 'in_valutazione')),
+        candFilter(supabase.from('candidature').select('id', { count: 'exact', head: true }).eq('stato', 'completata')),
         candFilter(supabase.from('candidature').select('id').eq('stato', 'approvata')),
         assegnFilter(supabase.from('assegnazioni').select('candidatura_id').eq('stato', 'attiva')),
         camereFilter(supabase.from('camere').select('id', { count: 'exact', head: true }).eq('stato', 'manutenzione')),
@@ -134,7 +135,7 @@ export default function Dashboard() {
 
       return {
         daPrendereInCarico: ricevute.count ?? 0,
-        daDecidere: valutazione.count ?? 0,
+        daDecidere: inAttesaDecisione.count ?? 0,
         daAssegnare,
         manutenzione: manutenzione.count ?? 0,
         inScadenza: scadenza.count ?? 0,
@@ -157,12 +158,12 @@ export default function Dashboard() {
       to: '/admin/candidature?stato=ricevuta',
     },
     {
-      key: 'valutazione',
+      key: 'in-attesa-decisione',
       icon: ClipboardCheck,
       color: 'text-warning bg-warning/10',
-      label: 'Candidature in valutazione da decidere',
+      label: 'Candidature complete in attesa di decisione',
       count: tasks?.daDecidere ?? 0,
-      to: '/admin/candidature?stato=in_valutazione',
+      to: '/admin/candidature?stato=completata',
     },
     {
       key: 'approvate',
@@ -238,27 +239,9 @@ export default function Dashboard() {
 
   const metrics = [
     { label: 'Candidature ricevute', value: stats?.candidatureRicevute ?? 0, icon: Clock, color: 'text-primary bg-primary/10' },
-    { label: 'In valutazione', value: stats?.candidatureInValutazione ?? 0, icon: FileText, color: 'text-warning bg-warning/10' },
+    { label: 'In attesa di decisione', value: stats?.candidatureInAttesaDecisione ?? 0, icon: ClipboardCheck, color: 'text-warning bg-warning/10' },
     { label: 'Posti liberi', value: stats?.postiLiberi ?? 0, icon: DoorOpen, color: 'text-success bg-success/10' },
   ];
-
-  const statoLabel: Record<string, string> = {
-    ricevuta: 'Ricevuta',
-    in_valutazione: 'In valutazione',
-    approvata: 'Approvata',
-    rifiutata: 'Rifiutata',
-    ritirata: 'Ritirata',
-    sostituita: 'Sostituita',
-  };
-
-  const statoColor: Record<string, string> = {
-    ricevuta: 'bg-primary/10 text-primary',
-    in_valutazione: 'bg-warning/10 text-warning',
-    approvata: 'bg-success/10 text-success',
-    rifiutata: 'bg-destructive/10 text-destructive',
-    ritirata: 'bg-muted text-muted-foreground',
-    sostituita: 'bg-muted text-muted-foreground',
-  };
 
   return (
     <div className="space-y-6">
@@ -378,8 +361,8 @@ export default function Dashboard() {
                 <p className="text-sm font-medium">{c.studenti?.nome} {c.studenti?.cognome}</p>
                 <p className="text-[11px] text-muted-foreground">{new Date(c.created_at).toLocaleDateString('it-IT')}</p>
               </div>
-              <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${statoColor[c.stato] || ''}`}>
-                {statoLabel[c.stato] || c.stato}
+              <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${STATO_COLORS[c.stato] ?? 'bg-muted text-muted-foreground'}`}>
+                {formatStato(c.stato)}
               </span>
             </div>
           ))}
