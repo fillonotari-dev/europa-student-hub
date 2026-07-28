@@ -1,29 +1,22 @@
 ## Diagnosi
 
-L'utente `studentatoeuropa@gmail.com` (id `9449c32f-…`) **esiste e il login riesce** (i log auth mostrano `/token` 200), ma viene subito buttato fuori da `/admin`.
+Sulla scheda persona (`src/pages/admin/StudentePage.tsx`) la query documenti carica correttamente tutto (verificato a DB: lo studente in questione ha 2 righe in `public.documenti`, un `documento_identita` e un `certificato_iscrizione`).
 
-Causa: in `src/pages/admin/AdminLayout.tsx` la sessione viene verificata contro `public.user_roles` cercando `role = 'admin'`. Query sul DB:
+Ma il render filtra solo due tipi:
 
-```
-roles: NULL
-```
-
-L'utente non ha alcuna riga in `user_roles`, quindi `AdminLayout` esegue `supabase.auth.signOut()` e rimanda a `/login` — dal punto di vista dell'utente "il sistema non lo fa accedere".
-
-Nota: la tabella `user_roles` ha RLS che permette insert/update **solo agli admin già esistenti**, quindi non è possibile assegnare il ruolo dalla UI a un nuovo admin senza passare dal DB.
-
-## Fix proposto
-
-Inserire il ruolo `admin` per questo utente via migrazione SQL:
-
-```sql
-INSERT INTO public.user_roles (user_id, role)
-VALUES ('9449c32f-5726-4f01-b1db-686ce7bace29', 'admin')
-ON CONFLICT (user_id, role) DO NOTHING;
+```ts
+const docIdentita = documenti.filter(d => d.tipo === 'documento_identita');
+const docGarante  = documenti.filter(d => d.tipo === 'documento_garante');
 ```
 
-Nessuna modifica al codice applicativo.
+I tipi `certificato_iscrizione` e `documento_aggiuntivo` (definiti in `supabase/functions/_shared/documenti-tipi.ts`) non vengono mai mostrati → nell'UI compare solo il documento d'identità.
 
-## Follow-up opzionale (da confermare)
+## Fix
 
-Se in futuro vorrai creare altri admin senza toccare il DB, posso aggiungere in una UI amministrativa (es. pagina "Utenti") la gestione dei ruoli — fuori scope di questo fix.
+In `StudentePage.tsx`:
+
+1. Calcolare anche `docAltri = documenti.filter(d => d.tipo !== 'documento_identita' && d.tipo !== 'documento_garante')` (così qualunque tipo futuro non venga più dimenticato).
+2. Aggiungere una nuova sezione "Altri documenti" a piena larghezza — mostrata solo se `docAltri.length > 0` — con etichetta leggibile per tipo (`certificato_iscrizione` → "Certificato di iscrizione", `documento_aggiuntivo` → "Documento aggiuntivo") e le righe rese con `DocumentoRow` (che già gestisce apri/scarica via signed URL).
+3. Posizione: subito dopo la sezione "Informazioni personali", prima della griglia 2×2 dati accademici/preferenze/…, così i documenti restano vicini all'anagrafica.
+
+Nessuna modifica a schema, RLS o Edge Functions.

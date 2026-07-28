@@ -227,6 +227,9 @@ export default function StudentePage() {
   });
   const docIdentita = (documenti ?? []).filter((d: any) => d.tipo === 'documento_identita');
   const docGarante = (documenti ?? []).filter((d: any) => d.tipo === 'documento_garante');
+  const docAltri = (documenti ?? []).filter(
+    (d: any) => d.tipo !== 'documento_identita' && d.tipo !== 'documento_garante',
+  );
 
   // Compagno di stanza — UNA sola query, sovrapposizione calcolata in JS.
   const attive = useMemo(
@@ -525,6 +528,31 @@ export default function StudentePage() {
             />
           )}
         </section>
+
+        {docAltri.length > 0 && (
+          <section className="bg-card border border-border/50 rounded-lg p-5">
+            <h2 className="text-sm font-semibold mb-4">Altri documenti</h2>
+            <div className="space-y-4">
+              {Object.entries(
+                docAltri.reduce((acc: Record<string, any[]>, d: any) => {
+                  (acc[d.tipo] ||= []).push(d);
+                  return acc;
+                }, {}),
+              ).map(([tipo, docs]) => (
+                <div key={tipo} className="space-y-2">
+                  <p className="text-[12px] text-muted-foreground">
+                    {tipo === 'certificato_iscrizione'
+                      ? 'Certificato di iscrizione'
+                      : tipo === 'documento_aggiuntivo'
+                      ? 'Documento aggiuntivo'
+                      : tipo}
+                  </p>
+                  {(docs as any[]).map((d) => <DocumentoRow key={d.id} doc={d} />)}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* --- 4. Griglia 2×2 (allineata in alto) --- */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
