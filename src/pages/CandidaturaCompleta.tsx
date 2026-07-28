@@ -17,6 +17,7 @@ import logoStudentato from '@/assets/logo-studentato.svg';
 import { StepDots } from '@/components/candidatura/StepDots';
 import { MAX_UPLOAD_BYTES, ACCEPTED_UPLOAD_MIME } from '@/lib/uploads';
 import { PRIVACY_POLICY_URL } from '@/lib/privacy';
+import { resizeImageIfNeeded, IMAGE_DECODE_FAILED } from '@/lib/imageResize';
 
 const ALL_STEPS = ['stepLifestyle', 'stepGarante', 'stepDocAggiuntivi', 'stepDichiarazioni'] as const;
 const ACCEPTED_TYPES: readonly string[] = ACCEPTED_UPLOAD_MIME;
@@ -54,6 +55,7 @@ export default function CandidaturaCompleta() {
     documento_aggiuntivo: null,
   });
   const [fileErrors, setFileErrors] = useState<Record<string, string | undefined>>({});
+  const [fileDisplayNames, setFileDisplayNames] = useState<Record<string, string>>({});
   const [dichiarazioni, setDichiarazioni] = useState({
     veridicita: false, privacy: false, info_struttura: false, contatto: false,
   });
@@ -132,21 +134,43 @@ export default function CandidaturaCompleta() {
   const next = () => { if (validateStep()) setStep(s => Math.min(s + 1, STEPS.length - 1)); };
   const prev = () => setStep(s => Math.max(s - 1, 0));
 
-  const validateFile = (file: File | null): string | null => {
-    if (!file) return null;
-    if (!ACCEPTED_TYPES.includes(file.type)) return t(lang, 'form.fileInvalidType');
-    if (file.size > MAX_SIZE) return t(lang, 'form.fileTooLarge');
-    return null;
-  };
-  const handleFile = (key: keyof typeof files, file: File | null) => {
-    const err = validateFile(file);
-    if (err) {
-      setFileErrors(e => ({ ...e, [key]: err }));
-      toast({ title: err, variant: 'destructive' });
+  const handleFile = async (key: keyof typeof files, file: File | null) => {
+    if (!file) {
+      setFileErrors(e => ({ ...e, [key]: undefined }));
+      setFiles(f => ({ ...f, [key]: null }));
+      setFileDisplayNames(n => { const c = { ...n }; delete c[key as string]; return c; });
+      return;
+    }
+    const originalName = file.name;
+    let processed = file;
+    if (file.type.startsWith('image/')) {
+      try {
+        processed = await resizeImageIfNeeded(file);
+      } catch (err: any) {
+        if (err?.message === IMAGE_DECODE_FAILED) {
+          const msg = t(lang, 'form.fileImageDecodeFailed');
+          setFileErrors(e => ({ ...e, [key]: msg }));
+          toast({ title: msg, variant: 'destructive' });
+          return;
+        }
+        throw err;
+      }
+    }
+    if (!ACCEPTED_TYPES.includes(processed.type)) {
+      const msg = t(lang, 'form.fileInvalidType');
+      setFileErrors(e => ({ ...e, [key]: msg }));
+      toast({ title: msg, variant: 'destructive' });
+      return;
+    }
+    if (processed.size > MAX_SIZE) {
+      const msg = t(lang, 'form.fileTooLarge');
+      setFileErrors(e => ({ ...e, [key]: msg }));
+      toast({ title: msg, variant: 'destructive' });
       return;
     }
     setFileErrors(e => ({ ...e, [key]: undefined }));
-    setFiles(f => ({ ...f, [key]: file }));
+    setFiles(f => ({ ...f, [key]: processed }));
+    setFileDisplayNames(n => ({ ...n, [key as string]: originalName }));
   };
 
   const handleSubmit = async () => {
@@ -368,8 +392,8 @@ export default function CandidaturaCompleta() {
 
             {stepKey === 'stepDocAggiuntivi' && (
               <div className="space-y-4">
-                <FileUpload label={t(lang, 'form.documentoGarante')} hint={t(lang, 'form.uploadHint')} file={files.documento_garante} error={fileErrors.documento_garante} onChange={f => handleFile('documento_garante', f)} required />
-                <FileUpload label={t(lang, 'form.documentoAggiuntivo')} hint={t(lang, 'form.uploadHint')} file={files.documento_aggiuntivo} error={fileErrors.documento_aggiuntivo} onChange={f => handleFile('documento_aggiuntivo', f)} />
+                <FileUpload label={t(lang, 'form.documentoGarante')} hint={t(lang, 'form.uploadHint')} file={files.documento_garante} displayName={fileDisplayNames['documento_garante']} error={fileErrors.documento_garante} onChange={f => { void handleFile('documento_garante', f); }} required />
+                <FileUpload label={t(lang, 'form.documentoAggiuntivo')} hint={t(lang, 'form.uploadHint')} file={files.documento_aggiuntivo} displayName={fileDisplayNames['documento_aggiuntivo']} error={fileErrors.documento_aggiuntivo} onChange={f => { void handleFile('documento_aggiuntivo', f); }} />
               </div>
             )}
 
@@ -437,14 +461,14 @@ export default function CandidaturaCompleta() {
   );
 }
 
-function FileUpload({ label, hint, file, error, onChange, required }: { label: string; hint: string; file: File | null; error?: string; onChange: (f: File | null) => void; required?: boolean }) {
+function FileUpload({ label, hint, file, displayName, error, onChange, required }: { label: string; hint: string; file: File | null; displayName?: string; error?: string; onChange: (f: File | null) => void; required?: boolean }) {
   return (
     <div>
       <Label>{label}{required && <span className="text-destructive ml-0.5">*</span>}</Label>
       <div className={cn('mt-1.5 border-2 border-dashed rounded-lg p-4 text-center hover:bg-muted/50 transition-colors cursor-pointer', error && 'border-destructive')} onClick={() => document.getElementById(`file-${label}`)?.click()}>
-        <input id={`file-${label}`} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => onChange(e.target.files?.[0] || null)} />
+        <input id={`file-${label}`} type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,image/*,application/pdf" className="hidden" onChange={e => onChange(e.target.files?.[0] || null)} />
         {file ? (
-          <p className="text-[13px] text-foreground font-medium">{file.name}</p>
+          <p className="text-[13px] text-foreground font-medium">{displayName || file.name}</p>
         ) : (
           <p className="text-[13px] text-muted-foreground">{hint}</p>
         )}
