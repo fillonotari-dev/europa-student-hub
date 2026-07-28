@@ -245,10 +245,7 @@ export default function StudentePage() {
     if (na !== nb) return na - nb;
     return String(a.created_at ?? '').localeCompare(String(b.created_at ?? ''));
   });
-  const documentiPerTipo = documentiOrdinati.reduce((acc: Record<string, any[]>, d: any) => {
-    (acc[d.tipo] ||= []).push(d);
-    return acc;
-  }, {});
+
 
   // Compagno di stanza — UNA sola query, sovrapposizione calcolata in JS.
   const attive = useMemo(
