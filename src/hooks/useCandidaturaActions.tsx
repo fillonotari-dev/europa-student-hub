@@ -163,9 +163,9 @@ export function useCandidaturaActions(options: Options = {}) {
 
   const requestStatoChange = useCallback((c: CandidaturaLike, nextStato: string) => {
     const rischioso = hasAssegnazioneAttiva(c) &&
-      (nextStato === 'rifiutata' || nextStato === 'ritirata' ||
-       nextStato === 'ricevuta' || nextStato === 'completata');
-    const approvaIncompleta = nextStato === 'approvata' && c.versione_form !== 'completa';
+      (nextStato === 'rifiutata' || nextStato === 'in_attesa_posto' ||
+       nextStato === 'da_valutare' || nextStato === 'da_decidere');
+    const approvaIncompleta = nextStato === 'accolta' && c.versione_form !== 'completa';
     if (rischioso || approvaIncompleta) {
       setStatoConfirm({ c, nextStato });
       return;
@@ -187,7 +187,7 @@ export function useCandidaturaActions(options: Options = {}) {
         setEsitoTarget(c);
         return;
       case 'approva':
-        requestStatoChange(c, 'approvata');
+        requestStatoChange(c, 'accolta');
         return;
       case 'rifiuta':
         requestStatoChange(c, 'rifiutata');
@@ -195,8 +195,8 @@ export function useCandidaturaActions(options: Options = {}) {
       case 'riapri':
         requestStatoChange(c, reopenStato(c));
         return;
-      case 'segna_rinuncia':
-        requestStatoChange(c, 'ritirata');
+      case 'metti_in_attesa_posto':
+        requestStatoChange(c, 'in_attesa_posto');
         return;
       case 'assegna_camera':
         navigate(`/admin/camere?candidatura=${c.id}`);
@@ -265,7 +265,7 @@ export function useCandidaturaActions(options: Options = {}) {
                 {statoConfirm && statoConfirm.nextStato === 'approvata' && statoConfirm.c.versione_form !== 'completa' && (
                   <p>
                     Lo studente <strong>non ha ancora compilato il form completo</strong> (stile di vita, garante,
-                    documenti aggiuntivi). Confermi di volerlo approvare comunque?
+                    documenti aggiuntivi). Confermi di volerlo accogliere comunque?
                   </p>
                 )}
               </div>
