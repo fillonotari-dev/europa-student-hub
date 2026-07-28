@@ -125,6 +125,7 @@ export default function Camere() {
 
   const [assegnaInizio, setAssegnaInizio] = useState<string>('');
   const [assegnaFine, setAssegnaFine] = useState<string>('');
+  const [assegnaTarget, setAssegnaTarget] = useState<{ candId: string; studenteId: string } | null>(null);
 
   const assegna = useMutation({
     mutationFn: async ({ camera_id, studente_id, candidatura_id, posto, data_inizio, data_fine }: any) => {
