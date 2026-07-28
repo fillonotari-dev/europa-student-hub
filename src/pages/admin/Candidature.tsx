@@ -21,10 +21,10 @@ import { STATO_LABELS, STATO_COLORS, formatStato } from '@/lib/statoCandidatura'
 import { useCandidaturaActions, CandidaturaActionsContext } from '@/hooks/useCandidaturaActions';
 import { CandidaturaActions } from '@/components/admin/CandidaturaActions';
 
-const STATI = ['ricevuta', 'in_completamento', 'completata', 'approvata', 'rifiutata', 'ritirata'] as const;
+const STATI = ['da_valutare', 'in_attesa_studente', 'da_decidere', 'accolta', 'in_attesa_posto', 'rifiutata'] as const;
 const STATO_ORDER: Record<string, number> = {
-  ricevuta: 0, in_completamento: 1, completata: 2,
-  approvata: 3, rifiutata: 4, ritirata: 5, sostituita: 6,
+  da_valutare: 0, in_attesa_studente: 1, da_decidere: 2,
+  accolta: 3, in_attesa_posto: 4, rifiutata: 5,
 };
 const TIPO_STUDENTE_LABELS: Record<string, string> = {
   universitario: 'Corso di laurea', erasmus: 'Erasmus o scambio', master: 'Master o dottorato', altro: 'Altro',
@@ -103,7 +103,7 @@ export default function Candidature() {
       const s = search.toLowerCase();
       return c.studenti?.nome?.toLowerCase().includes(s) || c.studenti?.cognome?.toLowerCase().includes(s) || c.studenti?.email?.toLowerCase().includes(s);
     })
-    .filter(c => !esitoFilter || c.esito_email_stato === 'da_inviare')
+    .filter(c => !esitoFilter || (!c.esito_email_inviata_il && (c.stato === 'accolta' || c.stato === 'rifiutata')))
     .sort((a: any, b: any) => {
       const dir = sortDir === 'asc' ? 1 : -1;
       switch (sortKey) {
@@ -194,7 +194,11 @@ export default function Candidature() {
               'Nazionalità': c.studenti?.nazionalita ?? '',
               'Data di nascita': fmtDate(c.studenti?.data_nascita),
               'Codice fiscale': c.studenti?.codice_fiscale ?? '',
-              'Indirizzo residenza': c.indirizzo_residenza ?? '',
+              'Indirizzo residenza': [
+                c.studenti?.indirizzo_via, c.studenti?.indirizzo_civico,
+                c.studenti?.indirizzo_cap, c.studenti?.indirizzo_comune,
+                c.studenti?.indirizzo_provincia, c.studenti?.indirizzo_nazione,
+              ].filter(Boolean).join(' '),
               'N. documento identità': c.documento_identita_n ?? '',
               'Struttura preferita': c.strutture?.nome ?? '',
               'Università': c.universita_snapshot ?? '',
@@ -271,12 +275,12 @@ export default function Candidature() {
                     <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${STATO_COLORS[c.stato] ?? 'bg-muted text-muted-foreground'}`}>
                       {formatStato(c.stato)}
                     </span>
-                    {(c.stato === 'approvata' || c.stato === 'rifiutata') && c.esito_email_stato === 'da_inviare' && (
+                    {(c.stato === 'accolta' || c.stato === 'rifiutata') && !c.esito_email_inviata_il && (
                       <span className="block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-warning/10 text-warning">
                         Esito da comunicare
                       </span>
                     )}
-                    {(c.stato === 'approvata' || c.stato === 'rifiutata') && c.esito_email_stato === 'inviata' && (
+                    {(c.stato === 'accolta' || c.stato === 'rifiutata') && !!c.esito_email_inviata_il && (
                       <span className="block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-success/10 text-success">
                         Esito inviato
                       </span>
