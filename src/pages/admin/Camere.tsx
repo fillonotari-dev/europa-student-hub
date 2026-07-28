@@ -105,7 +105,7 @@ export default function Camere() {
     queryFn: async () => {
       const { data } = await supabase
         .from('candidature')
-        .select('id, studente_id, struttura_preferita_id, strutture(nome), studenti(id, nome, cognome)')
+        .select('id, studente_id, struttura_preferita_id, periodo_inizio, periodo_fine, strutture(nome), studenti(id, nome, cognome)')
         .eq('stato', 'accolta');
       return data ?? [];
     },
@@ -487,25 +487,18 @@ export default function Camere() {
                       <p className="text-sm font-semibold mb-2">Occupanti attivi</p>
                       <div className="space-y-2">
                         {occupanti.map((a: any) => (
-                          <div key={a.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/40">
-                            <div className="flex items-center gap-2 text-sm">
-                              <User className="w-4 h-4 text-muted-foreground" />
-                              <span>{a.studenti?.nome} {a.studenti?.cognome}</span>
-                            </div>
-                            <AlertDialog>
-                              <Button size="sm" variant="outline" className="text-destructive hover:text-destructive"
-                                onClick={() => concludi.mutate({ assegnazione_id: a.id, camera_id: selectedCamera.id })}>
-                                <X className="w-3.5 h-3.5 mr-1" />Concludi
-                              </Button>
-                            </AlertDialog>
+                          <div key={a.id} className="flex items-center gap-2 p-2 rounded-lg bg-muted/40 text-sm">
+                            <User className="w-4 h-4 text-muted-foreground" />
+                            <span>{a.studenti?.nome} {a.studenti?.cognome}</span>
                           </div>
                         ))}
                       </div>
+                      <p className="text-[12px] text-muted-foreground mt-2">Per concludere o trasferire un'assegnazione usa la pagina <strong>Residenti</strong>.</p>
                     </div>
                   );
                 })()}
 
-                {selectedCamera.stato !== 'occupata' && selectedCamera.stato !== 'manutenzione' && studentiApprovati && studentiApprovati.length > 0 && (
+                {selectedCamera.stato === 'disponibile' && studentiApprovati && studentiApprovati.length > 0 && (
                   <div>
                     <p className="text-sm font-semibold mb-2">Assegna studente approvato</p>
                     {candidaturaParam && (() => {
@@ -525,18 +518,46 @@ export default function Camere() {
                         .map((sa: any) => {
                         const alreadyAssigned = assegnazioni?.some(a => a.studente_id === sa.studente_id && a.stato === 'attiva');
                         if (alreadyAssigned) return null;
+                        const isOpen = assegnaTarget?.candId === sa.id;
                         return (
-                          <div key={sa.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50">
-                            <span className="text-sm">{sa.studenti?.nome} {sa.studenti?.cognome}</span>
-                            <Button size="sm" onClick={() => {
-                              const currentAssignments = assegnazioni?.filter(a => a.camera_id === selectedCamera.id).length ?? 0;
-                              assegna.mutate({
-                                camera_id: selectedCamera.id,
-                                studente_id: sa.studente_id,
-                                candidatura_id: sa.id,
-                                posto: currentAssignments + 1,
-                              });
-                            }}>Assegna</Button>
+                          <div key={sa.id} className="p-2 rounded-lg hover:bg-muted/50 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm">{sa.studenti?.nome} {sa.studenti?.cognome}</span>
+                              {!isOpen && (
+                                <Button size="sm" onClick={() => {
+                                  setAssegnaTarget({ candId: sa.id, studenteId: sa.studente_id });
+                                  setAssegnaInizio(sa.periodo_inizio ?? new Date().toISOString().split('T')[0]);
+                                  setAssegnaFine(sa.periodo_fine ?? '');
+                                }}>Assegna</Button>
+                              )}
+                            </div>
+                            {isOpen && (
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <Label className="text-[11px]">Data inizio *</Label>
+                                  <Input type="date" value={assegnaInizio} onChange={e => setAssegnaInizio(e.target.value)} />
+                                </div>
+                                <div>
+                                  <Label className="text-[11px]">Data fine *</Label>
+                                  <Input type="date" value={assegnaFine} onChange={e => setAssegnaFine(e.target.value)} />
+                                </div>
+                                <div className="col-span-2 flex justify-end gap-2">
+                                  <Button size="sm" variant="ghost" onClick={() => setAssegnaTarget(null)}>Annulla</Button>
+                                  <Button size="sm" disabled={!assegnaInizio || !assegnaFine || assegnaFine < assegnaInizio} onClick={() => {
+                                    const currentAssignments = assegnazioni?.filter(a => a.camera_id === selectedCamera.id).length ?? 0;
+                                    assegna.mutate({
+                                      camera_id: selectedCamera.id,
+                                      studente_id: sa.studente_id,
+                                      candidatura_id: sa.id,
+                                      posto: currentAssignments + 1,
+                                      data_inizio: assegnaInizio,
+                                      data_fine: assegnaFine,
+                                    });
+                                    setAssegnaTarget(null);
+                                  }}>Conferma</Button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
