@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Lang, t } from '@/i18n/translations';
@@ -27,10 +27,20 @@ export function DateOfBirthPicker({
   onChange: (v: string) => void;
   required?: boolean;
 }) {
-  const parts = useMemo(() => {
+  // Stato locale per permettere selezioni parziali (l'onChange esterno
+  // riceve una data valida solo quando tutti e tre i valori sono presenti).
+  const [parts, setParts] = useState(() => {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
-    if (!m) return { y: '', mo: '', d: '' };
-    return { y: m[1], mo: m[2], d: m[3] };
+    return m ? { y: m[1], mo: m[2], d: m[3] } : { y: '', mo: '', d: '' };
+  });
+
+  // Sincronizza quando il valore esterno cambia (es. reset del form).
+  useEffect(() => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
+    const next = m ? { y: m[1], mo: m[2], d: m[3] } : { y: '', mo: '', d: '' };
+    setParts((prev) =>
+      prev.y === next.y && prev.mo === next.mo && prev.d === next.d ? prev : next,
+    );
   }, [value]);
 
   const monthList = lang === 'it' ? MONTHS_IT : MONTHS_EN;
@@ -51,11 +61,8 @@ export function DateOfBirthPicker({
   }, [parts.y, parts.mo, maxYear]);
 
   const emit = (y: string, mo: string, d: string) => {
-    if (!y || !mo || !d) {
-      onChange('');
-      return;
-    }
-    onChange(`${y}-${mo}-${d}`);
+    setParts({ y, mo, d });
+    onChange(y && mo && d ? `${y}-${mo}-${d}` : '');
   };
 
   const handleYear = (y: string) => {
