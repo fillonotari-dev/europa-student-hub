@@ -96,7 +96,7 @@ export default function StudentePage() {
     },
   });
 
-  const { data: assegnazioniAttive } = useQuery({
+  const { data: studentiHaAssegnazioneAttiva } = useQuery({
     queryKey: ['candidature-con-assegnazione-attiva'],
     queryFn: async () => {
       const { data } = await supabase.from('assegnazioni').select('candidatura_id').eq('stato', 'attiva');
@@ -104,8 +104,17 @@ export default function StudentePage() {
     },
   });
 
+  const { data: studentiHaAvutoAssegnazione } = useQuery({
+    queryKey: ['candidature-con-assegnazione-any'],
+    queryFn: async () => {
+      const { data } = await supabase.from('assegnazioni').select('candidatura_id');
+      return new Set((data ?? []).map((a: any) => a.candidatura_id));
+    },
+  });
+
   const actions = useCandidaturaActions({
-    candidatureConAssegnazione: assegnazioniAttive ?? null,
+    studentiHaAssegnazioneAttiva: studentiHaAssegnazioneAttiva ?? null,
+    studentiHaAvutoAssegnazione: studentiHaAvutoAssegnazione ?? null,
     extraInvalidateKeys: [
       ['studente', studenteId],
       ['studente-candidature', studenteId],
