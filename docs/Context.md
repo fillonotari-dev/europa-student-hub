@@ -84,7 +84,7 @@ Al candidato approvato viene poi assegnato un posto in una camera specifica. Nas
 
 **Camere:** `disponibile`, `manutenzione`, `non_disponibile`. Sono **stati manuali** che descrivono lo stato fisico del posto letto. L'occupazione **non è più uno stato**: si legge dalle assegnazioni attive nel periodo.
 
-**Assegnazioni:** `attiva`, `conclusa`. La chiusura può riportare un `motivo_chiusura` libero (fine periodo, rinuncia, cambio camera, ecc.).
+**Assegnazioni:** `attiva`, `conclusa`. La chiusura richiede un `motivo_chiusura` fra `fine_naturale`, `partenza_anticipata`, `mai_arrivato`, `allontanato`, `trasferimento` (vincolato dal CHECK `assegnazioni_motivo_chiusura_chk`). `trasferimento` è riservato al flusso di cambio camera in Residenti.
 
 ---
 
@@ -109,8 +109,8 @@ Al candidato approvato viene poi assegnato un posto in una camera specifica. Nas
 
 ### Viste e funzioni di lettura
 
-- **Vista `v_studenti_stadio`**: per ogni studente riassume lo **stadio corrente** — `candidato`, `residente`, `archiviato` — insieme alla struttura di riferimento. È la sorgente unica dello stadio persona: non ricomporlo per pagina. Per gli studenti in stadio `archiviato` la colonna `struttura_id` ricade sulla **struttura preferita dichiarata in candidatura** e non sulla sede dell'ultima camera occupata (vedi §13, scelta esplicita).
-- **Funzione `camere_disponibilita(p_dal date, p_al date, p_struttura_id uuid)`**: restituisce, per ogni camera nel perimetro, i posti liberi nell'intervallo `[p_dal, p_al)` calcolando le assegnazioni attive che si sovrappongono al periodo. È l'API da usare per qualsiasi ricerca di posti liberi per intervallo: non ricalcolarla a mano nel client. La funzione **non filtra su `strutture.attiva`** (vedi §13, scelta esplicita).
+- **Vista `v_studenti_stadio`**: per ogni studente riassume lo **stadio corrente** — `da_valutare`, `in_attesa_studente`, `da_decidere`, `accolta`, `in_attesa_posto`, `residente`, `archiviato` — insieme alla struttura di riferimento. È la sorgente unica dello stadio persona: non ricomporlo per pagina. Per gli studenti in stadio `archiviato` la colonna `struttura_id` ricade sulla **struttura preferita dichiarata in candidatura** e non sulla sede dell'ultima camera occupata (vedi §13, scelta esplicita).
+- **Funzione `camere_disponibilita(p_dal date, p_al date, p_struttura_id uuid)`**: restituisce, per ogni camera nel perimetro, i posti liberi nell'intervallo **chiuso** `[p_dal, p_al]` (estremi inclusi, coerentemente con il vincolo `EXCLUDE` GIST che confronta `daterange(data_inizio, data_fine, '[]')`) calcolando le assegnazioni attive che si sovrappongono al periodo. È l'API da usare per qualsiasi ricerca di posti liberi per intervallo: non ricalcolarla a mano nel client. La funzione **non filtra su `strutture.attiva`** (vedi §13, scelta esplicita).
 
 ### Tabella di sessione candidatura
 
@@ -132,7 +132,7 @@ Questa è la scelta architetturale più importante del sistema, e va rispettata:
 |---|---|
 | `camere_check_posti` | Non si può ridurre il numero di posti sotto il numero di occupanti attivi |
 | `assegnazioni_check_overbooking` | Nessun overbooking, nessuna assegnazione su camera in manutenzione, posto entro il range |
-| `EXCLUDE` GIST su `assegnazioni` | Impedisce sovrapposizioni temporali su `(camera_id, posto)` per il periodo `[data_inizio, data_fine)`, anche fra assegnazioni storiche. Il trigger di overbooking resta come guardia complementare |
+| `EXCLUDE` GIST su `assegnazioni` | Impedisce sovrapposizioni temporali su `(camera_id, posto)` per il periodo **chiuso** `[data_inizio, data_fine]` (estremi inclusi), anche fra assegnazioni storiche. Il trigger di overbooking resta come guardia complementare. In un trasferimento, la vecchia assegnazione va chiusa con `data_fine = nuovo_inizio − 1 giorno` (calcolo UTC-safe) per non violare il vincolo |
 | `candidature_check_stato_vs_assegnazione` | Non si può togliere l'approvazione a una candidatura con assegnazione attiva |
 | `candidature_log_stato` | Ogni cambio di stato viene tracciato automaticamente |
 
