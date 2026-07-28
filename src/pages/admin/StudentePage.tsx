@@ -11,6 +11,7 @@ import { formatStatoCandidatura, formatStadio, STADIO_COLORS } from '@/lib/stato
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -22,8 +23,8 @@ import { validateCodiceFiscale } from '@shared/codice-fiscale';
 import { PROVINCE } from '@shared/province';
 import { COUNTRIES } from '@shared/countries';
 import {
-  User, ArrowLeft, ArrowRight, BedDouble, Pencil, X as XIcon, Check,
-  ChevronsUpDown, MessageSquare, ChevronDown, ChevronRight, FileText, DoorOpen,
+  User, ArrowLeft, ArrowRight, Pencil, X as XIcon, Check,
+  ChevronsUpDown, MessageSquare, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
