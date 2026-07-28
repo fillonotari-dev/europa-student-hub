@@ -30,20 +30,19 @@ import {
 } from 'lucide-react';
 
 const STATO_ORDER: Record<string, number> = {
-  libera: 0, parzialmente_occupata: 1, occupata: 2, manutenzione: 3,
+  disponibile: 0, manutenzione: 1, non_disponibile: 2,
 };
 const PAGE_SIZE = 15;
 type SortKey = 'numero' | 'struttura' | 'piano' | 'tipo' | 'posti' | 'occupanti' | 'stato';
 
 const STATO_CAMERA_LABELS: Record<string, string> = {
-  libera: 'Libera', parzialmente_occupata: 'Parz. occupata', occupata: 'Occupata', manutenzione: 'Manutenzione',
+  disponibile: 'Disponibile', manutenzione: 'Manutenzione', non_disponibile: 'Non disponibile',
 };
 
 const STATO_BADGE_CLASSES: Record<string, string> = {
-  libera: 'bg-success/10 text-success border-success/30 hover:bg-success/10',
-  parzialmente_occupata: 'bg-warning/10 text-warning border-warning/30 hover:bg-warning/10',
-  occupata: 'bg-destructive/10 text-destructive border-destructive/30 hover:bg-destructive/10',
-  manutenzione: 'bg-muted text-muted-foreground border-border hover:bg-muted',
+  disponibile: 'bg-success/10 text-success border-success/30 hover:bg-success/10',
+  manutenzione: 'bg-warning/10 text-warning border-warning/30 hover:bg-warning/10',
+  non_disponibile: 'bg-muted text-muted-foreground border-border hover:bg-muted',
 };
 
 type CameraForm = {
@@ -115,7 +114,7 @@ export default function Camere() {
   // If navigated with ?candidatura=<id>, surface a hint by setting filter to 'libera'
   useEffect(() => {
     if (candidaturaParam) {
-      setFilterStato('libera');
+      setFilterStato('disponibile');
       toast({
         title: 'Assegna candidatura',
         description: 'Seleziona una camera disponibile e premi "Gestisci".',
@@ -124,10 +123,13 @@ export default function Camere() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidaturaParam]);
 
+  const [assegnaInizio, setAssegnaInizio] = useState<string>('');
+  const [assegnaFine, setAssegnaFine] = useState<string>('');
+
   const assegna = useMutation({
-    mutationFn: async ({ camera_id, studente_id, candidatura_id, posto }: any) => {
+    mutationFn: async ({ camera_id, studente_id, candidatura_id, posto, data_inizio, data_fine }: any) => {
       const { error } = await supabase.from('assegnazioni').insert({
-        camera_id, studente_id, candidatura_id, posto, data_inizio: new Date().toISOString().split('T')[0], stato: 'attiva',
+        camera_id, studente_id, candidatura_id, posto, data_inizio, data_fine, stato: 'attiva',
       });
       if (error) throw error;
     },
@@ -138,28 +140,12 @@ export default function Camere() {
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       toast({ title: 'Studente assegnato' });
       setSelectedCamera(null);
+      setAssegnaInizio('');
+      setAssegnaFine('');
       if (candidaturaParam) {
         searchParams.delete('candidatura');
         setSearchParams(searchParams);
       }
-    },
-    onError: (e: any) => toast({ title: 'Errore', description: e.message, variant: 'destructive' }),
-  });
-
-  const concludi = useMutation({
-    mutationFn: async ({ assegnazione_id, camera_id }: { assegnazione_id: string; camera_id: string }) => {
-      const { error } = await supabase
-        .from('assegnazioni')
-        .update({ stato: 'conclusa', data_fine: new Date().toISOString().split('T')[0] })
-        .eq('id', assegnazione_id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['camere'] });
-      queryClient.invalidateQueries({ queryKey: ['assegnazioni-attive'] });
-      queryClient.invalidateQueries({ queryKey: ['residenti'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      toast({ title: 'Assegnazione conclusa' });
     },
     onError: (e: any) => toast({ title: 'Errore', description: e.message, variant: 'destructive' }),
   });
@@ -183,7 +169,7 @@ export default function Camere() {
         const { error } = await supabase.from('camere').update(payload).eq('id', f.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('camere').insert({ ...payload, stato: 'libera' });
+        const { error } = await supabase.from('camere').insert(payload);
         if (error) throw error;
       }
     },
@@ -218,9 +204,7 @@ export default function Camere() {
 
   const reactivate = useMutation({
     mutationFn: async (camera: any) => {
-      const occupati = assegnazioni?.filter(a => a.camera_id === camera.id).length ?? 0;
-      const nuovo = occupati === 0 ? 'libera' : occupati >= camera.posti ? 'occupata' : 'parzialmente_occupata';
-      const { error } = await supabase.from('camere').update({ stato: nuovo }).eq('id', camera.id);
+      const { error } = await supabase.from('camere').update({ stato: 'disponibile' }).eq('id', camera.id);
       if (error) throw error;
     },
     onSuccess: () => {
