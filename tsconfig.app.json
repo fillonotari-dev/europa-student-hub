@@ -19,6 +19,9 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@shared/*": [
+        "./supabase/functions/_shared/*"
       ]
     },
     "skipLibCheck": true,
@@ -30,6 +33,9 @@
     "useDefineForClassFields": true
   },
   "include": [
-    "src"
+    "src",
+    "supabase/functions/_shared/codice-fiscale.ts",
+    "supabase/functions/_shared/province.ts",
+    "supabase/functions/_shared/countries.ts"
   ]
 }

@@ -22,6 +22,11 @@ import logoStudentato from '@/assets/logo-studentato.svg';
 import { StepDots } from '@/components/candidatura/StepDots';
 import { MAX_UPLOAD_BYTES, ACCEPTED_UPLOAD_MIME } from '@/lib/uploads';
 import { PRIVACY_POLICY_URL } from '@/lib/privacy';
+import { DateOfBirthPicker } from '@/components/candidatura/DateOfBirthPicker';
+import { resizeImageIfNeeded, IMAGE_DECODE_FAILED } from '@/lib/imageResize';
+import { validateCodiceFiscale } from '@shared/codice-fiscale';
+import { PROVINCE } from '@shared/province';
+import { COUNTRIES } from '@shared/countries';
 
 const STEPS = ['stepPersonal', 'stepAcademic', 'stepPreferences', 'stepDocuments', 'stepDichiarazioni'] as const;
 const ACCEPTED_TYPES: readonly string[] = ACCEPTED_UPLOAD_MIME;
@@ -53,7 +58,7 @@ export default function Candidatura() {
     indirizzo_comune: '', indirizzo_provincia: '', indirizzo_nazione: 'IT',
     documento_identita_n: '',
     universita: UNIVERSITIES.length === 1 ? UNIVERSITIES[0].name : '',
-    corso_di_studi: '', anno_di_corso: '',
+    corso_di_studi: '',
     tipo_studente: '', tipo_studente_altro: '',
     struttura_preferita_id: '', tipo_camera_preferito: '', periodo_inizio: '', periodo_fine: '',
     messaggio: '',
@@ -62,6 +67,8 @@ export default function Candidatura() {
   const [files, setFiles] = useState<{ documento_identita: File | null; certificato_iscrizione: File | null }>({
     documento_identita: null, certificato_iscrizione: null,
   });
+  // Manteniamo i nomi originali dei file (prima di eventuale conversione JPEG) per la UI.
+  const [fileDisplayNames, setFileDisplayNames] = useState<Record<string, string>>({});
   const [dichiarazioni, setDichiarazioni] = useState({
     veridicita: false, privacy: false, info_struttura: false, contatto: false,
   });
@@ -80,6 +87,14 @@ export default function Candidatura() {
   });
 
   const stepKey = STEPS[step];
+
+  // Limiti date per gli input HTML (usati anche server-side).
+  const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const maxDateISO = useMemo(() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 2);
+    return d.toISOString().slice(0, 10);
+  }, []);
 
   // Load Turnstile script once at mount
   useEffect(() => {
@@ -160,7 +175,7 @@ export default function Candidatura() {
         'indirizzo_via', 'indirizzo_civico', 'indirizzo_cap', 'indirizzo_comune', 'indirizzo_provincia', 'indirizzo_nazione',
       ],
       stepAcademic: ['universita', 'corso_di_studi', 'periodo_inizio', 'periodo_fine'],
-      stepPreferences: [],
+      stepPreferences: ['struttura_preferita_id'],
       stepDocuments: ['_documenti'],
       stepDichiarazioni: ['_dichiarazioni'],
     };
@@ -198,8 +213,15 @@ export default function Candidatura() {
         toast({ title: t(lang, 'form.required'), variant: 'destructive' });
         return false;
       }
+      if (!form.cf_non_disponibile) {
+        const cf = validateCodiceFiscale(form.codice_fiscale);
+        if (!cf.ok) {
+          toast({ title: t(lang, 'form.invalidCf'), variant: 'destructive' });
+          return false;
+        }
+      }
       if (form.indirizzo_nazione === 'IT' && !/^\d{5}$/.test(form.indirizzo_cap)) {
-        toast({ title: t(lang, 'form.invalidCap') || 'CAP non valido', variant: 'destructive' });
+        toast({ title: t(lang, 'form.invalidCap'), variant: 'destructive' });
         return false;
       }
     }
@@ -212,8 +234,14 @@ export default function Candidatura() {
       }
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      const maxDate = new Date(today);
+      maxDate.setFullYear(maxDate.getFullYear() + 2);
       if (dInizio < today) {
         toast({ title: t(lang, 'form.periodoInizioPast'), variant: 'destructive' });
+        return false;
+      }
+      if (dInizio > maxDate || dFine > maxDate) {
+        toast({ title: t(lang, 'form.periodoTooFar'), variant: 'destructive' });
         return false;
       }
       if (dFine < dInizio) {
@@ -221,34 +249,55 @@ export default function Candidatura() {
         return false;
       }
     }
+    if (stepKey === 'stepPreferences' && !form.struttura_preferita_id) {
+      toast({ title: t(lang, 'form.strutturaRichiesta'), variant: 'destructive' });
+      return false;
+    }
     return true;
   };
 
   const next = () => { if (validateStep()) setStep(s => Math.min(s + 1, STEPS.length - 1)); };
   const prev = () => setStep(s => Math.max(s - 1, 0));
 
-  const validateFile = (file: File | null): string | null => {
-    if (!file) return null;
-    if (!ACCEPTED_TYPES.includes(file.type)) return t(lang, 'form.fileInvalidType');
-    if (file.size > MAX_SIZE) return t(lang, 'form.fileTooLarge');
-    return null;
-  };
-
-  const handleFile = (key: keyof typeof files, file: File | null) => {
-    if (file && !ACCEPTED_TYPES.includes(file.type)) {
+  const handleFile = async (key: keyof typeof files, file: File | null) => {
+    if (!file) {
+      setFileErrors(e => ({ ...e, [key]: undefined }));
+      setFiles(f => ({ ...f, [key]: null }));
+      setFileDisplayNames(n => { const c = { ...n }; delete c[key as string]; return c; });
+      return;
+    }
+    const originalName = file.name;
+    let processed = file;
+    // Ridimensiona (e converte in JPEG) le immagini prima dei controlli MIME/size,
+    // così una foto da 8 MB o un HEIC decodificabile diventa un JPEG accettato.
+    if (file.type.startsWith('image/')) {
+      try {
+        processed = await resizeImageIfNeeded(file);
+      } catch (err: any) {
+        if (err?.message === IMAGE_DECODE_FAILED) {
+          const msg = t(lang, 'form.fileImageDecodeFailed');
+          setFileErrors(e => ({ ...e, [key]: msg }));
+          toast({ title: msg, variant: 'destructive' });
+          return;
+        }
+        throw err;
+      }
+    }
+    if (!ACCEPTED_TYPES.includes(processed.type)) {
       const msg = t(lang, 'form.fileInvalidType');
       setFileErrors(e => ({ ...e, [key]: msg }));
       toast({ title: msg, variant: 'destructive' });
       return;
     }
-    if (file && file.size > MAX_SIZE) {
+    if (processed.size > MAX_SIZE) {
       const msg = t(lang, 'form.fileTooLarge');
       setFileErrors(e => ({ ...e, [key]: msg }));
       toast({ title: msg, variant: 'destructive' });
       return;
     }
     setFileErrors(e => ({ ...e, [key]: undefined }));
-    setFiles(f => ({ ...f, [key]: file }));
+    setFiles(f => ({ ...f, [key]: processed }));
+    setFileDisplayNames(n => ({ ...n, [key as string]: originalName }));
   };
 
   const handleSubmit = async () => {
@@ -303,7 +352,6 @@ export default function Candidatura() {
           ...form,
           temp_id: tempId,
           documenti: uploadedDocs,
-          struttura_preferita_id: form.struttura_preferita_id || null,
           lingua: lang,
           dichiarazioni: {
             veridicita: dichiarazioni.veridicita,
@@ -452,7 +500,13 @@ export default function Candidatura() {
                 </div>
                 <Field label={t(lang, 'form.email')} value={form.email} onChange={v => set('email', v)} type="email" required />
                 <Field label={t(lang, 'form.telefono')} value={form.telefono} onChange={v => set('telefono', v)} required />
-                <Field label={t(lang, 'form.dataNascita')} value={form.data_nascita} onChange={v => set('data_nascita', v)} type="date" required />
+                <DateOfBirthPicker
+                  lang={lang}
+                  label={t(lang, 'form.dataNascita')}
+                  value={form.data_nascita}
+                  onChange={v => set('data_nascita', v)}
+                  required
+                />
                 <NationalityField lang={lang} label={t(lang, 'form.nazionalita')} value={form.nazionalita} onChange={v => set('nazionalita', v)} required />
                 <div>
                   <Field
@@ -466,33 +520,56 @@ export default function Candidatura() {
                       checked={form.cf_non_disponibile}
                       onCheckedChange={(v) => setForm(f => ({ ...f, cf_non_disponibile: !!v, codice_fiscale: v ? '' : f.codice_fiscale }))}
                     />
-                    {lang === 'it' ? 'Non dispongo del codice fiscale' : 'I don\'t have a tax code'}
+                    {t(lang, 'form.cfNonDisponibile')}
                   </label>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="col-span-2">
-                    <Field label={lang === 'it' ? 'Via / Indirizzo' : 'Street / Address'} value={form.indirizzo_via} onChange={v => set('indirizzo_via', v)} required />
+                    <Field label={t(lang, 'form.addressVia')} value={form.indirizzo_via} onChange={v => set('indirizzo_via', v)} required />
                   </div>
-                  <Field label={lang === 'it' ? 'Civico' : 'Number'} value={form.indirizzo_civico} onChange={v => set('indirizzo_civico', v)} required />
+                  <Field label={t(lang, 'form.addressCivico')} value={form.indirizzo_civico} onChange={v => set('indirizzo_civico', v)} required />
                 </div>
                 <div className="grid grid-cols-3 gap-4">
-                  <Field label={lang === 'it' ? 'CAP' : 'ZIP'} value={form.indirizzo_cap} onChange={v => set('indirizzo_cap', v)} required />
+                  <Field label={t(lang, 'form.addressCap')} value={form.indirizzo_cap} onChange={v => set('indirizzo_cap', v)} required />
                   <div className="col-span-2">
-                    <Field label={lang === 'it' ? 'Comune / Città' : 'City'} value={form.indirizzo_comune} onChange={v => set('indirizzo_comune', v)} required />
+                    <Field label={t(lang, 'form.addressComune')} value={form.indirizzo_comune} onChange={v => set('indirizzo_comune', v)} required />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label={lang === 'it' ? 'Provincia' : 'Province'} value={form.indirizzo_provincia} onChange={v => set('indirizzo_provincia', v)} required />
                   <div>
-                    <Label>{lang === 'it' ? 'Nazione' : 'Country'}</Label>
-                    <Input
-                      className="mt-1.5"
-                      maxLength={2}
-                      value={form.indirizzo_nazione}
-                      onChange={e => set('indirizzo_nazione', e.target.value.toUpperCase())}
-                      required
-                    />
+                    <Label>{t(lang, 'form.addressProvincia')}{form.indirizzo_nazione === 'IT' && <span className="text-destructive ml-0.5">*</span>}</Label>
+                    <Select
+                      value={form.indirizzo_provincia}
+                      onValueChange={v => set('indirizzo_provincia', v)}
+                      disabled={form.indirizzo_nazione !== 'IT'}
+                    >
+                      <SelectTrigger className="mt-1.5">
+                        <SelectValue placeholder={t(lang, 'form.selectOption')} />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {PROVINCE.map(p => (
+                          <SelectItem key={p.sigla} value={p.sigla}>{p.sigla} — {p.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
+                  <Combobox
+                    lang={lang}
+                    label={t(lang, 'form.addressNazione')}
+                    placeholder={t(lang, 'form.selectOption')}
+                    value={form.indirizzo_nazione}
+                    onChange={v => setForm(f => ({
+                      ...f,
+                      indirizzo_nazione: v,
+                      indirizzo_provincia: v === 'IT' ? f.indirizzo_provincia : '',
+                    }))}
+                    options={COUNTRIES.map(c => ({
+                      value: c.code,
+                      label: lang === 'it' ? c.it : c.en,
+                      searchKey: `${c.it} ${c.en} ${c.code}`,
+                    }))}
+                    required
+                  />
                 </div>
                 <Field label={t(lang, 'form.documentoIdentitaN')} value={form.documento_identita_n} onChange={v => set('documento_identita_n', v)} />
               </div>
@@ -501,7 +578,6 @@ export default function Candidatura() {
               <div className="space-y-4">
                 <UniversitaField lang={lang} value={form.universita} onChange={setUniversita} />
                 <Field label={t(lang, 'form.corsoStudi')} value={form.corso_di_studi} onChange={v => set('corso_di_studi', v)} required />
-                <Field label={t(lang, 'form.annoCorso')} value={form.anno_di_corso} onChange={v => set('anno_di_corso', v)} />
                 <div>
                   <Label>{t(lang, 'form.tipoStudente')}</Label>
                   <Select value={form.tipo_studente} onValueChange={v => set('tipo_studente', v)}>
@@ -524,10 +600,10 @@ export default function Candidatura() {
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label={t(lang, 'form.periodoInizio')} value={form.periodo_inizio} onChange={v => set('periodo_inizio', v)} type="date" required />
-                  <Field label={t(lang, 'form.periodoFine')} value={form.periodo_fine} onChange={v => set('periodo_fine', v)} type="date" required />
+                  <Field label={t(lang, 'form.periodoInizio')} value={form.periodo_inizio} onChange={v => set('periodo_inizio', v)} type="date" required min={todayISO} max={maxDateISO} />
+                  <Field label={t(lang, 'form.periodoFine')} value={form.periodo_fine} onChange={v => set('periodo_fine', v)} type="date" required min={todayISO} max={maxDateISO} />
                 </div>
-                <Field label={t(lang, 'form.dataArrivoPrevista')} value={form.data_arrivo_prevista} onChange={v => set('data_arrivo_prevista', v)} type="date" />
+                <Field label={t(lang, 'form.dataArrivoPrevista')} value={form.data_arrivo_prevista} onChange={v => set('data_arrivo_prevista', v)} type="date" min={todayISO} max={maxDateISO} />
               </div>
             )}
             {stepKey === 'stepPreferences' && (
@@ -597,8 +673,8 @@ export default function Candidatura() {
             )}
             {stepKey === 'stepDocuments' && (
               <div className="space-y-4">
-                <FileUpload label={t(lang, 'form.documentoIdentita')} hint={t(lang, 'form.uploadHint')} file={files.documento_identita} error={fileErrors.documento_identita} onChange={f => handleFile('documento_identita', f)} required />
-                <FileUpload label={t(lang, 'form.certificatoIscrizione')} hint={t(lang, 'form.uploadHint')} file={files.certificato_iscrizione} error={fileErrors.certificato_iscrizione} onChange={f => handleFile('certificato_iscrizione', f)} required />
+                <FileUpload label={t(lang, 'form.documentoIdentita')} hint={t(lang, 'form.uploadHint')} file={files.documento_identita} displayName={fileDisplayNames['documento_identita']} error={fileErrors.documento_identita} onChange={f => { void handleFile('documento_identita', f); }} required />
+                <FileUpload label={t(lang, 'form.certificatoIscrizione')} hint={t(lang, 'form.uploadHint')} file={files.certificato_iscrizione} displayName={fileDisplayNames['certificato_iscrizione']} error={fileErrors.certificato_iscrizione} onChange={f => { void handleFile('certificato_iscrizione', f); }} required />
               </div>
             )}
             {stepKey === 'stepDichiarazioni' && (
@@ -660,11 +736,11 @@ export default function Candidatura() {
   );
 }
 
-function Field({ label, value, onChange, type = 'text', required }: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean }) {
+function Field({ label, value, onChange, type = 'text', required, min, max }: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean; min?: string; max?: string }) {
   return (
     <div>
       <Label>{label}{required && <span className="text-destructive ml-0.5">*</span>}</Label>
-      <Input type={type} value={value} onChange={e => onChange(e.target.value)} className="mt-1.5" />
+      <Input type={type} value={value} onChange={e => onChange(e.target.value)} className="mt-1.5" min={min} max={max} />
     </div>
   );
 }
@@ -718,14 +794,14 @@ function NationalityField({ lang, label, value, onChange, required }: { lang: La
   );
 }
 
-function FileUpload({ label, hint, file, error, onChange, required }: { label: string; hint: string; file: File | null; error?: string; onChange: (f: File | null) => void; required?: boolean }) {
+function FileUpload({ label, hint, file, displayName, error, onChange, required }: { label: string; hint: string; file: File | null; displayName?: string; error?: string; onChange: (f: File | null) => void; required?: boolean }) {
   return (
     <div>
       <Label>{label}{required && <span className="text-destructive ml-0.5">*</span>}</Label>
       <div className={cn('mt-1.5 border-2 border-dashed rounded-lg p-4 text-center hover:bg-muted/50 transition-colors cursor-pointer', error && 'border-destructive')} onClick={() => document.getElementById(`file-${label}`)?.click()}>
-        <input id={`file-${label}`} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => onChange(e.target.files?.[0] || null)} />
+        <input id={`file-${label}`} type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,image/*,application/pdf" className="hidden" onChange={e => onChange(e.target.files?.[0] || null)} />
         {file ? (
-          <p className="text-[13px] text-foreground font-medium">{file.name}</p>
+          <p className="text-[13px] text-foreground font-medium">{displayName || file.name}</p>
         ) : (
           <p className="text-[13px] text-muted-foreground">{hint}</p>
         )}
