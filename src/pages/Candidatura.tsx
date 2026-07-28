@@ -536,23 +536,20 @@ export default function Candidatura() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>{t(lang, 'form.addressProvincia')}{form.indirizzo_nazione === 'IT' && <span className="text-destructive ml-0.5">*</span>}</Label>
-                    <Select
-                      value={form.indirizzo_provincia}
-                      onValueChange={v => set('indirizzo_provincia', v)}
-                      disabled={form.indirizzo_nazione !== 'IT'}
-                    >
-                      <SelectTrigger className="mt-1.5">
-                        <SelectValue placeholder={t(lang, 'form.selectOption')} />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-72">
-                        {PROVINCE.map(p => (
-                          <SelectItem key={p.sigla} value={p.sigla}>{p.sigla} — {p.nome}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <Combobox
+                    lang={lang}
+                    label={t(lang, 'form.addressProvincia')}
+                    placeholder={t(lang, 'form.selectOption')}
+                    value={form.indirizzo_provincia}
+                    onChange={v => set('indirizzo_provincia', v)}
+                    options={PROVINCE.map(p => ({
+                      value: p.sigla,
+                      label: `${p.sigla} — ${p.nome}`,
+                      searchKey: `${p.sigla} ${p.nome}`,
+                    }))}
+                    disabled={form.indirizzo_nazione !== 'IT'}
+                    required={form.indirizzo_nazione === 'IT'}
+                  />
                   <Combobox
                     lang={lang}
                     label={t(lang, 'form.addressNazione')}
