@@ -20,11 +20,12 @@ export type Database = {
           candidatura_id: string
           created_at: string | null
           data_fine: string | null
-          data_inizio: string | null
+          data_inizio: string
           id: string
+          motivo_chiusura: string | null
           note: string | null
           posto: number
-          stato: string | null
+          stato: string
           studente_id: string
           updated_at: string | null
         }
@@ -33,11 +34,12 @@ export type Database = {
           candidatura_id: string
           created_at?: string | null
           data_fine?: string | null
-          data_inizio?: string | null
+          data_inizio: string
           id?: string
+          motivo_chiusura?: string | null
           note?: string | null
           posto: number
-          stato?: string | null
+          stato?: string
           studente_id: string
           updated_at?: string | null
         }
@@ -46,11 +48,12 @@ export type Database = {
           candidatura_id?: string
           created_at?: string | null
           data_fine?: string | null
-          data_inizio?: string | null
+          data_inizio?: string
           id?: string
+          motivo_chiusura?: string | null
           note?: string | null
           posto?: number
-          stato?: string | null
+          stato?: string
           studente_id?: string
           updated_at?: string | null
         }
@@ -70,11 +73,25 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "assegnazioni_candidatura_id_fkey"
+            columns: ["candidatura_id"]
+            isOneToOne: false
+            referencedRelation: "v_studenti_stadio"
+            referencedColumns: ["candidatura_id"]
+          },
+          {
             foreignKeyName: "assegnazioni_studente_id_fkey"
             columns: ["studente_id"]
             isOneToOne: false
             referencedRelation: "studenti"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assegnazioni_studente_id_fkey"
+            columns: ["studente_id"]
+            isOneToOne: false
+            referencedRelation: "v_studenti_stadio"
+            referencedColumns: ["studente_id"]
           },
         ]
       }
@@ -86,7 +103,7 @@ export type Database = {
           numero: string
           piano: number | null
           posti: number
-          stato: string | null
+          stato: string
           struttura_id: string
           tipo: string
           updated_at: string | null
@@ -98,7 +115,7 @@ export type Database = {
           numero: string
           piano?: number | null
           posti: number
-          stato?: string | null
+          stato?: string
           struttura_id: string
           tipo: string
           updated_at?: string | null
@@ -110,7 +127,7 @@ export type Database = {
           numero?: string
           piano?: number | null
           posti?: number
-          stato?: string | null
+          stato?: string
           struttura_id?: string
           tipo?: string
           updated_at?: string | null
@@ -164,14 +181,12 @@ export type Database = {
           documento_identita_n: string | null
           esito_email_inviata_il: string | null
           esito_email_nota: string | null
-          esito_email_stato: string | null
           fumatore: boolean | null
           garante_email: string | null
           garante_nome: string | null
           garante_relazione: string | null
           garante_telefono: string | null
           id: string
-          indirizzo_residenza: string | null
           lingua: string
           lingue_parlate: string | null
           matricola_snapshot: string | null
@@ -185,7 +200,8 @@ export type Database = {
           personalita_altro: string | null
           preferenze_note: string | null
           presentazione: string | null
-          stato: string | null
+          priorita: number | null
+          stato: string
           struttura_preferita_id: string | null
           studente_id: string
           tipo_camera_preferito: string | null
@@ -210,14 +226,12 @@ export type Database = {
           documento_identita_n?: string | null
           esito_email_inviata_il?: string | null
           esito_email_nota?: string | null
-          esito_email_stato?: string | null
           fumatore?: boolean | null
           garante_email?: string | null
           garante_nome?: string | null
           garante_relazione?: string | null
           garante_telefono?: string | null
           id?: string
-          indirizzo_residenza?: string | null
           lingua?: string
           lingue_parlate?: string | null
           matricola_snapshot?: string | null
@@ -231,7 +245,8 @@ export type Database = {
           personalita_altro?: string | null
           preferenze_note?: string | null
           presentazione?: string | null
-          stato?: string | null
+          priorita?: number | null
+          stato?: string
           struttura_preferita_id?: string | null
           studente_id: string
           tipo_camera_preferito?: string | null
@@ -256,14 +271,12 @@ export type Database = {
           documento_identita_n?: string | null
           esito_email_inviata_il?: string | null
           esito_email_nota?: string | null
-          esito_email_stato?: string | null
           fumatore?: boolean | null
           garante_email?: string | null
           garante_nome?: string | null
           garante_relazione?: string | null
           garante_telefono?: string | null
           id?: string
-          indirizzo_residenza?: string | null
           lingua?: string
           lingue_parlate?: string | null
           matricola_snapshot?: string | null
@@ -277,7 +290,8 @@ export type Database = {
           personalita_altro?: string | null
           preferenze_note?: string | null
           presentazione?: string | null
-          stato?: string | null
+          priorita?: number | null
+          stato?: string
           struttura_preferita_id?: string | null
           studente_id?: string
           tipo_camera_preferito?: string | null
@@ -302,6 +316,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "studenti"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidature_studente_id_fkey"
+            columns: ["studente_id"]
+            isOneToOne: false
+            referencedRelation: "v_studenti_stadio"
+            referencedColumns: ["studente_id"]
           },
         ]
       }
@@ -345,11 +366,25 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "documenti_candidatura_id_fkey"
+            columns: ["candidatura_id"]
+            isOneToOne: false
+            referencedRelation: "v_studenti_stadio"
+            referencedColumns: ["candidatura_id"]
+          },
+          {
             foreignKeyName: "documenti_studente_id_fkey"
             columns: ["studente_id"]
             isOneToOne: false
             referencedRelation: "studenti"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documenti_studente_id_fkey"
+            columns: ["studente_id"]
+            isOneToOne: false
+            referencedRelation: "v_studenti_stadio"
+            referencedColumns: ["studente_id"]
           },
         ]
       }
@@ -476,6 +511,13 @@ export type Database = {
             referencedRelation: "candidature"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "log_stato_candidature_candidatura_id_fkey"
+            columns: ["candidatura_id"]
+            isOneToOne: false
+            referencedRelation: "v_studenti_stadio"
+            referencedColumns: ["candidatura_id"]
+          },
         ]
       }
       strutture: {
@@ -512,6 +554,7 @@ export type Database = {
         Row: {
           anno_di_corso: string | null
           auth_user_id: string | null
+          cf_non_disponibile: boolean
           codice_fiscale: string | null
           cognome: string
           corso_di_studi: string | null
@@ -519,6 +562,12 @@ export type Database = {
           data_nascita: string | null
           email: string
           id: string
+          indirizzo_cap: string | null
+          indirizzo_civico: string | null
+          indirizzo_comune: string | null
+          indirizzo_nazione: string | null
+          indirizzo_provincia: string | null
+          indirizzo_via: string | null
           matricola: string | null
           nazionalita: string | null
           nome: string
@@ -529,6 +578,7 @@ export type Database = {
         Insert: {
           anno_di_corso?: string | null
           auth_user_id?: string | null
+          cf_non_disponibile?: boolean
           codice_fiscale?: string | null
           cognome: string
           corso_di_studi?: string | null
@@ -536,6 +586,12 @@ export type Database = {
           data_nascita?: string | null
           email: string
           id?: string
+          indirizzo_cap?: string | null
+          indirizzo_civico?: string | null
+          indirizzo_comune?: string | null
+          indirizzo_nazione?: string | null
+          indirizzo_provincia?: string | null
+          indirizzo_via?: string | null
           matricola?: string | null
           nazionalita?: string | null
           nome: string
@@ -546,6 +602,7 @@ export type Database = {
         Update: {
           anno_di_corso?: string | null
           auth_user_id?: string | null
+          cf_non_disponibile?: boolean
           codice_fiscale?: string | null
           cognome?: string
           corso_di_studi?: string | null
@@ -553,6 +610,12 @@ export type Database = {
           data_nascita?: string | null
           email?: string
           id?: string
+          indirizzo_cap?: string | null
+          indirizzo_civico?: string | null
+          indirizzo_comune?: string | null
+          indirizzo_nazione?: string | null
+          indirizzo_provincia?: string | null
+          indirizzo_via?: string | null
           matricola?: string | null
           nazionalita?: string | null
           nome?: string
@@ -606,9 +669,50 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_studenti_stadio: {
+        Row: {
+          assegnazione_id: string | null
+          camera_id: string | null
+          camera_numero: string | null
+          candidatura_id: string | null
+          candidatura_stato: string | null
+          cognome: string | null
+          data_fine: string | null
+          data_inizio: string | null
+          email: string | null
+          nome: string | null
+          posto: number | null
+          priorita: number | null
+          stadio: string | null
+          struttura_id: string | null
+          studente_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assegnazioni_camera_id_fkey"
+            columns: ["camera_id"]
+            isOneToOne: false
+            referencedRelation: "camere"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      camere_disponibilita: {
+        Args: { p_al: string; p_dal: string; p_struttura_id?: string }
+        Returns: {
+          camera_id: string
+          numero: string
+          piano: number
+          posti: number
+          posti_liberi: number
+          posti_occupati_numeri: number[]
+          stato: string
+          struttura_id: string
+          tipo: string
+        }[]
+      }
       check_candidatura_sessione: {
         Args: { p_temp_id: string }
         Returns: boolean
