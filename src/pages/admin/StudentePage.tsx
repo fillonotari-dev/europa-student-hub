@@ -225,11 +225,30 @@ export default function StudentePage() {
       return data ?? [];
     },
   });
-  const docIdentita = (documenti ?? []).filter((d: any) => d.tipo === 'documento_identita');
-  const docGarante = (documenti ?? []).filter((d: any) => d.tipo === 'documento_garante');
-  const docAltri = (documenti ?? []).filter(
-    (d: any) => d.tipo !== 'documento_identita' && d.tipo !== 'documento_garante',
-  );
+  const TIPO_DOC_LABELS: Record<string, string> = {
+    documento_identita: 'Documento di identità',
+    certificato_iscrizione: 'Certificato di iscrizione',
+    documento_garante: 'Documento garante',
+    documento_aggiuntivo: 'Documento aggiuntivo',
+  };
+  const TIPO_DOC_ORDER = [
+    'documento_identita',
+    'certificato_iscrizione',
+    'documento_garante',
+    'documento_aggiuntivo',
+  ];
+  const documentiOrdinati = (documenti ?? []).slice().sort((a: any, b: any) => {
+    const ia = TIPO_DOC_ORDER.indexOf(a.tipo);
+    const ib = TIPO_DOC_ORDER.indexOf(b.tipo);
+    const na = ia === -1 ? 999 : ia;
+    const nb = ib === -1 ? 999 : ib;
+    if (na !== nb) return na - nb;
+    return String(a.created_at ?? '').localeCompare(String(b.created_at ?? ''));
+  });
+  const documentiPerTipo = documentiOrdinati.reduce((acc: Record<string, any[]>, d: any) => {
+    (acc[d.tipo] ||= []).push(d);
+    return acc;
+  }, {});
 
   // Compagno di stanza — UNA sola query, sovrapposizione calcolata in JS.
   const attive = useMemo(
@@ -518,7 +537,6 @@ export default function StudentePage() {
           {!edit || !form ? (
             <InfoPersonaliRead
               studente={studente}
-              docIdentita={docIdentita}
               docIdN={c?.documento_identita_n}
             />
           ) : (
@@ -529,23 +547,14 @@ export default function StudentePage() {
           )}
         </section>
 
-        {docAltri.length > 0 && (
+        {documentiOrdinati.length > 0 && (
           <section className="bg-card border border-border/50 rounded-lg p-5">
-            <h2 className="text-sm font-semibold mb-4">Altri documenti</h2>
+            <h2 className="text-sm font-semibold mb-4">Documenti</h2>
             <div className="space-y-4">
-              {Object.entries(
-                docAltri.reduce((acc: Record<string, any[]>, d: any) => {
-                  (acc[d.tipo] ||= []).push(d);
-                  return acc;
-                }, {}),
-              ).map(([tipo, docs]) => (
+              {Object.entries(documentiPerTipo).map(([tipo, docs]) => (
                 <div key={tipo} className="space-y-2">
                   <p className="text-[12px] text-muted-foreground">
-                    {tipo === 'certificato_iscrizione'
-                      ? 'Certificato di iscrizione'
-                      : tipo === 'documento_aggiuntivo'
-                      ? 'Documento aggiuntivo'
-                      : tipo}
+                    {TIPO_DOC_LABELS[tipo] || tipo}
                   </p>
                   {(docs as any[]).map((d) => <DocumentoRow key={d.id} doc={d} />)}
                 </div>
@@ -606,12 +615,7 @@ export default function StudentePage() {
               ['Telefono', c?.garante_telefono],
               ['Email', c?.garante_email],
             ]}
-            footer={docGarante.length > 0 ? (
-              <div className="mt-3 space-y-2">
-                <p className="text-[12px] text-muted-foreground">Documento garante</p>
-                {docGarante.map((d: any) => <DocumentoRow key={d.id} doc={d} />)}
-              </div>
-            ) : null}
+            footer={null}
           />
         </div>
 
@@ -709,8 +713,8 @@ function DataCard({ title, items, footer }: {
   );
 }
 
-function InfoPersonaliRead({ studente, docIdentita, docIdN }: {
-  studente: any; docIdentita: any[]; docIdN: string | null | undefined;
+function InfoPersonaliRead({ studente, docIdN }: {
+  studente: any; docIdN: string | null | undefined;
 }) {
   const items: Array<[string, any, boolean?]> = [
     ['Email', studente.email],
@@ -722,7 +726,7 @@ function InfoPersonaliRead({ studente, docIdentita, docIdN }: {
     ['Residenza', nomeIndirizzoCompatto(studente), true /* wide */],
   ];
   const filtered = items.filter(([, v]) => !isEmpty(v));
-  if (filtered.length === 0 && docIdentita.length === 0) {
+  if (filtered.length === 0) {
     return <p className="text-[13px] text-muted-foreground">Non ancora compilato</p>;
   }
   return (
@@ -733,12 +737,6 @@ function InfoPersonaliRead({ studente, docIdentita, docIdN }: {
           <div className="text-sm mt-0.5 break-words">{value}</div>
         </div>
       ))}
-      {docIdentita.length > 0 && (
-        <div className="md:col-span-3 space-y-2 pt-1">
-          <p className="text-[12px] text-muted-foreground">Allegati documento identità</p>
-          {docIdentita.map((d: any) => <DocumentoRow key={d.id} doc={d} />)}
-        </div>
-      )}
     </div>
   );
 }
