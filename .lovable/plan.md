@@ -1,102 +1,95 @@
 
-## Verifica preliminare
+## Perimetro
 
-`fetchStadi` (src/lib/studentiQuery.ts) unisce `versione_form / esito_email_inviata_il / token_scade_il / completata_il / anno_accademico / created_at` alla riga di vista tramite un secondo select su `candidature`. I badge e il gate `versione_form !== 'completa'` funzionano. Nessun undefined silenzioso.
+Un solo file toccato in profondità: `src/pages/admin/StudentePage.tsx`. `CandidaturaDetail.tsx` viene ridotto (rimozione di `CandidaturaActions.Buttons` in header e delle ripetizioni anagrafiche; resta per l'eventuale vista compatta delle candidature secondarie). Nessuna migration, nessuna RPC nuova, `getAvailableActions` invariato, validazioni importate da `@shared/*` (alias confermato in `vite.config.ts` e `tsconfig.app.json`).
 
-## Correzioni
+## 1 — Ordine e disposizione delle sezioni
 
-### 1. `invia_esito` universale su stato candidatura
+Griglia a 2 colonne da `md` in su (`grid md:grid-cols-2 gap-6 items-start` — `items-start` impedisce lo stretch delle coppie affiancate); sotto `md` tutto collassa in colonna singola nello stesso ordine.
 
-In `getAvailableActions`, valutato fuori dallo switch:
+1. **Intestazione** — riga singola: nome+cognome a sinistra + badge stadio (`formatStadio(stadioRow.stadio)`); azioni a destra (`CandidaturaActions.Buttons` sulla candidatura di riferimento `c.id === stadioRow.candidatura_id`).
+2. **Soggiorno** — `md:col-span-2` (larghezza piena). Solo se `assegnazioni.length > 0` (§2).
+3. **Informazioni personali** — `md:col-span-2`. All'interno, i campi su due colonne (`grid sm:grid-cols-2 gap-x-6 gap-y-3`). Modalità Modifica (§4).
+4. **Dati accademici** e **Preferenze** — affiancati (una colonna della griglia esterna ciascuno). Preferenze include gli avvisi coerenza date (§3).
+5. **Caratteristiche** e **Garante** — affiancati. Caratteristiche visibile solo se `versione_form === 'completa'`; se manca, Garante prende una colonna singola senza forzare l'altra.
+6. **Cronologia** — `md:col-span-2`, in fondo (§5).
 
-```
-if ((c.stato === 'accolta' || c.stato === 'rifiutata')
-    && !c.esito_email_inviata_il) push('invia_esito')
-```
+Le sezioni 3–7 leggono dall'oggetto candidatura di riferimento (uno solo). Il ciclo `candidatureDecorated.map` viene rimosso dalla pagina. Se `candidature.length > 1`, in fondo un collassabile "Altre N candidature" che riusa `CandidaturaDetail` in sola lettura.
 
-Rimuovere `invia_esito` dal case `assegnato`. `CandidaturaLike.stato` esiste già; `toCandidaturaLike` lo popola con `candidatura_stato`.
+## 2 — Blocco Soggiorno
 
-### 2. `in_casa`: `trasferisci` e `concludi_soggiorno`
+Solo se esiste ≥1 assegnazione. Due parti:
 
-Le due mutazioni si estraggono da `Residenti.tsx` in `useCandidaturaActions.tsx`. Nuovi `CandidaturaActionId`: `trasferisci`, `concludi_soggiorno`.
+- **Attive** (`stato === 'attiva'`), ordinate per `data_inizio` asc. Per ognuna: struttura · camera · posto; `data_inizio` → `data_fine` (o "—"); etichetta calcolata a video confrontando con oggi:
+  - `oggi < data_inizio` → "Non ancora iniziato"
+  - `data_inizio <= oggi <= (data_fine ?? +∞)` → "In corso"
+  - motivo chiusura se presente.
+  - Compagno di stanza (§sotto).
+- **Concluse**: righe compatte `Cam. N · struttura · dal → al · motivo_chiusura`.
 
-`CandidaturaLike` guadagna campi opzionali:
-- `assegnazione_id`, `camera_id_corrente`, `data_fine_corrente`
-Valorizzati in `toCandidaturaLike` delle liste (già in `StadioRow`) e in `StudentePage.tsx` dalla assegnazione `attiva` corrente.
+**Compagno di stanza — UNA sola query, calcolo lato client.**
 
-Dialoghi trasferimento + conclusione spostati nell'hook, con lo stesso comportamento attuale: chiusura vecchia a `nuovo_inizio - 1` + insert nuova (motivo `trasferimento`); RPC `camere_disponibilita` per calcolare posto libero.
+- Query unica `useQuery(['studente-compagni', studenteId, cameraIds.sort().join(',')])`, `enabled: cameraIds.length > 0`: `assegnazioni.select('id, camera_id, data_inizio, data_fine, studente_id, studenti(id, nome, cognome)').in('camera_id', cameraIds).eq('stato', 'attiva').neq('studente_id', studenteId)`. Nessun filtro `lte/gte` su date (escluderebbe le assegnazioni con `data_fine` nulla).
+- Sovrapposizione calcolata in JS, estremi inclusi, `data_fine` nulla = `+∞`:
+  `inizioA <= (fineB ?? +∞) && inizioB <= (fineA ?? +∞)`.
+- Per ogni assegnazione attiva della persona, filtro il set per stessa `camera_id` + periodo sovrapposto e mostro compagno/i come link `/admin/studenti/{id}?from=residenti`. Nessun vincolo `posti === 2`.
 
-**Query camere di destinazione**: la query `tutteCamere` va portata dentro l'hook, altrimenti la tendina esce vuota. Nell'occasione filtro corretto: `.eq('stato','disponibile')` (oggi è `.neq('stato','manutenzione')` e include per errore `non_disponibile`).
+## 3 — Avvisi coerenza date
 
-`Residenti.tsx` rimuove stati/mutazioni/dialoghi locali; le voci del `RowActions` chiamano `trigger('trasferisci', c)` / `trigger('concludi_soggiorno', c)`. La scheda persona ottiene le azioni "gratis" via `getAvailableActions`.
+Callout non bloccante dentro Preferenze (`bg-warning/10 border-warning/30`), lista di:
+- `periodo_fine <= periodo_inizio`: "La data di fine periodo non è successiva alla data di inizio."
+- `data_arrivo_prevista` fuori da `[periodo_inizio, periodo_fine]`: "La data di arrivo prevista è fuori dal periodo indicato."
 
-Gate: `trasferisci` e `concludi_soggiorno` compaiono solo se `c.assegnazione_id` presente.
+Nessun controllo su `anno_accademico`.
 
-### 3. `assegnato`: solo `annulla_assegnazione` (+ `contatta`, + `invia_esito` da §1)
+## 4 — Modifica anagrafica
 
-**Trasferisci NON si offre su `assegnato`.** Il flusso attuale chiude la vecchia riga a `nuovo_inizio - 1`; se l'assegnazione non è ancora cominciata, quella data cade prima della sua `data_inizio` e daterange con estremi invertiti fa esplodere il vincolo GIST con errore Postgres grezzo.
+Pulsante `Modifica` nell'header di "Informazioni personali". In edit, gli stessi campi in lettura diventano input nella stessa griglia a due colonne; footer `Salva`/`Annulla`.
 
-Per rimpiazzare un'assegnazione pre-arrivo esiste già `annulla_assegnazione`, che cancella la riga e riporta a `da_decidere` (da cui si riassegna in modo pulito).
+**Indirizzo di residenza**:
+- LETTURA: riga unica composta `via civico — CAP comune (provincia)`; la nazione solo se diversa da `IT`. Occupa una singola cella nella griglia dei campi.
+- MODIFICA: sei campi separati (via, civico, CAP, comune, provincia, nazione) con le rispettive validazioni. Nessun campo indirizzo di testo libero, in nessuna modalità.
 
-`case 'assegnato'`:
-- `annulla_assegnazione`
-- (`invia_esito` arriva da §1 se pertinente, `contatta` in fondo)
+Campi editabili: nome, cognome, telefono, data nascita (`DateOfBirthPicker`), nazionalità (`src/lib/nationalities.ts`), CF + `cf_non_disponibile`, i sei campi indirizzo, `documento_identita_n` (→ candidatura di riferimento), email (§sotto).
 
-Nessun ramo "aggiorna la stessa riga" per l'assegnazione mai iniziata: se serve, sarà un intervento separato.
+**Validazioni** — import da `@shared`:
+- `validateCodiceFiscale` da `@shared/codice-fiscale`
+- `PROVINCE` da `@shared/province`; provincia obbligatoria se nazione = IT
+- CAP `/^\d{5}$/` se nazione = IT
+- nazione dalla lista `@shared/countries`
 
-### 4. `da_valutare`: una sola azione principale
+**Nessuna transazione lato client — scritture ordinate per rischio.**
 
-Regola: principale = `invia_form_completo`. Retrocedere `assegna_camera` e `metti_in_attesa_posto` a `secondaria` **solo in questo case**, via override in `getAvailableActions` (copia dell'oggetto action con `group: 'secondaria'` prima del push). `ACTION_META` resta invariato.
+1. `update studenti` con tutti i campi anagrafici, **inclusa l'email**. Se fallisce con `23505` sull'email → toast: "L'indirizzo *X* è già usato da un'altra persona." Nessuna scrittura ulteriore. Altri errori → messaggio dell'errore, non generico.
+2. Solo se il primo riesce e `documento_identita_n` è cambiato: `update candidature` sulla candidatura di riferimento. Se fallisce, toast esplicito: "Anagrafica salvata, numero documento non aggiornato: *messaggio*." La UI resta in edit sul solo campo documento.
+3. Successo pieno → `invalidateQueries` su `['studente', id]`, `['studente-candidature', id]`, `['studente-stadio', id]`, `['candidature']`.
 
-**Sotto-caso**: se `c.versione_form === 'completa'`, `invia_form_completo` non si pusha (già oggi). In quel solo caso `assegna_camera` resta **principale** — evitiamo di lasciare la riga senza pulsante primario.
+**Email** — `AlertDialog` di conferma prima della sequenza.
 
-`rifiuta` resta secondaria.
+Non editabili da qui: stato/stadio/priorità/camera/date soggiorno.
 
-### 5. `elimina`: escludere chi ha MAI avuto un'assegnazione
+## 5 — Cronologia
 
-Serve **sdoppiare l'insieme oggi chiamato `candidatureConAssegnazione`**, che alimenta due cose diverse in `useCandidaturaActions`:
+Estratta a livello di pagina, sulla candidatura di riferimento:
+- transizione se `stato_precedente !== stato_nuovo` (icona freccia)
+- evento se `stato_precedente === stato_nuovo` (icona nota); `l.note` sempre in evidenza
+- format con `formatStatoCandidatura`.
 
-- gate di `elimina` — deve considerare **qualsiasi** assegnazione (anche conclusa)
-- avviso "Esiste già un'assegnazione attiva" nel dialogo di conferma cambio stato rischioso (`requestStatoChange`) — deve considerare **solo `attiva`**, altrimenti l'avviso comparirebbe per chi ha finito il soggiorno un anno fa.
+## Vincoli rispettati
 
-Rifattorizzazione:
+- Nessuna migration, nessuna RPC nuova.
+- `getAvailableActions` / `CandidaturaActions.*` invariati.
+- Validazioni da `@shared/*` (alias già configurato — nessuna copia).
+- `usePageTitle` / `usePageBack` / query params invariati; design system invariato.
 
-- `Options` di `useCandidaturaActions` diventa:
-  - `studentiHaAvutoAssegnazione?: Set<string>` — set di **candidatura_id** senza filtro `stato`. Usato dal gate di `elimina` (che oggi vive lato hook come `count > 0` server-side; il set client serve a **nascondere** l'azione, non solo a bloccarla).
-  - `studentiHaAssegnazioneAttiva?: Set<string>` — set di candidatura_id con `stato='attiva'`. Usato da `hasAssegnazioneAttiva` e da `requestStatoChange`.
-- `getAvailableActions` accetta come opzione booleana `haAvutoAssegnazione` (già calcolato dal chiamante via set). Se `true`, `elimina` non viene aggiunto per lo stadio `archiviato / da_valutare / in_attesa_studente`.
-- In `Candidature.tsx` e `StudentePage.tsx`: due useQuery separate.
-  - `assegnazioni-any` → `select('candidatura_id')` senza filtro.
-  - `assegnazioni-attive` → `select('candidatura_id').eq('stato','attiva')`.
-- Passare `hasAssegnazioneAttiva` al context (già presente) e `haAvutoAssegnazione` alle `getAvailableActions`. `CandidaturaActions.Menu` legge dal context e passa il flag prima di renderizzare le voci.
+## Verifiche
 
-Il gate server-side in `deleteCandidatura` (mutation) resta come rete di sicurezza.
-
-Verifica dei punti d'uso attuali di `candidatureConAssegnazione` prima di riassegnarli:
-- `useCandidaturaActions.hasAssegnazioneAttiva` (contesto) → **attiva**
-- `requestStatoChange` (branch "rischioso") → **attiva**
-- `Candidature.tsx` (opzione hook) → passa **entrambi** i set
-
-## File toccati
-
-- `src/lib/candidaturaActions.ts` — nuovi id, override group per `da_valutare`, `invia_esito` globale, flag `haAvutoAssegnazione` in signature, campi opzionali su `CandidaturaLike`.
-- `src/hooks/useCandidaturaActions.tsx` — sdoppio opzioni set (attiva/mai), mutazioni + dialog `trasferisci` / `concludi_soggiorno`, query interna camere destinazione con `.eq('stato','disponibile')`.
-- `src/pages/admin/Residenti.tsx` — rimozione mutazioni/state/dialog locali; toCandidaturaLike include `assegnazione_id`, `camera_id_corrente`, `data_fine_corrente`; menu chiama `trigger`.
-- `src/pages/admin/Candidature.tsx` — due useQuery separate (any / attiva); toCandidaturaLike include `stato` (già ok) e nessun campo assegnazione (non applicabile).
-- `src/pages/admin/StudentePage.tsx` — stesso sdoppio set; toCandidaturaLike include assegnazione attiva se presente.
-- `src/components/admin/CandidaturaActions.tsx` — legge `haAvutoAssegnazione` per la riga corrente e lo passa a `getAvailableActions`.
-
-## Fuori scopo
-
-Nessuna migration. Nessun cambio a `v_studenti_stadio`, RPC, schema. Nessun ramo "modifica in place" per il trasferimento pre-arrivo.
-
-## Verifica
-
-- `bunx tsgo --noEmit`.
-- Manuale:
-  - Rifiutato archiviato → mostra "Comunica esito" finché non inviato.
-  - `in_casa` sulla scheda persona → Trasferisci + Concludi soggiorno.
-  - `assegnato` → Annulla assegnazione (nessun Trasferisci).
-  - `da_valutare` non completa → pulsante primario "Invia form completo"; `da_valutare` completa → primario "Assegna camera".
-  - Persona con soggiorno concluso l'anno scorso: nessun avviso "assegnazione attiva" al cambio stato; `elimina` non compare.
-  - Tendina camere del dialogo Trasferisci non include camere `non_disponibile`.
+1. `md+`: Intestazione, Soggiorno, Informazioni personali e Cronologia occupano l'intera larghezza; Dati accademici↔Preferenze e Caratteristiche↔Garante appaiono affiancati, allineati in alto (non stirati). Sotto `md`: colonna unica nell'ordine.
+2. Indirizzo in lettura è una sola riga composta; in modifica sono sei input separati; nessun campo unico free-text da nessuna parte.
+3. Persona `in_casa`: Soggiorno subito dopo l'intestazione con camera/posto/date/compagno. Persona `da_valutare`: Soggiorno assente.
+4. `grep 'CandidaturaActions.Buttons'` mostra un'unica occorrenza attiva (pagina).
+5. CF con carattere di controllo errato in modifica → rifiutato con lo stesso messaggio del modulo pubblico.
+6. Email duplicata → messaggio esplicito con l'indirizzo, nessuna update; documento non aggiornato → toast esplicito, anagrafica salvata.
+7. Camera doppia con entrambi i posti occupati: entrambe le schede si vedono reciprocamente come compagno, con link. Compagno con `data_fine` nulla: appare comunque.
+8. Console pulita al primo caricamento (nessun warning React sugli hook variabili).
+9. Cronologia: transizioni ed eventi entrambi visibili; per gli eventi la nota è leggibile.
