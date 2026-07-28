@@ -1,95 +1,85 @@
+Rifacimento della **disposizione visiva** di `src/pages/admin/StudentePage.tsx`. Nessun cambio a query, dati salvati, azioni disponibili, validazioni o design tokens. Modifiche solo a JSX, wrapping, classi Tailwind e a un componente ausiliario per il menu azioni.
 
-## Perimetro
+## 1. Intestazione (non è una card)
 
-Un solo file toccato in profondità: `src/pages/admin/StudentePage.tsx`. `CandidaturaDetail.tsx` viene ridotto (rimozione di `CandidaturaActions.Buttons` in header e delle ripetizioni anagrafiche; resta per l'eventuale vista compatta delle candidature secondarie). Nessuna migration, nessuna RPC nuova, `getAvailableActions` invariato, validazioni importate da `@shared/*` (alias confermato in `vite.config.ts` e `tsconfig.app.json`).
+Sostituire la card di testa con un blocco piatto:
 
-## 1 — Ordine e disposizione delle sezioni
+- Riga: a sinistra `h1` `text-2xl font-semibold` con `Nome Cognome`; a destra l'area azioni (vedi §8).
+- Sotto il nome, sulla riga successiva, il badge stadio (usa `STADIO_COLORS[stadio]` con classi già esistenti).
+- Chiudere l'intestazione con `border-b border-border/60 pb-4` — nessun `bg-card` né `rounded-lg` attorno.
 
-Griglia a 2 colonne da `md` in su (`grid md:grid-cols-2 gap-6 items-start` — `items-start` impedisce lo stretch delle coppie affiancate); sotto `md` tutto collassa in colonna singola nello stesso ordine.
+## 2. Fascia Soggiorno (banda, non card)
 
-1. **Intestazione** — riga singola: nome+cognome a sinistra + badge stadio (`formatStadio(stadioRow.stadio)`); azioni a destra (`CandidaturaActions.Buttons` sulla candidatura di riferimento `c.id === stadioRow.candidatura_id`).
-2. **Soggiorno** — `md:col-span-2` (larghezza piena). Solo se `assegnazioni.length > 0` (§2).
-3. **Informazioni personali** — `md:col-span-2`. All'interno, i campi su due colonne (`grid sm:grid-cols-2 gap-x-6 gap-y-3`). Modalità Modifica (§4).
-4. **Dati accademici** e **Preferenze** — affiancati (una colonna della griglia esterna ciascuno). Preferenze include gli avvisi coerenza date (§3).
-5. **Caratteristiche** e **Garante** — affiancati. Caratteristiche visibile solo se `versione_form === 'completa'`; se manca, Garante prende una colonna singola senza forzare l'altra.
-6. **Cronologia** — `md:col-span-2`, in fondo (§5).
+Solo se `attive.length > 0`. Per ogni assegnazione attiva:
 
-Le sezioni 3–7 leggono dall'oggetto candidatura di riferimento (uno solo). Il ciclo `candidatureDecorated.map` viene rimosso dalla pagina. Se `candidature.length > 1`, in fondo un collassabile "Altre N candidature" che riusa `CandidaturaDetail` in sola lettura.
+- Contenitore `bg-muted/40 rounded-lg px-5 py-4` (no border).
+- Riga unica separata da ` · `:  
+  `struttura · Camera N · posto P · dataInizio → dataFine · statoTemporale`  
+  (`statoTemporale` = "Non ancora iniziato" se `futura`, "In corso" se `in_corso`).
+- Se `compagniPerAssegnazione.get(a.id)` ha elementi, seconda riga `text-[13px] text-muted-foreground`: "Con <Link>Nome Cognome</Link>" (link a `/admin/studenti/<id>`).
+- Più assegnazioni attive → più bande impilate `space-y-2`.
+- I soggiorni **conclusi** vengono **rimossi da qui** e spostati in fondo (§5).
 
-## 2 — Blocco Soggiorno
+## 3. Informazioni personali — full width, 3 colonne
 
-Solo se esiste ≥1 assegnazione. Due parti:
+Card `bg-card border border-border/50 rounded-lg p-5`, larghezza piena.
+- Titolo sezione + pulsante Modifica/Salva/Annulla (invariati nella logica).
+- Griglia `grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-5`.
+- Ogni coppia: `<div class="text-[11px] uppercase tracking-wide text-muted-foreground">Label</div><div class="text-sm">Valore</div>`.
+- Indirizzo in lettura resta riga composta unica (`nomeIndirizzoCompatto`), occupa una cella della griglia (`md:col-span-2` se serve respiro).
+- Etichetta "Residenza fiscale" → **"Residenza"**.
+- In modalità edit, i campi già presenti restano invariati ma disposti in `md:grid-cols-3` con gli stessi gap.
 
-- **Attive** (`stato === 'attiva'`), ordinate per `data_inizio` asc. Per ognuna: struttura · camera · posto; `data_inizio` → `data_fine` (o "—"); etichetta calcolata a video confrontando con oggi:
-  - `oggi < data_inizio` → "Non ancora iniziato"
-  - `data_inizio <= oggi <= (data_fine ?? +∞)` → "In corso"
-  - motivo chiusura se presente.
-  - Compagno di stanza (§sotto).
-- **Concluse**: righe compatte `Cam. N · struttura · dal → al · motivo_chiusura`.
+## 4. Quattro sezioni dati — 2×2, allineate in alto
 
-**Compagno di stanza — UNA sola query, calcolo lato client.**
+Wrapper `grid grid-cols-1 md:grid-cols-2 gap-6 items-start` (due volte, o unico wrapper con 4 card):
 
-- Query unica `useQuery(['studente-compagni', studenteId, cameraIds.sort().join(',')])`, `enabled: cameraIds.length > 0`: `assegnazioni.select('id, camera_id, data_inizio, data_fine, studente_id, studenti(id, nome, cognome)').in('camera_id', cameraIds).eq('stato', 'attiva').neq('studente_id', studenteId)`. Nessun filtro `lte/gte` su date (escluderebbe le assegnazioni con `data_fine` nulla).
-- Sovrapposizione calcolata in JS, estremi inclusi, `data_fine` nulla = `+∞`:
-  `inizioA <= (fineB ?? +∞) && inizioB <= (fineA ?? +∞)`.
-- Per ogni assegnazione attiva della persona, filtro il set per stessa `camera_id` + periodo sovrapposto e mostro compagno/i come link `/admin/studenti/{id}?from=residenti`. Nessun vincolo `posti === 2`.
+- Riga 1: Dati accademici | Preferenze
+- Riga 2: Caratteristiche | Garante
 
-## 3 — Avvisi coerenza date
+Ogni card: `bg-card border border-border/50 rounded-lg p-5`. `items-start` è obbligatorio (fix del problema di stiramento).
 
-Callout non bloccante dentro Preferenze (`bg-warning/10 border-warning/30`), lista di:
-- `periodo_fine <= periodo_inizio`: "La data di fine periodo non è successiva alla data di inizio."
-- `data_arrivo_prevista` fuori da `[periodo_inizio, periodo_fine]`: "La data di arrivo prevista è fuori dal periodo indicato."
+## 5. Cronologia | Note (2 col) + Soggiorni conclusi (full width)
 
-Nessun controllo su `anno_accademico`.
+Wrapper `grid grid-cols-1 md:grid-cols-2 gap-6 items-start`:
 
-## 4 — Modifica anagrafica
+- **Cronologia** (sinistra, card `p-5`): mostra al massimo le **ultime 5** righe di `log` (ordinate ascendenti → prendere `slice(-5)`). Sotto, pulsante "Mostra tutto" che espande il resto (stato locale `showAllLog`). Righe evento (stato_precedente == stato_nuovo): testo = `l.note` (fallback "Evento" solo se nota vuota). Righe transizione: come oggi con `formatStatoCandidatura`.
+- **Note admin** (destra, card `p-5`): mostrare sempre l'area di testo, anche se vuota (già così, verificare).
 
-Pulsante `Modifica` nell'header di "Informazioni personali". In edit, gli stessi campi in lettura diventano input nella stessa griglia a due colonne; footer `Salva`/`Annulla`.
+Sotto, **full width**, elenco compatto **Soggiorni conclusi** — solo se `concluse.length > 0`. Una riga per soggiorno: `struttura · Camera N · dataInizio → dataFine · motivoChiusura`.
 
-**Indirizzo di residenza**:
-- LETTURA: riga unica composta `via civico — CAP comune (provincia)`; la nazione solo se diversa da `IT`. Occupa una singola cella nella griglia dei campi.
-- MODIFICA: sei campi separati (via, civico, CAP, comune, provincia, nazione) con le rispettive validazioni. Nessun campo indirizzo di testo libero, in nessuna modalità.
+## 6. Respiro globale
 
-Campi editabili: nome, cognome, telefono, data nascita (`DateOfBirthPicker`), nazionalità (`src/lib/nationalities.ts`), CF + `cf_non_disponibile`, i sei campi indirizzo, `documento_identita_n` (→ candidatura di riferimento), email (§sotto).
+Wrapper pagina: `space-y-6`. Rimuovere `p-4` residui dalle card e usare `p-5` ovunque. `gap-6` fra card affiancate.
 
-**Validazioni** — import da `@shared`:
-- `validateCodiceFiscale` da `@shared/codice-fiscale`
-- `PROVINCE` da `@shared/province`; provincia obbligatoria se nazione = IT
-- CAP `/^\d{5}$/` se nazione = IT
-- nazione dalla lista `@shared/countries`
+## 7. Campi vuoti non si rendono
 
-**Nessuna transazione lato client — scritture ordinate per rischio.**
+Introdurre helper locale `Field({ label, value })` che ritorna `null` se `value` è falsy/stringa vuota. Applicare a Informazioni personali (lettura), Dati accademici, Preferenze, Caratteristiche, Garante. Se dopo il filtro una card non ha campi renderizzati, mostrare una sola riga `text-[13px] text-muted-foreground`: "Non ancora compilato". In modalità edit, tutti i campi tornano visibili.
 
-1. `update studenti` con tutti i campi anagrafici, **inclusa l'email**. Se fallisce con `23505` sull'email → toast: "L'indirizzo *X* è già usato da un'altra persona." Nessuna scrittura ulteriore. Altri errori → messaggio dell'errore, non generico.
-2. Solo se il primo riesce e `documento_identita_n` è cambiato: `update candidature` sulla candidatura di riferimento. Se fallisce, toast esplicito: "Anagrafica salvata, numero documento non aggiornato: *messaggio*." La UI resta in edit sul solo campo documento.
-3. Successo pieno → `invalidateQueries` su `['studente', id]`, `['studente-candidature', id]`, `['studente-stadio', id]`, `['candidature']`.
+## 8. Azioni — un pulsante pieno + menu "Azioni"
 
-**Email** — `AlertDialog` di conferma prima della sequenza.
+Nuovo componente locale (o piccolo adattamento a `CandidaturaActions`): usare `getAvailableActions` come oggi, ma renderizzare:
 
-Non editabili da qui: stato/stadio/priorità/camera/date soggiorno.
+- La prima azione con `group === 'principale'` come `Button` pieno (variant `default`).
+- Tutte le restanti (incluse le pericolose) dentro un `DropdownMenu` con trigger `<Button variant="outline">Azioni <ChevronDown /></Button>`. Le pericolose mantengono `text-destructive` e restano separate da `DropdownMenuSeparator`.
 
-## 5 — Cronologia
+Implementazione: aggiungere un terzo helper in `src/components/admin/CandidaturaActions.tsx` (`PrimaryWithMenu`) oppure comporre inline in `StudentePage.tsx` usando `useCandidaturaActionsCtx` + `getAvailableActions`. Preferire il nuovo helper riutilizzabile.
 
-Estratta a livello di pagina, sulla candidatura di riferimento:
-- transizione se `stato_precedente !== stato_nuovo` (icona freccia)
-- evento se `stato_precedente === stato_nuovo` (icona nota); `l.note` sempre in evidenza
-- format con `formatStatoCandidatura`.
+## 9. Cronologia — testo eventi
 
-## Vincoli rispettati
+Già coperto nella logica di render: quando `stato_precedente === stato_nuovo`, il testo della riga è `l.note`; se `note` è vuota, mostrare "Evento registrato" (mai "Evento su <stato>").
 
-- Nessuna migration, nessuna RPC nuova.
-- `getAvailableActions` / `CandidaturaActions.*` invariati.
-- Validazioni da `@shared/*` (alias già configurato — nessuna copia).
-- `usePageTitle` / `usePageBack` / query params invariati; design system invariato.
+## 10. Etichetta
 
-## Verifiche
+Sostituire ogni occorrenza di "Residenza fiscale" con "Residenza" nella scheda.
 
-1. `md+`: Intestazione, Soggiorno, Informazioni personali e Cronologia occupano l'intera larghezza; Dati accademici↔Preferenze e Caratteristiche↔Garante appaiono affiancati, allineati in alto (non stirati). Sotto `md`: colonna unica nell'ordine.
-2. Indirizzo in lettura è una sola riga composta; in modifica sono sei input separati; nessun campo unico free-text da nessuna parte.
-3. Persona `in_casa`: Soggiorno subito dopo l'intestazione con camera/posto/date/compagno. Persona `da_valutare`: Soggiorno assente.
-4. `grep 'CandidaturaActions.Buttons'` mostra un'unica occorrenza attiva (pagina).
-5. CF con carattere di controllo errato in modifica → rifiutato con lo stesso messaggio del modulo pubblico.
-6. Email duplicata → messaggio esplicito con l'indirizzo, nessuna update; documento non aggiornato → toast esplicito, anagrafica salvata.
-7. Camera doppia con entrambi i posti occupati: entrambe le schede si vedono reciprocamente come compagno, con link. Compagno con `data_fine` nulla: appare comunque.
-8. Console pulita al primo caricamento (nessun warning React sugli hook variabili).
-9. Cronologia: transizioni ed eventi entrambi visibili; per gli eventi la nota è leggibile.
+## Responsive
+
+Sotto `md` tutto collassa a colonna unica nell'ordine: Intestazione → Soggiorno → Informazioni → Accademici → Preferenze → Caratteristiche → Garante → Cronologia → Note → Soggiorni conclusi.
+
+## File toccati
+
+- `src/pages/admin/StudentePage.tsx` — riorganizzazione JSX, helper `Field`, stato `showAllLog`, spostamento conclusi in fondo, testi eventi, etichetta "Residenza".
+- `src/components/admin/CandidaturaActions.tsx` — aggiunta variante `PrimaryWithMenu` (pulsante pieno + dropdown "Azioni") senza toccare `Menu`/`Buttons` esistenti.
+
+Nessun altro file coinvolto. Nessuna migration. Nessuna modifica a hook, query o azioni.
