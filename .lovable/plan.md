@@ -1,22 +1,14 @@
-## Diagnosi
+## Obiettivo
+Unificare tutti i documenti della scheda persona sotto un'unica sezione "Documenti", eliminando la suddivisione tra "Documento di identità", "Documento garante" e "Altri documenti".
 
-Sulla scheda persona (`src/pages/admin/StudentePage.tsx`) la query documenti carica correttamente tutto (verificato a DB: lo studente in questione ha 2 righe in `public.documenti`, un `documento_identita` e un `certificato_iscrizione`).
+## Modifiche
+**File:** `src/pages/admin/StudentePage.tsx`
 
-Ma il render filtra solo due tipi:
+- Rimuovere le sezioni separate per identità / garante / altri.
+- Creare un unico blocco `DataCard` intitolato **"Documenti"** che elenca tutti i file presenti in `documenti`, indipendentemente dal `tipo`.
+- Mantenere per ogni file: etichetta leggibile del tipo (Documento di identità, Certificato iscrizione, Documento garante, Documento aggiuntivo, ecc.), nome file, e azione di download/anteprima già esistente.
+- Ordinamento suggerito: identità → certificato iscrizione → garante → aggiuntivi → altri, poi per data di caricamento.
+- Se non ci sono documenti, la card resta nascosta (coerente con il pattern `DataCard` esistente).
 
-```ts
-const docIdentita = documenti.filter(d => d.tipo === 'documento_identita');
-const docGarante  = documenti.filter(d => d.tipo === 'documento_garante');
-```
-
-I tipi `certificato_iscrizione` e `documento_aggiuntivo` (definiti in `supabase/functions/_shared/documenti-tipi.ts`) non vengono mai mostrati → nell'UI compare solo il documento d'identità.
-
-## Fix
-
-In `StudentePage.tsx`:
-
-1. Calcolare anche `docAltri = documenti.filter(d => d.tipo !== 'documento_identita' && d.tipo !== 'documento_garante')` (così qualunque tipo futuro non venga più dimenticato).
-2. Aggiungere una nuova sezione "Altri documenti" a piena larghezza — mostrata solo se `docAltri.length > 0` — con etichetta leggibile per tipo (`certificato_iscrizione` → "Certificato di iscrizione", `documento_aggiuntivo` → "Documento aggiuntivo") e le righe rese con `DocumentoRow` (che già gestisce apri/scarica via signed URL).
-3. Posizione: subito dopo la sezione "Informazioni personali", prima della griglia 2×2 dati accademici/preferenze/…, così i documenti restano vicini all'anagrafica.
-
-Nessuna modifica a schema, RLS o Edge Functions.
+## Fuori scope
+Nessuna modifica a DB, edge functions, o logica di upload.
