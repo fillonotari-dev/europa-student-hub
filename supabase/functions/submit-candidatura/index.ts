@@ -57,7 +57,9 @@ Deno.serve(async (req) => {
       universita, dipartimento, corso_di_studi, anno_di_corso, matricola,
       struttura_preferita_id, tipo_camera_preferito, periodo_inizio, periodo_fine,
       anno_accademico, messaggio, documenti,
-      indirizzo_residenza, documento_identita_n, tipo_studente, tipo_studente_altro,
+      indirizzo_via, indirizzo_civico, indirizzo_cap, indirizzo_comune,
+      indirizzo_provincia, indirizzo_nazione, cf_non_disponibile,
+      documento_identita_n, tipo_studente, tipo_studente_altro,
       data_arrivo_prevista, come_conosciuto, come_conosciuto_altro, preferenze_note,
       dichiarazioni, lingua, temp_id,
     } = body;
@@ -104,14 +106,20 @@ Deno.serve(async (req) => {
     }
 
     // Optional fields — pre_screening extension (blocco 1 + 3)
-    const vIndirizzo = optStr(indirizzo_residenza, 500);
+    const vVia = optStr(indirizzo_via, 200);
+    const vCivico = optStr(indirizzo_civico, 20);
+    const vCap = optStr(indirizzo_cap, 20);
+    const vComune = optStr(indirizzo_comune, 100);
+    const vProvincia = optStr(indirizzo_provincia, 100);
+    const vNazione = optStr(indirizzo_nazione, 2);
+    const vCfNonDisp = !!cf_non_disponibile;
     const vDocIdN = optStr(documento_identita_n, 64);
     const vTipoStud = optStr(tipo_studente, 30);
     const vTipoStudAltro = optStr(tipo_studente_altro, 200);
     const vComeConosc = optStr(come_conosciuto, 30);
     const vComeConoscAltro = optStr(come_conosciuto_altro, 200);
     const vPrefNote = optStr(preferenze_note, 1000);
-    if ([vIndirizzo, vDocIdN, vTipoStud, vTipoStudAltro, vComeConosc, vComeConoscAltro, vPrefNote].includes(undefined as any)) {
+    if ([vVia, vCivico, vCap, vComune, vProvincia, vNazione, vDocIdN, vTipoStud, vTipoStudAltro, vComeConosc, vComeConoscAltro, vPrefNote].includes(undefined as any)) {
       return bad("Campo opzionale non valido");
     }
     if (data_arrivo_prevista !== undefined && data_arrivo_prevista !== null && data_arrivo_prevista !== "") {
@@ -192,7 +200,12 @@ Deno.serve(async (req) => {
         .insert({
           nome: vNome, cognome: vCognome, email: vEmail, telefono: vTelefono,
           data_nascita: data_nascita || null, nazionalita: vNazionalita,
-          codice_fiscale: vCodiceFiscale, universita: vUniversita,
+          codice_fiscale: vCfNonDisp ? null : vCodiceFiscale,
+          cf_non_disponibile: vCfNonDisp,
+          indirizzo_via: vVia, indirizzo_civico: vCivico, indirizzo_cap: vCap,
+          indirizzo_comune: vComune, indirizzo_provincia: vProvincia,
+          indirizzo_nazione: vNazione,
+          universita: vUniversita,
           corso_di_studi: corsoCompleto, anno_di_corso: vAnnoCorso, matricola: vMatricola,
         })
         .select("id")
@@ -202,32 +215,12 @@ Deno.serve(async (req) => {
       studenteId = newStudent.id;
     }
 
-    // Check for existing active candidatura for same anno_accademico
-    const { data: existingCandidatura } = await supabase
-      .from("candidature")
-      .select("id")
-      .eq("studente_id", studenteId)
-      .eq("anno_accademico", vAnnoAccComputed)
-      .not("stato", "in", '("sostituita","ritirata","rifiutata")')
-      .maybeSingle();
-
-    if (existingCandidatura) {
-      // Mark old candidatura as "sostituita"
-      await supabase.from("candidature").update({ stato: "sostituita" }).eq("id", existingCandidatura.id);
-      await supabase.from("log_stato_candidature").insert({
-        candidatura_id: existingCandidatura.id,
-        stato_precedente: "ricevuta",
-        stato_nuovo: "sostituita",
-        note: "Sostituita da nuova candidatura",
-      });
-    }
-
     // Create new candidatura
     const { data: candidatura, error: candidaturaError } = await supabase
       .from("candidature")
       .insert({
         studente_id: studenteId,
-        stato: "ricevuta",
+        stato: "da_valutare",
         struttura_preferita_id: struttura_preferita_id || null,
         tipo_camera_preferito: vTipoCamera,
         periodo_inizio: periodo_inizio || null,
@@ -239,7 +232,6 @@ Deno.serve(async (req) => {
         anno_corso_snapshot: vAnnoCorso,
         matricola_snapshot: vMatricola,
         versione_form: "pre_screening",
-        indirizzo_residenza: vIndirizzo,
         documento_identita_n: vDocIdN,
         tipo_studente: vTipoStud,
         tipo_studente_altro: vTipoStudAltro,
@@ -258,7 +250,7 @@ Deno.serve(async (req) => {
     // Log initial state
     await supabase.from("log_stato_candidature").insert({
       candidatura_id: candidatura.id,
-      stato_nuovo: "ricevuta",
+      stato_nuovo: "da_valutare",
     });
 
     // Register documents if any (already validated)
