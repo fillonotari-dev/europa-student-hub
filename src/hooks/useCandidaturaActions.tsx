@@ -1,12 +1,13 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -20,6 +21,7 @@ import {
 type Ctx = {
   trigger: (id: CandidaturaActionId, c: CandidaturaLike) => void;
   hasAssegnazioneAttiva: (c: CandidaturaLike) => boolean;
+  haAvutoAssegnazione: (c: CandidaturaLike) => boolean;
 };
 
 const CandidaturaActionsContext = createContext<Ctx | null>(null);
@@ -31,20 +33,33 @@ export function useCandidaturaActionsCtx(): Ctx {
 }
 
 interface Options {
-  candidatureConAssegnazione?: Set<string> | null;
+  /** Set di candidatura_id con almeno un'assegnazione, di qualunque stato. Usato dal gate di `elimina`. */
+  studentiHaAvutoAssegnazione?: Set<string> | null;
+  /** Set di candidatura_id con un'assegnazione attualmente `attiva`. Usato dagli avvisi di cambio stato. */
+  studentiHaAssegnazioneAttiva?: Set<string> | null;
   extraInvalidateKeys?: readonly (readonly unknown[])[];
   onDeleted?: (c: CandidaturaLike) => void;
 }
 
 export function useCandidaturaActions(options: Options = {}) {
-  const { candidatureConAssegnazione, extraInvalidateKeys, onDeleted } = options;
+  const {
+    studentiHaAvutoAssegnazione,
+    studentiHaAssegnazioneAttiva,
+    extraInvalidateKeys,
+    onDeleted,
+  } = options;
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
   const hasAssegnazioneAttiva = useCallback(
-    (c: CandidaturaLike) => !!candidatureConAssegnazione?.has(c.id),
-    [candidatureConAssegnazione],
+    (c: CandidaturaLike) => !!studentiHaAssegnazioneAttiva?.has(c.id),
+    [studentiHaAssegnazioneAttiva],
+  );
+
+  const haAvutoAssegnazione = useCallback(
+    (c: CandidaturaLike) => !!studentiHaAvutoAssegnazione?.has(c.id),
+    [studentiHaAvutoAssegnazione],
   );
 
   const invalidateAll = useCallback(() => {
@@ -53,6 +68,8 @@ export function useCandidaturaActions(options: Options = {}) {
     queryClient.invalidateQueries({ queryKey: ['stadio'] });
     queryClient.invalidateQueries({ queryKey: ['residenti'] });
     queryClient.invalidateQueries({ queryKey: ['assegnazioni-attive'] });
+    queryClient.invalidateQueries({ queryKey: ['assegnazioni-any'] });
+    queryClient.invalidateQueries({ queryKey: ['camere-disponibili-hook'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     for (const k of extraInvalidateKeys ?? []) {
       queryClient.invalidateQueries({ queryKey: k as unknown[] });
