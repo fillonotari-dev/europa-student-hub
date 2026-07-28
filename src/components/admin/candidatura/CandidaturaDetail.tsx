@@ -103,8 +103,7 @@ export function CandidaturaDetail({ candidatura, highlight, studenteId, open, on
 
       {open && (
       <div className="px-5 pb-5 space-y-5">
-      <Section title="Dichiarazioni per questa candidatura" items={[
-        ['Indirizzo residenza', c.indirizzo_residenza],
+      <Section title="Documento presentato" items={[
         ['N. documento identità', c.documento_identita_n],
       ]} />
 
@@ -190,7 +189,7 @@ export function CandidaturaDetail({ candidatura, highlight, studenteId, open, on
               const hasNote = !!(l.note && String(l.note).trim());
               let title: React.ReactNode;
               if (isFirst) {
-                title = l.stato_nuovo === 'ricevuta'
+                title = l.stato_nuovo === 'da_valutare'
                   ? <>Candidatura ricevuta</>
                   : <>Candidatura registrata come <strong>{formatStato(l.stato_nuovo)}</strong></>;
               } else if (isTransition) {
