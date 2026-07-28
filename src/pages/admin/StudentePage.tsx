@@ -227,6 +227,9 @@ export default function StudentePage() {
   });
   const docIdentita = (documenti ?? []).filter((d: any) => d.tipo === 'documento_identita');
   const docGarante = (documenti ?? []).filter((d: any) => d.tipo === 'documento_garante');
+  const docAltri = (documenti ?? []).filter(
+    (d: any) => d.tipo !== 'documento_identita' && d.tipo !== 'documento_garante',
+  );
 
   // Compagno di stanza — UNA sola query, sovrapposizione calcolata in JS.
   const attive = useMemo(
