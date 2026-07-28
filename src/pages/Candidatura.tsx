@@ -48,7 +48,10 @@ export default function Candidatura() {
 
   const [form, setForm] = useState({
     nome: '', cognome: '', email: '', telefono: '', data_nascita: '', nazionalita: '', codice_fiscale: '',
-    indirizzo_residenza: '', documento_identita_n: '',
+    cf_non_disponibile: false as boolean,
+    indirizzo_via: '', indirizzo_civico: '', indirizzo_cap: '',
+    indirizzo_comune: '', indirizzo_provincia: '', indirizzo_nazione: 'IT',
+    documento_identita_n: '',
     universita: UNIVERSITIES.length === 1 ? UNIVERSITIES[0].name : '',
     corso_di_studi: '', anno_di_corso: '',
     tipo_studente: '', tipo_studente_altro: '',
@@ -152,7 +155,10 @@ export default function Candidatura() {
 
   const validateStep = () => {
     const requiredByKey: Record<string, string[]> = {
-      stepPersonal: ['nome', 'cognome', 'email', 'telefono', 'data_nascita', 'nazionalita', 'codice_fiscale', 'indirizzo_residenza'],
+      stepPersonal: [
+        'nome', 'cognome', 'email', 'telefono', 'data_nascita', 'nazionalita',
+        'indirizzo_via', 'indirizzo_civico', 'indirizzo_cap', 'indirizzo_comune', 'indirizzo_provincia', 'indirizzo_nazione',
+      ],
       stepAcademic: ['universita', 'corso_di_studi', 'periodo_inizio', 'periodo_fine'],
       stepPreferences: [],
       stepDocuments: ['_documenti'],
@@ -186,6 +192,16 @@ export default function Candidatura() {
     if (stepKey === 'stepPersonal' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
       toast({ title: t(lang, 'form.invalidEmail'), variant: 'destructive' });
       return false;
+    }
+    if (stepKey === 'stepPersonal') {
+      if (!form.cf_non_disponibile && !form.codice_fiscale) {
+        toast({ title: t(lang, 'form.required'), variant: 'destructive' });
+        return false;
+      }
+      if (form.indirizzo_nazione === 'IT' && !/^\d{5}$/.test(form.indirizzo_cap)) {
+        toast({ title: t(lang, 'form.invalidCap') || 'CAP non valido', variant: 'destructive' });
+        return false;
+      }
     }
     if (stepKey === 'stepAcademic') {
       const dInizio = new Date(form.periodo_inizio);
