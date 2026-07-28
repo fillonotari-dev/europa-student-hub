@@ -415,8 +415,8 @@ export default function Residenti() {
                 <p>Conseguenze:</p>
                 <ul className="list-disc pl-5 space-y-1">
                   <li>lo studente sparisce dall'elenco <strong>Residenti</strong></li>
-                  <li>lo stato della camera viene <strong>ricalcolato</strong> (libera o parz. occupata)</li>
-                  <li>l'assegnazione resta visibile nello <strong>Storico</strong> con la data di fine</li>
+                  <li>il posto si libera nel calendario a partire dal giorno successivo alla data di fine</li>
+                  <li>l'assegnazione resta visibile nello <strong>Storico</strong> con data di fine e motivo</li>
                   <li>la candidatura collegata <strong>non cambia stato</strong>: gestiscila a parte se necessario</li>
                 </ul>
               </div>
