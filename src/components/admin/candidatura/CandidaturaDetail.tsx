@@ -10,7 +10,7 @@ import { Section } from './Section';
 import { DocumentoRow } from './DocumentoRow';
 import { CandidaturaBadges } from './CandidaturaBadges';
 import { CandidaturaActions } from '@/components/admin/CandidaturaActions';
-import { formatStato } from '@/lib/statoCandidatura';
+import { formatStatoCandidatura } from '@/lib/statoCandidatura';
 
 const TIPO_STUDENTE_LABELS: Record<string, string> = {
   universitario: 'Corso di laurea', erasmus: 'Erasmus o scambio', master: 'Master o dottorato', altro: 'Altro',
@@ -191,13 +191,13 @@ export function CandidaturaDetail({ candidatura, highlight, studenteId, open, on
               if (isFirst) {
                 title = l.stato_nuovo === 'da_valutare'
                   ? <>Candidatura ricevuta</>
-                  : <>Candidatura registrata come <strong>{formatStato(l.stato_nuovo)}</strong></>;
+                  : <>Candidatura registrata come <strong>{formatStatoCandidatura(l.stato_nuovo)}</strong></>;
               } else if (isTransition) {
-                title = <>Stato passato da <strong>{formatStato(l.stato_precedente)}</strong> a <strong>{formatStato(l.stato_nuovo)}</strong></>;
+                title = <>Stato passato da <strong>{formatStatoCandidatura(l.stato_precedente)}</strong> a <strong>{formatStatoCandidatura(l.stato_nuovo)}</strong></>;
               } else if (hasNote) {
                 title = <span className="whitespace-pre-wrap">{l.note}</span>;
               } else {
-                title = <>Stato registrato: <strong>{formatStato(l.stato_nuovo)}</strong></>;
+                title = <>Stato registrato: <strong>{formatStatoCandidatura(l.stato_nuovo)}</strong></>;
               }
               const showNoteBelow = hasNote && (isFirst || isTransition);
               return (

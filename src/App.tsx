@@ -16,10 +16,6 @@ import Residenti from "./pages/admin/Residenti";
 import Camere from "./pages/admin/Camere";
 import Strutture from "./pages/admin/Strutture";
 import StudentePage from "./pages/admin/StudentePage";
-import StoricoLayout from "./pages/admin/storico/StoricoLayout";
-import StoricoCandidature from "./pages/admin/storico/StoricoCandidature";
-import StoricoResidenti from "./pages/admin/storico/StoricoResidenti";
-import StoricoCamere from "./pages/admin/storico/StoricoCamere";
 import { Navigate } from "react-router-dom";
 
 const queryClient = new QueryClient();
@@ -43,12 +39,9 @@ const App = () => (
             <Route path="studenti/:id" element={<StudentePage />} />
             <Route path="camere" element={<Camere />} />
             <Route path="strutture" element={<Strutture />} />
-            <Route path="storico" element={<StoricoLayout />}>
-              <Route index element={<Navigate to="candidature" replace />} />
-              <Route path="candidature" element={<StoricoCandidature />} />
-              <Route path="residenti" element={<StoricoResidenti />} />
-              <Route path="camere" element={<StoricoCamere />} />
-            </Route>
+            {/* Storico rimosso: gli archiviati vivono nelle liste principali via filtro. */}
+            <Route path="storico" element={<Navigate to="/admin/candidature?stadio=archiviato" replace />} />
+            <Route path="storico/*" element={<Navigate to="/admin/candidature?stadio=archiviato" replace />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

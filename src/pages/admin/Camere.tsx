@@ -23,7 +23,7 @@ import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdow
 import { RowActions } from '@/components/admin/RowActions';
 import { useToast } from '@/hooks/use-toast';
 import { ExportButton } from '@/components/admin/ExportButton';
-import { useStrutturaFilter } from '@/hooks/useStrutturaFilter';
+import { Select as SelectSede, SelectContent as SelectSedeContent, SelectItem as SelectSedeItem, SelectTrigger as SelectSedeTrigger, SelectValue as SelectSedeValue } from '@/components/ui/select';
 import {
   DoorOpen, User, X, ArrowUp, ArrowDown, ArrowUpDown, Plus,
   Pencil, Wrench, RotateCcw, Trash2, Settings,
@@ -80,7 +80,19 @@ export default function Camere() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { strutturaId, strutture, isAll } = useStrutturaFilter();
+  // Filtro sede locale della pagina (il filtro globale è stato rimosso).
+  const strutturaId = searchParams.get('sede') ?? 'tutti';
+  const setStrutturaId = (v: string) =>
+    setSearchParams(sp => { const n = new URLSearchParams(sp); if (v === 'tutti') n.delete('sede'); else n.set('sede', v); return n; }, { replace: true });
+  const isAll = strutturaId === 'tutti';
+
+  const { data: strutture } = useQuery({
+    queryKey: ['strutture-tutte'],
+    queryFn: async () => {
+      const { data } = await supabase.from('strutture').select('id, nome').order('nome');
+      return data ?? [];
+    },
+  });
 
   const { data: camere } = useQuery({
     queryKey: ['camere', strutturaId],
@@ -106,7 +118,7 @@ export default function Camere() {
       const { data } = await supabase
         .from('candidature')
         .select('id, studente_id, struttura_preferita_id, periodo_inizio, periodo_fine, strutture(nome), studenti(id, nome, cognome)')
-        .eq('stato', 'accolta');
+        .in('stato', ['da_valutare', 'da_decidere', 'in_attesa_posto', 'accolta']);
       return data ?? [];
     },
   });
@@ -133,11 +145,18 @@ export default function Camere() {
         camera_id, studente_id, candidatura_id, posto, data_inizio, data_fine, stato: 'attiva',
       });
       if (error) throw error;
+      // Contestualmente la candidatura passa ad "accolta": è la conseguenza
+      // logica dell'assegnazione di un posto letto reale.
+      const { error: updErr } = await supabase.from('candidature')
+        .update({ stato: 'accolta' }).eq('id', candidatura_id);
+      if (updErr) throw updErr;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['camere'] });
       queryClient.invalidateQueries({ queryKey: ['assegnazioni-attive'] });
       queryClient.invalidateQueries({ queryKey: ['residenti'] });
+      queryClient.invalidateQueries({ queryKey: ['stadio'] });
+      queryClient.invalidateQueries({ queryKey: ['candidature'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       toast({ title: 'Studente assegnato' });
       setSelectedCamera(null);
@@ -305,6 +324,13 @@ export default function Camere() {
     <div className="space-y-6">
       <div className="flex items-center justify-end">
         <div className="flex items-center gap-2 flex-wrap">
+          <SelectSede value={strutturaId} onValueChange={setStrutturaId}>
+            <SelectSedeTrigger className="w-[180px]"><SelectSedeValue /></SelectSedeTrigger>
+            <SelectSedeContent>
+              <SelectSedeItem value="tutti">Tutte le sedi</SelectSedeItem>
+              {(strutture ?? []).map((s: any) => <SelectSedeItem key={s.id} value={s.id}>{s.nome}</SelectSedeItem>)}
+            </SelectSedeContent>
+          </SelectSede>
           <Select value={filterStato} onValueChange={setFilterStato}>
             <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
             <SelectContent>

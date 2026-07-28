@@ -1,20 +1,17 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, Outlet } from 'react-router-dom';
+import { useNavigate, Outlet, Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { SidebarProvider } from '@/components/ui/sidebar';
-import { StrutturaFilterProvider, useStrutturaFilter } from '@/hooks/useStrutturaFilter';
 import { PageTitleProvider, useResolvedPageTitle, usePageBackTo } from '@/hooks/usePageTitle';
-import { StrutturaSelect } from '@/components/admin/StrutturaSelect';
-import { Link } from 'react-router-dom';
+import { GlobalSearch } from '@/components/admin/GlobalSearch';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 function AdminTopBar() {
   const title = useResolvedPageTitle();
   const backTo = usePageBackTo();
-  const { strutturaId, setStrutturaId, strutture } = useStrutturaFilter();
   return (
     <header className="h-14 flex items-center gap-3 border-b bg-card/80 backdrop-blur-sm px-4">
       {backTo && (
@@ -24,7 +21,7 @@ function AdminTopBar() {
       )}
       <h1 className="text-sm font-semibold tracking-tight truncate">{title}</h1>
       <div className="ml-auto">
-        <StrutturaSelect value={strutturaId} onChange={setStrutturaId} strutture={strutture} />
+        <GlobalSearch />
       </div>
     </header>
   );
@@ -79,19 +76,17 @@ export default function AdminLayout() {
 
   return (
     <SidebarProvider>
-      <StrutturaFilterProvider>
-        <PageTitleProvider>
-          <div className="min-h-screen flex w-full">
-            <AdminSidebar />
-            <div className="flex-1 flex flex-col">
-              <AdminTopBar />
-              <main className="flex-1 p-6 bg-background">
-                <Outlet />
-              </main>
-            </div>
+      <PageTitleProvider>
+        <div className="min-h-screen flex w-full">
+          <AdminSidebar />
+          <div className="flex-1 flex flex-col">
+            <AdminTopBar />
+            <main className="flex-1 p-6 bg-background">
+              <Outlet />
+            </main>
           </div>
-        </PageTitleProvider>
-      </StrutturaFilterProvider>
+        </div>
+      </PageTitleProvider>
     </SidebarProvider>
   );
 }
