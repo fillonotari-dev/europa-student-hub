@@ -615,12 +615,7 @@ export default function StudentePage() {
               ['Telefono', c?.garante_telefono],
               ['Email', c?.garante_email],
             ]}
-            footer={docGarante.length > 0 ? (
-              <div className="mt-3 space-y-2">
-                <p className="text-[12px] text-muted-foreground">Documento garante</p>
-                {docGarante.map((d: any) => <DocumentoRow key={d.id} doc={d} />)}
-              </div>
-            ) : null}
+            footer={null}
           />
         </div>
 
@@ -718,8 +713,8 @@ function DataCard({ title, items, footer }: {
   );
 }
 
-function InfoPersonaliRead({ studente, docIdentita, docIdN }: {
-  studente: any; docIdentita: any[]; docIdN: string | null | undefined;
+function InfoPersonaliRead({ studente, docIdN }: {
+  studente: any; docIdN: string | null | undefined;
 }) {
   const items: Array<[string, any, boolean?]> = [
     ['Email', studente.email],
@@ -731,7 +726,7 @@ function InfoPersonaliRead({ studente, docIdentita, docIdN }: {
     ['Residenza', nomeIndirizzoCompatto(studente), true /* wide */],
   ];
   const filtered = items.filter(([, v]) => !isEmpty(v));
-  if (filtered.length === 0 && docIdentita.length === 0) {
+  if (filtered.length === 0) {
     return <p className="text-[13px] text-muted-foreground">Non ancora compilato</p>;
   }
   return (
@@ -742,12 +737,6 @@ function InfoPersonaliRead({ studente, docIdentita, docIdN }: {
           <div className="text-sm mt-0.5 break-words">{value}</div>
         </div>
       ))}
-      {docIdentita.length > 0 && (
-        <div className="md:col-span-3 space-y-2 pt-1">
-          <p className="text-[12px] text-muted-foreground">Allegati documento identità</p>
-          {docIdentita.map((d: any) => <DocumentoRow key={d.id} doc={d} />)}
-        </div>
-      )}
     </div>
   );
 }
