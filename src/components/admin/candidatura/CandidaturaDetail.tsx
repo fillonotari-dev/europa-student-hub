@@ -9,7 +9,6 @@ import { FileText, CheckCircle2, ChevronDown, ChevronRight } from 'lucide-react'
 import { Section } from './Section';
 import { DocumentoRow } from './DocumentoRow';
 import { CandidaturaBadges } from './CandidaturaBadges';
-import { CandidaturaActions } from '@/components/admin/CandidaturaActions';
 import { formatStatoCandidatura } from '@/lib/statoCandidatura';
 
 const TIPO_STUDENTE_LABELS: Record<string, string> = {
@@ -96,9 +95,6 @@ export function CandidaturaDetail({ candidatura, highlight, studenteId, open, on
             <CandidaturaBadges c={c} />
           </div>
         </button>
-        <div onClick={(e) => e.stopPropagation()}>
-          <CandidaturaActions.Buttons candidatura={c} />
-        </div>
       </header>
 
       {open && (
