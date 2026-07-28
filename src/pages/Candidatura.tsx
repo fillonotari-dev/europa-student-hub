@@ -736,11 +736,11 @@ export default function Candidatura() {
   );
 }
 
-function Field({ label, value, onChange, type = 'text', required }: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean }) {
+function Field({ label, value, onChange, type = 'text', required, min, max }: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean; min?: string; max?: string }) {
   return (
     <div>
       <Label>{label}{required && <span className="text-destructive ml-0.5">*</span>}</Label>
-      <Input type={type} value={value} onChange={e => onChange(e.target.value)} className="mt-1.5" />
+      <Input type={type} value={value} onChange={e => onChange(e.target.value)} className="mt-1.5" min={min} max={max} />
     </div>
   );
 }
@@ -794,14 +794,14 @@ function NationalityField({ lang, label, value, onChange, required }: { lang: La
   );
 }
 
-function FileUpload({ label, hint, file, error, onChange, required }: { label: string; hint: string; file: File | null; error?: string; onChange: (f: File | null) => void; required?: boolean }) {
+function FileUpload({ label, hint, file, displayName, error, onChange, required }: { label: string; hint: string; file: File | null; displayName?: string; error?: string; onChange: (f: File | null) => void; required?: boolean }) {
   return (
     <div>
       <Label>{label}{required && <span className="text-destructive ml-0.5">*</span>}</Label>
       <div className={cn('mt-1.5 border-2 border-dashed rounded-lg p-4 text-center hover:bg-muted/50 transition-colors cursor-pointer', error && 'border-destructive')} onClick={() => document.getElementById(`file-${label}`)?.click()}>
-        <input id={`file-${label}`} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => onChange(e.target.files?.[0] || null)} />
+        <input id={`file-${label}`} type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,image/*,application/pdf" className="hidden" onChange={e => onChange(e.target.files?.[0] || null)} />
         {file ? (
-          <p className="text-[13px] text-foreground font-medium">{file.name}</p>
+          <p className="text-[13px] text-foreground font-medium">{displayName || file.name}</p>
         ) : (
           <p className="text-[13px] text-muted-foreground">{hint}</p>
         )}
