@@ -88,6 +88,14 @@ export default function Candidatura() {
 
   const stepKey = STEPS[step];
 
+  // Limiti date per gli input HTML (usati anche server-side).
+  const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const maxDateISO = useMemo(() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 2);
+    return d.toISOString().slice(0, 10);
+  }, []);
+
   // Load Turnstile script once at mount
   useEffect(() => {
     const SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
@@ -492,7 +500,13 @@ export default function Candidatura() {
                 </div>
                 <Field label={t(lang, 'form.email')} value={form.email} onChange={v => set('email', v)} type="email" required />
                 <Field label={t(lang, 'form.telefono')} value={form.telefono} onChange={v => set('telefono', v)} required />
-                <Field label={t(lang, 'form.dataNascita')} value={form.data_nascita} onChange={v => set('data_nascita', v)} type="date" required />
+                <DateOfBirthPicker
+                  lang={lang}
+                  label={t(lang, 'form.dataNascita')}
+                  value={form.data_nascita}
+                  onChange={v => set('data_nascita', v)}
+                  required
+                />
                 <NationalityField lang={lang} label={t(lang, 'form.nazionalita')} value={form.nazionalita} onChange={v => set('nazionalita', v)} required />
                 <div>
                   <Field
@@ -506,33 +520,56 @@ export default function Candidatura() {
                       checked={form.cf_non_disponibile}
                       onCheckedChange={(v) => setForm(f => ({ ...f, cf_non_disponibile: !!v, codice_fiscale: v ? '' : f.codice_fiscale }))}
                     />
-                    {lang === 'it' ? 'Non dispongo del codice fiscale' : 'I don\'t have a tax code'}
+                    {t(lang, 'form.cfNonDisponibile')}
                   </label>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="col-span-2">
-                    <Field label={lang === 'it' ? 'Via / Indirizzo' : 'Street / Address'} value={form.indirizzo_via} onChange={v => set('indirizzo_via', v)} required />
+                    <Field label={t(lang, 'form.addressVia')} value={form.indirizzo_via} onChange={v => set('indirizzo_via', v)} required />
                   </div>
-                  <Field label={lang === 'it' ? 'Civico' : 'Number'} value={form.indirizzo_civico} onChange={v => set('indirizzo_civico', v)} required />
+                  <Field label={t(lang, 'form.addressCivico')} value={form.indirizzo_civico} onChange={v => set('indirizzo_civico', v)} required />
                 </div>
                 <div className="grid grid-cols-3 gap-4">
-                  <Field label={lang === 'it' ? 'CAP' : 'ZIP'} value={form.indirizzo_cap} onChange={v => set('indirizzo_cap', v)} required />
+                  <Field label={t(lang, 'form.addressCap')} value={form.indirizzo_cap} onChange={v => set('indirizzo_cap', v)} required />
                   <div className="col-span-2">
-                    <Field label={lang === 'it' ? 'Comune / Città' : 'City'} value={form.indirizzo_comune} onChange={v => set('indirizzo_comune', v)} required />
+                    <Field label={t(lang, 'form.addressComune')} value={form.indirizzo_comune} onChange={v => set('indirizzo_comune', v)} required />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label={lang === 'it' ? 'Provincia' : 'Province'} value={form.indirizzo_provincia} onChange={v => set('indirizzo_provincia', v)} required />
                   <div>
-                    <Label>{lang === 'it' ? 'Nazione' : 'Country'}</Label>
-                    <Input
-                      className="mt-1.5"
-                      maxLength={2}
-                      value={form.indirizzo_nazione}
-                      onChange={e => set('indirizzo_nazione', e.target.value.toUpperCase())}
-                      required
-                    />
+                    <Label>{t(lang, 'form.addressProvincia')}{form.indirizzo_nazione === 'IT' && <span className="text-destructive ml-0.5">*</span>}</Label>
+                    <Select
+                      value={form.indirizzo_provincia}
+                      onValueChange={v => set('indirizzo_provincia', v)}
+                      disabled={form.indirizzo_nazione !== 'IT'}
+                    >
+                      <SelectTrigger className="mt-1.5">
+                        <SelectValue placeholder={t(lang, 'form.selectOption')} />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {PROVINCE.map(p => (
+                          <SelectItem key={p.sigla} value={p.sigla}>{p.sigla} — {p.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
+                  <Combobox
+                    lang={lang}
+                    label={t(lang, 'form.addressNazione')}
+                    placeholder={t(lang, 'form.selectOption')}
+                    value={form.indirizzo_nazione}
+                    onChange={v => setForm(f => ({
+                      ...f,
+                      indirizzo_nazione: v,
+                      indirizzo_provincia: v === 'IT' ? f.indirizzo_provincia : '',
+                    }))}
+                    options={COUNTRIES.map(c => ({
+                      value: c.code,
+                      label: lang === 'it' ? c.it : c.en,
+                      searchKey: `${c.it} ${c.en} ${c.code}`,
+                    }))}
+                    required
+                  />
                 </div>
                 <Field label={t(lang, 'form.documentoIdentitaN')} value={form.documento_identita_n} onChange={v => set('documento_identita_n', v)} />
               </div>
@@ -541,7 +578,6 @@ export default function Candidatura() {
               <div className="space-y-4">
                 <UniversitaField lang={lang} value={form.universita} onChange={setUniversita} />
                 <Field label={t(lang, 'form.corsoStudi')} value={form.corso_di_studi} onChange={v => set('corso_di_studi', v)} required />
-                <Field label={t(lang, 'form.annoCorso')} value={form.anno_di_corso} onChange={v => set('anno_di_corso', v)} />
                 <div>
                   <Label>{t(lang, 'form.tipoStudente')}</Label>
                   <Select value={form.tipo_studente} onValueChange={v => set('tipo_studente', v)}>
@@ -564,10 +600,10 @@ export default function Candidatura() {
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label={t(lang, 'form.periodoInizio')} value={form.periodo_inizio} onChange={v => set('periodo_inizio', v)} type="date" required />
-                  <Field label={t(lang, 'form.periodoFine')} value={form.periodo_fine} onChange={v => set('periodo_fine', v)} type="date" required />
+                  <Field label={t(lang, 'form.periodoInizio')} value={form.periodo_inizio} onChange={v => set('periodo_inizio', v)} type="date" required min={todayISO} max={maxDateISO} />
+                  <Field label={t(lang, 'form.periodoFine')} value={form.periodo_fine} onChange={v => set('periodo_fine', v)} type="date" required min={todayISO} max={maxDateISO} />
                 </div>
-                <Field label={t(lang, 'form.dataArrivoPrevista')} value={form.data_arrivo_prevista} onChange={v => set('data_arrivo_prevista', v)} type="date" />
+                <Field label={t(lang, 'form.dataArrivoPrevista')} value={form.data_arrivo_prevista} onChange={v => set('data_arrivo_prevista', v)} type="date" min={todayISO} max={maxDateISO} />
               </div>
             )}
             {stepKey === 'stepPreferences' && (
@@ -637,8 +673,8 @@ export default function Candidatura() {
             )}
             {stepKey === 'stepDocuments' && (
               <div className="space-y-4">
-                <FileUpload label={t(lang, 'form.documentoIdentita')} hint={t(lang, 'form.uploadHint')} file={files.documento_identita} error={fileErrors.documento_identita} onChange={f => handleFile('documento_identita', f)} required />
-                <FileUpload label={t(lang, 'form.certificatoIscrizione')} hint={t(lang, 'form.uploadHint')} file={files.certificato_iscrizione} error={fileErrors.certificato_iscrizione} onChange={f => handleFile('certificato_iscrizione', f)} required />
+                <FileUpload label={t(lang, 'form.documentoIdentita')} hint={t(lang, 'form.uploadHint')} file={files.documento_identita} displayName={fileDisplayNames['documento_identita']} error={fileErrors.documento_identita} onChange={f => { void handleFile('documento_identita', f); }} required />
+                <FileUpload label={t(lang, 'form.certificatoIscrizione')} hint={t(lang, 'form.uploadHint')} file={files.certificato_iscrizione} displayName={fileDisplayNames['certificato_iscrizione']} error={fileErrors.certificato_iscrizione} onChange={f => { void handleFile('certificato_iscrizione', f); }} required />
               </div>
             )}
             {stepKey === 'stepDichiarazioni' && (
