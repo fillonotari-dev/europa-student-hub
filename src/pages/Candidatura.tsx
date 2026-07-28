@@ -48,7 +48,10 @@ export default function Candidatura() {
 
   const [form, setForm] = useState({
     nome: '', cognome: '', email: '', telefono: '', data_nascita: '', nazionalita: '', codice_fiscale: '',
-    indirizzo_residenza: '', documento_identita_n: '',
+    cf_non_disponibile: false as boolean,
+    indirizzo_via: '', indirizzo_civico: '', indirizzo_cap: '',
+    indirizzo_comune: '', indirizzo_provincia: '', indirizzo_nazione: 'IT',
+    documento_identita_n: '',
     universita: UNIVERSITIES.length === 1 ? UNIVERSITIES[0].name : '',
     corso_di_studi: '', anno_di_corso: '',
     tipo_studente: '', tipo_studente_altro: '',
@@ -152,7 +155,10 @@ export default function Candidatura() {
 
   const validateStep = () => {
     const requiredByKey: Record<string, string[]> = {
-      stepPersonal: ['nome', 'cognome', 'email', 'telefono', 'data_nascita', 'nazionalita', 'codice_fiscale', 'indirizzo_residenza'],
+      stepPersonal: [
+        'nome', 'cognome', 'email', 'telefono', 'data_nascita', 'nazionalita',
+        'indirizzo_via', 'indirizzo_civico', 'indirizzo_cap', 'indirizzo_comune', 'indirizzo_provincia', 'indirizzo_nazione',
+      ],
       stepAcademic: ['universita', 'corso_di_studi', 'periodo_inizio', 'periodo_fine'],
       stepPreferences: [],
       stepDocuments: ['_documenti'],
@@ -186,6 +192,16 @@ export default function Candidatura() {
     if (stepKey === 'stepPersonal' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
       toast({ title: t(lang, 'form.invalidEmail'), variant: 'destructive' });
       return false;
+    }
+    if (stepKey === 'stepPersonal') {
+      if (!form.cf_non_disponibile && !form.codice_fiscale) {
+        toast({ title: t(lang, 'form.required'), variant: 'destructive' });
+        return false;
+      }
+      if (form.indirizzo_nazione === 'IT' && !/^\d{5}$/.test(form.indirizzo_cap)) {
+        toast({ title: t(lang, 'form.invalidCap') || 'CAP non valido', variant: 'destructive' });
+        return false;
+      }
     }
     if (stepKey === 'stepAcademic') {
       const dInizio = new Date(form.periodo_inizio);
@@ -438,8 +454,46 @@ export default function Candidatura() {
                 <Field label={t(lang, 'form.telefono')} value={form.telefono} onChange={v => set('telefono', v)} required />
                 <Field label={t(lang, 'form.dataNascita')} value={form.data_nascita} onChange={v => set('data_nascita', v)} type="date" required />
                 <NationalityField lang={lang} label={t(lang, 'form.nazionalita')} value={form.nazionalita} onChange={v => set('nazionalita', v)} required />
-                <Field label={t(lang, 'form.codiceFiscale')} value={form.codice_fiscale} onChange={v => set('codice_fiscale', v)} required />
-                <Field label={t(lang, 'form.indirizzoResidenza')} value={form.indirizzo_residenza} onChange={v => set('indirizzo_residenza', v)} required />
+                <div>
+                  <Field
+                    label={t(lang, 'form.codiceFiscale')}
+                    value={form.codice_fiscale}
+                    onChange={v => set('codice_fiscale', v)}
+                    required={!form.cf_non_disponibile}
+                  />
+                  <label className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+                    <Checkbox
+                      checked={form.cf_non_disponibile}
+                      onCheckedChange={(v) => setForm(f => ({ ...f, cf_non_disponibile: !!v, codice_fiscale: v ? '' : f.codice_fiscale }))}
+                    />
+                    {lang === 'it' ? 'Non dispongo del codice fiscale' : 'I don\'t have a tax code'}
+                  </label>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="col-span-2">
+                    <Field label={lang === 'it' ? 'Via / Indirizzo' : 'Street / Address'} value={form.indirizzo_via} onChange={v => set('indirizzo_via', v)} required />
+                  </div>
+                  <Field label={lang === 'it' ? 'Civico' : 'Number'} value={form.indirizzo_civico} onChange={v => set('indirizzo_civico', v)} required />
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <Field label={lang === 'it' ? 'CAP' : 'ZIP'} value={form.indirizzo_cap} onChange={v => set('indirizzo_cap', v)} required />
+                  <div className="col-span-2">
+                    <Field label={lang === 'it' ? 'Comune / Città' : 'City'} value={form.indirizzo_comune} onChange={v => set('indirizzo_comune', v)} required />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label={lang === 'it' ? 'Provincia' : 'Province'} value={form.indirizzo_provincia} onChange={v => set('indirizzo_provincia', v)} required />
+                  <div>
+                    <Label>{lang === 'it' ? 'Nazione' : 'Country'}</Label>
+                    <Input
+                      className="mt-1.5"
+                      maxLength={2}
+                      value={form.indirizzo_nazione}
+                      onChange={e => set('indirizzo_nazione', e.target.value.toUpperCase())}
+                      required
+                    />
+                  </div>
+                </div>
                 <Field label={t(lang, 'form.documentoIdentitaN')} value={form.documento_identita_n} onChange={v => set('documento_identita_n', v)} />
               </div>
             )}

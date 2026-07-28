@@ -62,15 +62,15 @@ Deno.serve(async (req) => {
 
     const { data: cand, error: candErr } = await admin
       .from("candidature")
-      .select("id, stato, lingua, esito_email_stato, studenti(nome, email)")
+      .select("id, stato, lingua, esito_email_inviata_il, studenti(nome, email)")
       .eq("id", candidaturaId)
       .maybeSingle();
     if (candErr) throw candErr;
     if (!cand) return json({ error: "Candidatura non trovata" }, 404);
-    if (!(cand.stato === "approvata" || cand.stato === "rifiutata")) {
-      return json({ error: "La candidatura non è in stato approvata o rifiutata" }, 400);
+    if (!(cand.stato === "accolta" || cand.stato === "rifiutata")) {
+      return json({ error: "La candidatura non è in stato accolta o rifiutata" }, 400);
     }
-    if (cand.esito_email_stato !== "da_inviare") {
+    if ((cand as any).esito_email_inviata_il) {
       return json({ error: "Comunicazione esito già inviata o non richiesta" }, 400);
     }
 
@@ -79,9 +79,9 @@ Deno.serve(async (req) => {
     if (!recipient) return json({ error: "Email studente mancante" }, 400);
 
     const lang: "it" | "en" = (cand as any).lingua === "en" ? "en" : "it";
-    const approvata = cand.stato === "approvata";
-    const Component = approvata ? CandidaturaEsitoApprovataEmail : CandidaturaEsitoRifiutataEmail;
-    const subject = approvata
+    const accolta = cand.stato === "accolta";
+    const Component = accolta ? CandidaturaEsitoApprovataEmail : CandidaturaEsitoRifiutataEmail;
+    const subject = accolta
       ? (lang === "en" ? `Your application has been approved - ${SITE_NAME}` : `Candidatura approvata - ${SITE_NAME}`)
       : (lang === "en" ? `Update about your application - ${SITE_NAME}` : `Esito della candidatura - ${SITE_NAME}`);
 
@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
       props: { lang, nome: nomeStudente, siteName: SITE_NAME, notaAdmin: nota ?? undefined },
       subject,
       to: recipient,
-      label: approvata ? "candidatura-esito-approvata" : "candidatura-esito-rifiutata",
+      label: accolta ? "candidatura-esito-approvata" : "candidatura-esito-rifiutata",
     });
     if (!res.ok) {
       console.error("send-esito-email: enqueue failed", res.error);
@@ -101,7 +101,6 @@ Deno.serve(async (req) => {
     const { error: updErr } = await admin
       .from("candidature")
       .update({
-        esito_email_stato: "inviata",
         esito_email_nota: nota,
         esito_email_inviata_il: nowIso,
       })

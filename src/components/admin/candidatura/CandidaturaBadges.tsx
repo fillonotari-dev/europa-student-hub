@@ -27,12 +27,12 @@ export function CandidaturaBadges({ c }: { c: any }) {
           Link scaduto
         </span>
       )}
-      {(c.stato === 'approvata' || c.stato === 'rifiutata') && c.esito_email_stato === 'da_inviare' && (
+      {(c.stato === 'accolta' || c.stato === 'rifiutata') && !c.esito_email_inviata_il && (
         <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-warning/10 text-warning">
           Esito da comunicare
         </span>
       )}
-      {(c.stato === 'approvata' || c.stato === 'rifiutata') && c.esito_email_stato === 'inviata' && (
+      {(c.stato === 'accolta' || c.stato === 'rifiutata') && !!c.esito_email_inviata_il && (
         <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-success/10 text-success">
           Esito inviato{c.esito_email_inviata_il ? ` · ${new Date(c.esito_email_inviata_il).toLocaleDateString('it-IT')}` : ''}
         </span>

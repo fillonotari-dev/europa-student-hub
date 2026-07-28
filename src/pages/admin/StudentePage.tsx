@@ -150,7 +150,12 @@ export default function StudentePage() {
           ['Telefono', studente.telefono],
           ['Nazionalità', studente.nazionalita],
           ['Data di nascita', fmtIt(studente.data_nascita)],
-          ['Codice fiscale', studente.codice_fiscale],
+          ['Codice fiscale', studente.cf_non_disponibile ? 'Non disponibile' : studente.codice_fiscale],
+          ['Residenza fiscale', [
+            studente.indirizzo_via, studente.indirizzo_civico,
+            studente.indirizzo_cap, studente.indirizzo_comune,
+            studente.indirizzo_provincia, studente.indirizzo_nazione,
+          ].filter(Boolean).join(' ') || null],
           ...(attiva ? [[
             'Attualmente',
             `Cam. ${attiva.camere?.numero ?? '-'} · ${attiva.camere?.strutture?.nome ?? ''} · dal ${fmtIt(attiva.data_inizio)}`,

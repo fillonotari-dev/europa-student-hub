@@ -1,21 +1,19 @@
 export const STATO_LABELS: Record<string, string> = {
-  ricevuta: 'Ricevuta',
-  in_completamento: 'In completamento',
-  completata: 'Completata',
-  approvata: 'Approvata',
+  da_valutare: 'Da valutare',
+  in_attesa_studente: 'In attesa dello studente',
+  da_decidere: 'Da decidere',
+  accolta: 'Accolta',
+  in_attesa_posto: 'In attesa di posto',
   rifiutata: 'Rifiutata',
-  ritirata: 'Rinuncia del candidato',
-  sostituita: 'Sostituita',
 };
 
 export const STATO_COLORS: Record<string, string> = {
-  ricevuta: 'bg-primary/10 text-primary',
-  in_completamento: 'bg-accent/20 text-foreground',
-  completata: 'bg-success/10 text-success',
-  approvata: 'bg-success/10 text-success',
+  da_valutare: 'bg-primary/10 text-primary',
+  in_attesa_studente: 'bg-accent/20 text-foreground',
+  da_decidere: 'bg-warning/10 text-warning',
+  accolta: 'bg-success/10 text-success',
+  in_attesa_posto: 'bg-accent/20 text-foreground',
   rifiutata: 'bg-destructive/10 text-destructive',
-  ritirata: 'bg-muted text-muted-foreground',
-  sostituita: 'bg-muted text-muted-foreground',
 };
 
 /**

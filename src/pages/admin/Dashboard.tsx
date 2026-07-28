@@ -47,9 +47,9 @@ export default function Dashboard() {
       const totalPosti = cam.reduce((s, c) => s + c.posti, 0);
 
       return {
-        candidatureRicevute: cand.filter(c => c.stato === 'ricevuta').length,
-        candidatureInAttesaDecisione: cand.filter(c => c.stato === 'completata').length,
-        candidatureApprovate: cand.filter(c => c.stato === 'approvata').length,
+        candidatureRicevute: cand.filter(c => c.stato === 'da_valutare').length,
+        candidatureInAttesaDecisione: cand.filter(c => c.stato === 'da_decidere').length,
+        candidatureApprovate: cand.filter(c => c.stato === 'accolta').length,
         candidatureTotali: cand.length,
         totalePosti: totalPosti,
         postiOccupati,
@@ -106,9 +106,9 @@ export default function Dashboard() {
         ricevute, inAttesaDecisione, approvate, assegnAttive, manutenzione, scadenza,
         ricevuteVecchie, tokenScaduti, manutenzioneVecchia, assegnScadute, esitiDaComunicare,
       ] = await Promise.all([
-        candFilter(supabase.from('candidature').select('id', { count: 'exact', head: true }).eq('stato', 'ricevuta')),
-        candFilter(supabase.from('candidature').select('id', { count: 'exact', head: true }).eq('stato', 'completata')),
-        candFilter(supabase.from('candidature').select('id').eq('stato', 'approvata')),
+        candFilter(supabase.from('candidature').select('id', { count: 'exact', head: true }).eq('stato', 'da_valutare')),
+        candFilter(supabase.from('candidature').select('id', { count: 'exact', head: true }).eq('stato', 'da_decidere')),
+        candFilter(supabase.from('candidature').select('id').eq('stato', 'accolta')),
         assegnFilter(supabase.from('assegnazioni').select('candidatura_id').eq('stato', 'attiva')),
         camereFilter(supabase.from('camere').select('id', { count: 'exact', head: true }).eq('stato', 'manutenzione')),
         assegnFilter(supabase
@@ -119,15 +119,15 @@ export default function Dashboard() {
           .gte('data_fine', todayIso)
           .lte('data_fine', in30Iso)),
         candFilter(supabase.from('candidature').select('id', { count: 'exact', head: true })
-          .eq('stato', 'ricevuta').lt('created_at', sevenDaysAgoIso)),
+          .eq('stato', 'da_valutare').lt('created_at', sevenDaysAgoIso)),
         candFilter(supabase.from('candidature').select('id', { count: 'exact', head: true })
-          .eq('stato', 'in_completamento').lt('token_scade_il', nowIso)),
+          .eq('stato', 'in_attesa_studente').lt('token_scade_il', nowIso)),
         camereFilter(supabase.from('camere').select('id', { count: 'exact', head: true })
           .eq('stato', 'manutenzione').lt('updated_at', thirtyDaysAgoIso)),
         assegnFilter(supabase.from('assegnazioni').select('id', { count: 'exact', head: true })
           .eq('stato', 'attiva').not('data_fine', 'is', null).lt('data_fine', todayIso)),
         candFilter(supabase.from('candidature').select('id', { count: 'exact', head: true })
-          .in('stato', ['approvata', 'rifiutata']).eq('esito_email_stato', 'da_inviare')),
+          .in('stato', ['accolta', 'rifiutata']).is('esito_email_inviata_il', null)),
       ]);
 
       const assegnate = new Set((assegnAttive.data ?? []).map((a: any) => a.candidatura_id));
@@ -155,7 +155,7 @@ export default function Dashboard() {
       color: 'text-primary bg-primary/10',
       label: 'Candidature da prendere in carico',
       count: tasks?.daPrendereInCarico ?? 0,
-      to: '/admin/candidature?stato=ricevuta',
+      to: '/admin/candidature?stato=da_valutare',
     },
     {
       key: 'in-attesa-decisione',
@@ -163,15 +163,15 @@ export default function Dashboard() {
       color: 'text-warning bg-warning/10',
       label: 'Candidature complete in attesa di decisione',
       count: tasks?.daDecidere ?? 0,
-      to: '/admin/candidature?stato=completata',
+      to: '/admin/candidature?stato=da_decidere',
     },
     {
       key: 'approvate',
       icon: UserPlus,
       color: 'text-success bg-success/10',
-      label: 'Studenti approvati da assegnare a una camera',
+      label: 'Studenti accolti da assegnare a una camera',
       count: tasks?.daAssegnare ?? 0,
-      to: '/admin/candidature?stato=approvata',
+      to: '/admin/candidature?stato=accolta',
     },
     {
       key: 'esiti-da-comunicare',
@@ -206,7 +206,7 @@ export default function Dashboard() {
       color: 'text-destructive bg-destructive/10',
       label: 'Candidature ricevute da più di 7 giorni senza presa in carico',
       count: tasks?.ricevuteVecchie ?? 0,
-      to: '/admin/candidature?stato=ricevuta',
+      to: '/admin/candidature?stato=da_valutare',
     },
     {
       key: 'token-scaduti',
@@ -214,7 +214,7 @@ export default function Dashboard() {
       color: 'text-destructive bg-destructive/10',
       label: 'Link form completo scaduti senza compilazione',
       count: tasks?.tokenScaduti ?? 0,
-      to: '/admin/candidature?stato=in_completamento',
+      to: '/admin/candidature?stato=in_attesa_studente',
     },
     {
       key: 'manutenzione-vecchia',
