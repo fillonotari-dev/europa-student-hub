@@ -1,14 +1,12 @@
 ## Obiettivo
-Unificare tutti i documenti della scheda persona sotto un'unica sezione "Documenti", eliminando la suddivisione tra "Documento di identità", "Documento garante" e "Altri documenti".
+Rimuovere le etichette di tipo ("Documento di identità", "Certificato di iscrizione", ecc.) sopra ogni gruppo di documenti nella sezione "Documenti" della scheda persona, dato che il nome del tipo è già visibile nella riga `DocumentoRow`.
 
 ## Modifiche
 **File:** `src/pages/admin/StudentePage.tsx`
 
-- Rimuovere le sezioni separate per identità / garante / altri.
-- Creare un unico blocco `DataCard` intitolato **"Documenti"** che elenca tutti i file presenti in `documenti`, indipendentemente dal `tipo`.
-- Mantenere per ogni file: etichetta leggibile del tipo (Documento di identità, Certificato iscrizione, Documento garante, Documento aggiuntivo, ecc.), nome file, e azione di download/anteprima già esistente.
-- Ordinamento suggerito: identità → certificato iscrizione → garante → aggiuntivi → altri, poi per data di caricamento.
-- Se non ci sono documenti, la card resta nascosta (coerente con il pattern `DataCard` esistente).
+- Nella sezione "Documenti", sostituire l'iterazione per gruppi (`Object.entries(documentiPerTipo)`) con un elenco piatto di `documentiOrdinati`, mantenendo l'ordinamento già definito.
+- Rimuovere il `<p className="text-[12px] text-muted-foreground">` con l'etichetta di tipo.
+- Rimuovere l'helper `documentiPerTipo` se non più usato altrove.
 
 ## Fuori scope
-Nessuna modifica a DB, edge functions, o logica di upload.
+Nessuna modifica al componente `DocumentoRow` né alla logica di fetch.
