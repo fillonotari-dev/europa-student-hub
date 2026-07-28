@@ -357,13 +357,13 @@ export function useCandidaturaActions(options: Options = {}) {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {(esitoTarget as any)?.stato === 'approvata' ? 'Comunica esito: Approvata' : 'Comunica esito: Rifiutata'}
+              {(esitoTarget as any)?.stato === 'accolta' ? 'Comunica esito: Accolta' : 'Comunica esito: Rifiutata'}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-[13px] text-muted-foreground">
               Invieremo un'email a <strong>{(esitoTarget as any)?.studenti?.email}</strong> con l'esito della candidatura.
-              {(esitoTarget as any)?.stato === 'approvata'
+              {(esitoTarget as any)?.stato === 'accolta'
                 ? " Successivamente potrai assegnare lo studente a una camera."
                 : " Puoi aggiungere una nota che verrà inclusa nell'email."}
             </p>
