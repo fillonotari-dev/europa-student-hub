@@ -62,9 +62,11 @@ export default function Residenti() {
   const [transferTarget, setTransferTarget] = useState<any>(null);
   const [transferCameraId, setTransferCameraId] = useState<string>('');
   const [transferData, setTransferData] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [transferFine, setTransferFine] = useState<string>('');
   const [endTarget, setEndTarget] = useState<any>(null);
   const [endData, setEndData] = useState<string>(new Date().toISOString().split('T')[0]);
   const [endNote, setEndNote] = useState('');
+  const [endMotivo, setEndMotivo] = useState<string>('');
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -97,23 +99,40 @@ export default function Residenti() {
   });
 
   const transferisci = useMutation({
-    mutationFn: async ({ assegnazione_id, vecchia_camera_id, studente_id, nuova_camera_id, data }: any) => {
-      // Conclude old
-      const { error: updErr } = await supabase.from('assegnazioni').update({ stato: 'conclusa', data_fine: data }).eq('id', assegnazione_id);
-      if (updErr) throw updErr;
-      // Compute next posto in new camera
-      const { data: existing, error: exErr } = await supabase.from('assegnazioni').select('posto').eq('camera_id', nuova_camera_id).eq('stato', 'attiva');
-      if (exErr) throw exErr;
-      const nextPosto = (existing?.length ?? 0) + 1;
-      // Create new assignment (candidatura_id required NOT NULL → reuse last from this student)
+    mutationFn: async ({ assegnazione_id, vecchia_camera_id, studente_id, nuova_camera_id, nuova_data_inizio, nuova_data_fine }: any) => {
+      // 1) Pre-check: stessa camera → errore chiaro.
+      if (nuova_camera_id === vecchia_camera_id) {
+        throw new Error('La camera di destinazione coincide con quella attuale.');
+      }
+      // 2) Calcola posto libero nella nuova camera per il periodo tramite la funzione DB.
+      const { data: disp, error: dispErr } = await supabase.rpc('camere_disponibilita', {
+        p_dal: nuova_data_inizio, p_al: nuova_data_fine, p_struttura_id: null,
+      });
+      if (dispErr) throw dispErr;
+      const row = (disp ?? []).find((r: any) => r.camera_id === nuova_camera_id);
+      if (!row) throw new Error('Camera non trovata.');
+      const occupati: number[] = row.posti_occupati_numeri ?? [];
+      let nextPosto = 0;
+      for (let p = 1; p <= row.posti; p++) { if (!occupati.includes(p)) { nextPosto = p; break; } }
+      if (nextPosto === 0) throw new Error('La camera non ha posti liberi nel periodo scelto.');
+      // 3) Recupera candidatura più recente (candidatura_id è NOT NULL).
       const { data: lastCand, error: candErr } = await supabase
         .from('candidature').select('id').eq('studente_id', studente_id)
         .order('created_at', { ascending: false }).limit(1).maybeSingle();
       if (candErr) throw candErr;
       if (!lastCand) throw new Error('Nessuna candidatura trovata per lo studente.');
+      // 4) Chiudi la vecchia assegnazione con data_fine = nuovo_inizio - 1 (UTC-safe).
+      const inizio = new Date(nuova_data_inizio + 'T00:00:00Z');
+      const chiusura = new Date(inizio.getTime() - 24 * 60 * 60 * 1000);
+      const chiusuraStr = chiusura.toISOString().split('T')[0];
+      const { error: updErr } = await supabase.from('assegnazioni')
+        .update({ stato: 'conclusa', data_fine: chiusuraStr, motivo_chiusura: 'trasferimento' })
+        .eq('id', assegnazione_id);
+      if (updErr) throw updErr;
+      // 5) Inserisci la nuova assegnazione.
       const { error: insErr } = await supabase.from('assegnazioni').insert({
         camera_id: nuova_camera_id, studente_id, candidatura_id: lastCand.id,
-        posto: nextPosto, data_inizio: data, stato: 'attiva',
+        posto: nextPosto, data_inizio: nuova_data_inizio, data_fine: nuova_data_fine, stato: 'attiva',
       });
       if (insErr) throw insErr;
     },
@@ -130,9 +149,10 @@ export default function Residenti() {
   });
 
   const concludi = useMutation({
-    mutationFn: async ({ assegnazione_id, camera_id, data, note }: any) => {
+    mutationFn: async ({ assegnazione_id, camera_id, data, note, motivo }: any) => {
+      if (!motivo) throw new Error('Seleziona un motivo di chiusura.');
       const { error } = await supabase.from('assegnazioni')
-        .update({ stato: 'conclusa', data_fine: data, note: note || null })
+        .update({ stato: 'conclusa', data_fine: data, note: note || null, motivo_chiusura: motivo })
         .eq('id', assegnazione_id);
       if (error) throw error;
     },
@@ -144,6 +164,7 @@ export default function Residenti() {
       toast({ title: 'Soggiorno concluso' });
       setEndTarget(null);
       setEndNote('');
+      setEndMotivo('');
     },
     onError: (e: any) => toast({ title: 'Errore', description: e.message, variant: 'destructive' }),
   });
@@ -265,7 +286,7 @@ export default function Residenti() {
                     <DropdownMenuItem onClick={() => a.studenti?.id && openScheda(a.studenti.id)}>
                       <User className="w-4 h-4 mr-2" /> Visualizza profilo
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => { setTransferTarget(a); setTransferCameraId(''); setTransferData(new Date().toISOString().split('T')[0]); }}>
+                    <DropdownMenuItem onClick={() => { setTransferTarget(a); setTransferCameraId(''); setTransferData(new Date().toISOString().split('T')[0]); setTransferFine(''); }}>
                       <ArrowRightLeft className="w-4 h-4 mr-2" /> Trasferisci in altra camera
                     </DropdownMenuItem>
                     {a.studenti?.email && (
@@ -276,7 +297,7 @@ export default function Residenti() {
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive"
-                      onClick={() => { setEndTarget(a); setEndData(new Date().toISOString().split('T')[0]); setEndNote(''); }}
+                      onClick={() => { setEndTarget(a); setEndData(new Date().toISOString().split('T')[0]); setEndNote(''); setEndMotivo(''); }}
                     >
                       <LogOut className="w-4 h-4 mr-2" /> Concludi soggiorno
                     </DropdownMenuItem>
@@ -351,22 +372,30 @@ export default function Residenti() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label>Data trasferimento</Label>
-                <Input type="date" value={transferData} onChange={e => setTransferData(e.target.value)} />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>Data inizio nuovo soggiorno *</Label>
+                  <Input type="date" value={transferData} onChange={e => setTransferData(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Data fine nuovo soggiorno *</Label>
+                  <Input type="date" value={transferFine} onChange={e => setTransferFine(e.target.value)} />
+                </div>
               </div>
+              <p className="text-[12px] text-muted-foreground">La vecchia assegnazione verrà chiusa il giorno precedente con motivo <strong>trasferimento</strong>.</p>
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setTransferTarget(null)}>Annulla</Button>
             <Button
-              disabled={!transferCameraId || transferisci.isPending}
+              disabled={!transferCameraId || !transferData || !transferFine || transferFine < transferData || transferisci.isPending}
               onClick={() => transferisci.mutate({
                 assegnazione_id: transferTarget.id,
                 vecchia_camera_id: transferTarget.camera_id,
                 studente_id: transferTarget.studente_id,
                 nuova_camera_id: transferCameraId,
-                data: transferData,
+                nuova_data_inizio: transferData,
+                nuova_data_fine: transferFine,
               })}
             >
               Trasferisci
@@ -386,8 +415,8 @@ export default function Residenti() {
                 <p>Conseguenze:</p>
                 <ul className="list-disc pl-5 space-y-1">
                   <li>lo studente sparisce dall'elenco <strong>Residenti</strong></li>
-                  <li>lo stato della camera viene <strong>ricalcolato</strong> (libera o parz. occupata)</li>
-                  <li>l'assegnazione resta visibile nello <strong>Storico</strong> con la data di fine</li>
+                  <li>il posto si libera nel calendario a partire dal giorno successivo alla data di fine</li>
+                  <li>l'assegnazione resta visibile nello <strong>Storico</strong> con data di fine e motivo</li>
                   <li>la candidatura collegata <strong>non cambia stato</strong>: gestiscila a parte se necessario</li>
                 </ul>
               </div>
@@ -395,8 +424,20 @@ export default function Residenti() {
           </AlertDialogHeader>
           <div className="space-y-2">
             <div>
-              <Label>Data fine</Label>
+              <Label>Data fine *</Label>
               <Input type="date" value={endData} onChange={e => setEndData(e.target.value)} />
+            </div>
+            <div>
+              <Label>Motivo chiusura *</Label>
+              <Select value={endMotivo} onValueChange={setEndMotivo}>
+                <SelectTrigger><SelectValue placeholder="Seleziona motivo" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fine_naturale">Fine naturale</SelectItem>
+                  <SelectItem value="partenza_anticipata">Partenza anticipata</SelectItem>
+                  <SelectItem value="mai_arrivato">Mai arrivato</SelectItem>
+                  <SelectItem value="allontanato">Allontanato</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Nota (opzionale)</Label>
@@ -406,8 +447,9 @@ export default function Residenti() {
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
+              disabled={!endData || !endMotivo}
               onClick={() => endTarget && concludi.mutate({
-                assegnazione_id: endTarget.id, camera_id: endTarget.camera_id, data: endData, note: endNote,
+                assegnazione_id: endTarget.id, camera_id: endTarget.camera_id, data: endData, note: endNote, motivo: endMotivo,
               })}
             >
               Conferma

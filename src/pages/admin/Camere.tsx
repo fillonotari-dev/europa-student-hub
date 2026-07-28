@@ -30,20 +30,19 @@ import {
 } from 'lucide-react';
 
 const STATO_ORDER: Record<string, number> = {
-  libera: 0, parzialmente_occupata: 1, occupata: 2, manutenzione: 3,
+  disponibile: 0, manutenzione: 1, non_disponibile: 2,
 };
 const PAGE_SIZE = 15;
 type SortKey = 'numero' | 'struttura' | 'piano' | 'tipo' | 'posti' | 'occupanti' | 'stato';
 
 const STATO_CAMERA_LABELS: Record<string, string> = {
-  libera: 'Libera', parzialmente_occupata: 'Parz. occupata', occupata: 'Occupata', manutenzione: 'Manutenzione',
+  disponibile: 'Disponibile', manutenzione: 'Manutenzione', non_disponibile: 'Non disponibile',
 };
 
 const STATO_BADGE_CLASSES: Record<string, string> = {
-  libera: 'bg-success/10 text-success border-success/30 hover:bg-success/10',
-  parzialmente_occupata: 'bg-warning/10 text-warning border-warning/30 hover:bg-warning/10',
-  occupata: 'bg-destructive/10 text-destructive border-destructive/30 hover:bg-destructive/10',
-  manutenzione: 'bg-muted text-muted-foreground border-border hover:bg-muted',
+  disponibile: 'bg-success/10 text-success border-success/30 hover:bg-success/10',
+  manutenzione: 'bg-warning/10 text-warning border-warning/30 hover:bg-warning/10',
+  non_disponibile: 'bg-muted text-muted-foreground border-border hover:bg-muted',
 };
 
 type CameraForm = {
@@ -106,7 +105,7 @@ export default function Camere() {
     queryFn: async () => {
       const { data } = await supabase
         .from('candidature')
-        .select('id, studente_id, struttura_preferita_id, strutture(nome), studenti(id, nome, cognome)')
+        .select('id, studente_id, struttura_preferita_id, periodo_inizio, periodo_fine, strutture(nome), studenti(id, nome, cognome)')
         .eq('stato', 'accolta');
       return data ?? [];
     },
@@ -115,7 +114,7 @@ export default function Camere() {
   // If navigated with ?candidatura=<id>, surface a hint by setting filter to 'libera'
   useEffect(() => {
     if (candidaturaParam) {
-      setFilterStato('libera');
+      setFilterStato('disponibile');
       toast({
         title: 'Assegna candidatura',
         description: 'Seleziona una camera disponibile e premi "Gestisci".',
@@ -124,10 +123,14 @@ export default function Camere() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidaturaParam]);
 
+  const [assegnaInizio, setAssegnaInizio] = useState<string>('');
+  const [assegnaFine, setAssegnaFine] = useState<string>('');
+  const [assegnaTarget, setAssegnaTarget] = useState<{ candId: string; studenteId: string } | null>(null);
+
   const assegna = useMutation({
-    mutationFn: async ({ camera_id, studente_id, candidatura_id, posto }: any) => {
+    mutationFn: async ({ camera_id, studente_id, candidatura_id, posto, data_inizio, data_fine }: any) => {
       const { error } = await supabase.from('assegnazioni').insert({
-        camera_id, studente_id, candidatura_id, posto, data_inizio: new Date().toISOString().split('T')[0], stato: 'attiva',
+        camera_id, studente_id, candidatura_id, posto, data_inizio, data_fine, stato: 'attiva',
       });
       if (error) throw error;
     },
@@ -138,28 +141,12 @@ export default function Camere() {
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       toast({ title: 'Studente assegnato' });
       setSelectedCamera(null);
+      setAssegnaInizio('');
+      setAssegnaFine('');
       if (candidaturaParam) {
         searchParams.delete('candidatura');
         setSearchParams(searchParams);
       }
-    },
-    onError: (e: any) => toast({ title: 'Errore', description: e.message, variant: 'destructive' }),
-  });
-
-  const concludi = useMutation({
-    mutationFn: async ({ assegnazione_id, camera_id }: { assegnazione_id: string; camera_id: string }) => {
-      const { error } = await supabase
-        .from('assegnazioni')
-        .update({ stato: 'conclusa', data_fine: new Date().toISOString().split('T')[0] })
-        .eq('id', assegnazione_id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['camere'] });
-      queryClient.invalidateQueries({ queryKey: ['assegnazioni-attive'] });
-      queryClient.invalidateQueries({ queryKey: ['residenti'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      toast({ title: 'Assegnazione conclusa' });
     },
     onError: (e: any) => toast({ title: 'Errore', description: e.message, variant: 'destructive' }),
   });
@@ -183,7 +170,7 @@ export default function Camere() {
         const { error } = await supabase.from('camere').update(payload).eq('id', f.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('camere').insert({ ...payload, stato: 'libera' });
+        const { error } = await supabase.from('camere').insert(payload);
         if (error) throw error;
       }
     },
@@ -218,9 +205,7 @@ export default function Camere() {
 
   const reactivate = useMutation({
     mutationFn: async (camera: any) => {
-      const occupati = assegnazioni?.filter(a => a.camera_id === camera.id).length ?? 0;
-      const nuovo = occupati === 0 ? 'libera' : occupati >= camera.posti ? 'occupata' : 'parzialmente_occupata';
-      const { error } = await supabase.from('camere').update({ stato: nuovo }).eq('id', camera.id);
+      const { error } = await supabase.from('camere').update({ stato: 'disponibile' }).eq('id', camera.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -249,7 +234,7 @@ export default function Camere() {
   const occCount = (cameraId: string) => assegnazioni?.filter(a => a.camera_id === cameraId).length ?? 0;
 
   const filteredCamere = useMemo(() => (camere ?? [])
-    .filter(c => filterStato === 'tutti' || (c.stato || 'libera') === filterStato)
+    .filter(c => filterStato === 'tutti' || c.stato === filterStato)
     .sort((a: any, b: any) => {
       const dir = sortDir === 'asc' ? 1 : -1;
       switch (sortKey) {
@@ -266,7 +251,7 @@ export default function Camere() {
         case 'occupanti':
           return dir * (occCount(a.id) - occCount(b.id));
         case 'stato':
-          return dir * ((STATO_ORDER[a.stato || 'libera'] ?? 0) - (STATO_ORDER[b.stato || 'libera'] ?? 0));
+          return dir * ((STATO_ORDER[a.stato] ?? 0) - (STATO_ORDER[b.stato] ?? 0));
       }
     }), [camere, assegnazioni, filterStato, sortKey, sortDir]);
 
@@ -341,7 +326,7 @@ export default function Camere() {
               'Tipo': c.tipo,
               'Posti': c.posti,
               'Occupanti': occCount(c.id),
-              'Stato': STATO_CAMERA_LABELS[c.stato || 'libera'] ?? c.stato,
+              'Stato': STATO_CAMERA_LABELS[c.stato] ?? c.stato,
               'Note': c.note ?? '',
             }))}
           />
@@ -503,25 +488,18 @@ export default function Camere() {
                       <p className="text-sm font-semibold mb-2">Occupanti attivi</p>
                       <div className="space-y-2">
                         {occupanti.map((a: any) => (
-                          <div key={a.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/40">
-                            <div className="flex items-center gap-2 text-sm">
-                              <User className="w-4 h-4 text-muted-foreground" />
-                              <span>{a.studenti?.nome} {a.studenti?.cognome}</span>
-                            </div>
-                            <AlertDialog>
-                              <Button size="sm" variant="outline" className="text-destructive hover:text-destructive"
-                                onClick={() => concludi.mutate({ assegnazione_id: a.id, camera_id: selectedCamera.id })}>
-                                <X className="w-3.5 h-3.5 mr-1" />Concludi
-                              </Button>
-                            </AlertDialog>
+                          <div key={a.id} className="flex items-center gap-2 p-2 rounded-lg bg-muted/40 text-sm">
+                            <User className="w-4 h-4 text-muted-foreground" />
+                            <span>{a.studenti?.nome} {a.studenti?.cognome}</span>
                           </div>
                         ))}
                       </div>
+                      <p className="text-[12px] text-muted-foreground mt-2">Per concludere o trasferire un'assegnazione usa la pagina <strong>Residenti</strong>.</p>
                     </div>
                   );
                 })()}
 
-                {selectedCamera.stato !== 'occupata' && selectedCamera.stato !== 'manutenzione' && studentiApprovati && studentiApprovati.length > 0 && (
+                {selectedCamera.stato === 'disponibile' && studentiApprovati && studentiApprovati.length > 0 && (
                   <div>
                     <p className="text-sm font-semibold mb-2">Assegna studente approvato</p>
                     {candidaturaParam && (() => {
@@ -541,18 +519,46 @@ export default function Camere() {
                         .map((sa: any) => {
                         const alreadyAssigned = assegnazioni?.some(a => a.studente_id === sa.studente_id && a.stato === 'attiva');
                         if (alreadyAssigned) return null;
+                        const isOpen = assegnaTarget?.candId === sa.id;
                         return (
-                          <div key={sa.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50">
-                            <span className="text-sm">{sa.studenti?.nome} {sa.studenti?.cognome}</span>
-                            <Button size="sm" onClick={() => {
-                              const currentAssignments = assegnazioni?.filter(a => a.camera_id === selectedCamera.id).length ?? 0;
-                              assegna.mutate({
-                                camera_id: selectedCamera.id,
-                                studente_id: sa.studente_id,
-                                candidatura_id: sa.id,
-                                posto: currentAssignments + 1,
-                              });
-                            }}>Assegna</Button>
+                          <div key={sa.id} className="p-2 rounded-lg hover:bg-muted/50 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm">{sa.studenti?.nome} {sa.studenti?.cognome}</span>
+                              {!isOpen && (
+                                <Button size="sm" onClick={() => {
+                                  setAssegnaTarget({ candId: sa.id, studenteId: sa.studente_id });
+                                  setAssegnaInizio(sa.periodo_inizio ?? new Date().toISOString().split('T')[0]);
+                                  setAssegnaFine(sa.periodo_fine ?? '');
+                                }}>Assegna</Button>
+                              )}
+                            </div>
+                            {isOpen && (
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <Label className="text-[11px]">Data inizio *</Label>
+                                  <Input type="date" value={assegnaInizio} onChange={e => setAssegnaInizio(e.target.value)} />
+                                </div>
+                                <div>
+                                  <Label className="text-[11px]">Data fine *</Label>
+                                  <Input type="date" value={assegnaFine} onChange={e => setAssegnaFine(e.target.value)} />
+                                </div>
+                                <div className="col-span-2 flex justify-end gap-2">
+                                  <Button size="sm" variant="ghost" onClick={() => setAssegnaTarget(null)}>Annulla</Button>
+                                  <Button size="sm" disabled={!assegnaInizio || !assegnaFine || assegnaFine < assegnaInizio} onClick={() => {
+                                    const currentAssignments = assegnazioni?.filter(a => a.camera_id === selectedCamera.id).length ?? 0;
+                                    assegna.mutate({
+                                      camera_id: selectedCamera.id,
+                                      studente_id: sa.studente_id,
+                                      candidatura_id: sa.id,
+                                      posto: currentAssignments + 1,
+                                      data_inizio: assegnaInizio,
+                                      data_fine: assegnaFine,
+                                    });
+                                    setAssegnaTarget(null);
+                                  }}>Conferma</Button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
