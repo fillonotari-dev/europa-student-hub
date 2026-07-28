@@ -262,7 +262,7 @@ export function useCandidaturaActions(options: Options = {}) {
                     lo studente resterà residente. Per concludere il soggiorno vai in <strong>Residenti</strong>.
                   </p>
                 )}
-                {statoConfirm && statoConfirm.nextStato === 'approvata' && statoConfirm.c.versione_form !== 'completa' && (
+                {statoConfirm && statoConfirm.nextStato === 'accolta' && statoConfirm.c.versione_form !== 'completa' && (
                   <p>
                     Lo studente <strong>non ha ancora compilato il form completo</strong> (stile di vita, garante,
                     documenti aggiuntivi). Confermi di volerlo accogliere comunque?
