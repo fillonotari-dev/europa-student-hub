@@ -65,7 +65,7 @@ export default function StudentePage() {
   });
 
   const { data: candidature } = useQuery({
-    queryKey: ['studente-candidature', studenteId],
+    queryKey: ['studente-candidature', studenteId, stadioRow?.candidatura_id ?? null, stadioRow?.stadio ?? null],
     enabled: !!studenteId,
     queryFn: async () => {
       const { data } = await supabase

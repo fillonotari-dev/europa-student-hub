@@ -1,7 +1,7 @@
 # Studentato Europa — Gestionale: contesto e funzionamento
 
 **Destinazione:** sezione `/docs` dell'applicazione
-**Ultimo aggiornamento:** 28 luglio 2026
+**Ultimo aggiornamento:** 29 luglio 2026
 **Natura del documento:** riferimento unico sul funzionamento del sistema. Serve a chi ci mette mano — sviluppatore, agente AI, o chi subentra fra sei mesi — per capire cosa fa il sistema, perché è fatto così, e cosa non deve fare.
 
 Le affermazioni in questo documento sono verificate nel codice sorgente salvo dove indicato diversamente.
@@ -109,7 +109,7 @@ Al candidato approvato viene poi assegnato un posto in una camera specifica. Nas
 
 ### Viste e funzioni di lettura
 
-- **Vista `v_studenti_stadio`**: per ogni studente riassume lo **stadio corrente** — `da_valutare`, `in_attesa_studente`, `da_decidere`, `accolta`, `in_attesa_posto`, `residente`, `archiviato` — insieme alla struttura di riferimento. È la sorgente unica dello stadio persona: non ricomporlo per pagina. Per gli studenti in stadio `archiviato` la colonna `struttura_id` ricade sulla **struttura preferita dichiarata in candidatura** e non sulla sede dell'ultima camera occupata (vedi §13, scelta esplicita).
+- **Vista `v_studenti_stadio`**: per ogni studente riassume lo **stadio corrente** — `da_valutare`, `in_attesa_studente`, `da_decidere`, `in_attesa_posto`, `assegnato` (candidatura accolta con un posto pre-arrivo), `in_casa` (soggiorno in corso), `archiviato` — insieme alla struttura di riferimento. È la sorgente unica dello stadio persona: non ricomporlo per pagina. Per gli studenti in stadio `archiviato` la colonna `struttura_id` ricade sulla **struttura preferita dichiarata in candidatura** e non sulla sede dell'ultima camera occupata (vedi §13, scelta esplicita).
 - **Funzione `camere_disponibilita(p_dal date, p_al date, p_struttura_id uuid)`**: restituisce, per ogni camera nel perimetro, i posti liberi nell'intervallo **chiuso** `[p_dal, p_al]` (estremi inclusi, coerentemente con il vincolo `EXCLUDE` GIST che confronta `daterange(data_inizio, data_fine, '[]')`) calcolando le assegnazioni attive che si sovrappongono al periodo. È l'API da usare per qualsiasi ricerca di posti liberi per intervallo: non ricalcolarla a mano nel client. La funzione **non filtra su `strutture.attiva`** (vedi §13, scelta esplicita).
 
 ### Tabella di sessione candidatura
@@ -220,9 +220,7 @@ Lo spostamento avviene al momento dell'invio andato a buon fine, tramite l'helpe
 
 ## 8. Multi-struttura
 
-Il sistema nasce multi-sede. Il filtro sede non è un filtro locale di pagina ma un **contesto globale** dell'area amministrativa, con sorgente unica in `StrutturaFilterProvider` (`src/hooks/useStrutturaFilter.ts`) e presentato nella top bar. Ogni pagina admin lo legge via `useStrutturaFilter()` e rifetcha automaticamente al cambio di valore. Non reimplementare filtri locali: è già successo una volta e ha prodotto incoerenze fra pagine.
-
-**Eccezione**: la pagina `/admin/strutture` elenca sempre tutte le sedi (attive e disattivate), indipendentemente dal valore del filtro globale, perché è la pagina in cui le sedi si gestiscono.
+Il sistema nasce multi-sede. Non esiste più un filtro sede globale nella top bar: ogni pagina che ne ha bisogno espone un proprio selettore locale (query param `sede`) e la Dashboard mostra le due sedi in parallelo. La top bar ospita invece la **ricerca globale** su nome/cognome/email.
 
 Attenzione a una distinzione che ha già causato un bug: `candidature.struttura_preferita_id` è una **preferenza espressa dal candidato**, non un'occupazione. L'occupazione reale si legge dalle assegnazioni attive risalendo alla struttura della camera. Le metriche di occupazione devono usare la seconda, mai la prima.
 
@@ -232,8 +230,8 @@ Attenzione a una distinzione che ha già causato un bug: `candidature.struttura_
 
 L'area `/admin` è organizzata attorno a `AdminLayout`, che fornisce:
 
-- una **sidebar** con le voci principali (Dashboard, Candidature, Residenti, Camere, Strutture, Storico);
-- una **top bar globale** con titolo della pagina corrente e selettore struttura.
+- una **sidebar** con le voci principali (Dashboard, Candidature, Residenti, Camere, Strutture). Non esiste più la sezione "Storico": gli archiviati vivono nelle liste principali via filtro `stadio=archiviato`.
+- una **top bar globale** con titolo della pagina corrente e ricerca globale persone.
 
 Le pagine sotto `/admin` **non** stampano più un proprio titolo o sottotitolo: iniziano direttamente dalla toolbar filtri o dal contenuto. Il titolo mostrato in top bar è risolto in ordine da un override esplicito (`usePageTitle(label)` per rotte con parametri variabili, es. `"Rossi Mario"` sulla pagina persona) oppure da una mappa statica `rotta → label` per le rotte fisse.
 
@@ -245,7 +243,16 @@ La finestra modale di dettaglio candidatura è sostituita da una pagina dedicata
 2. i **blocchi delle sue candidature**, collassabili singolarmente (aperto solo quello indicato nell'URL o, in assenza, il più recente), ciascuno con le dichiarazioni congelate a quella candidatura, i documenti caricati, la timeline dei cambi di stato e le note admin;
 3. lo **storico dei soggiorni**.
 
-Le liste (Candidature, Residenti) navigano a questa pagina preservando i filtri correnti tramite query string: il tasto "Torna alla lista" ricostruisce l'URL di partenza. Le azioni disponibili nel menu di riga e nella scheda persona sono lette dalla stessa definizione condivisa (`getAvailableActions` in `src/lib/candidaturaActions.ts`), così lista e scheda non possono divergere.
+Le liste (Candidature, Residenti) sono costruite sulla vista `v_studenti_stadio` tramite l'helper `fetchStadi` (`src/lib/studentiQuery.ts`) e navigano alla scheda preservando i filtri correnti tramite query string: il tasto "Torna alla lista" ricostruisce l'URL di partenza. Le azioni disponibili nel menu di riga e nella scheda persona sono lette dalla stessa definizione condivisa (`getAvailableActions` in `src/lib/candidaturaActions.ts`) e decidono in base allo **stadio persona**, non allo stato candidatura: lista e scheda non possono divergere.
+
+**Ripartizione delle liste per stadio:**
+
+- **Candidature** (`/admin/candidature`): mostra `da_valutare`, `in_attesa_studente`, `da_decidere`, `in_attesa_posto`. Il filtro stadio consente anche `archiviato`.
+- **Residenti** (`/admin/residenti`): mostra `assegnato` (candidatura accolta con posto pre-arrivo) e `in_casa` (soggiorno in corso). Include anche `archiviato` come filtro opt-in.
+
+**Azioni per stadio (sintesi):** `da_valutare` → invia form completo · assegna posto · lista d'attesa · rifiuta. `in_attesa_studente` → invia/rigenera link · rifiuta. `da_decidere` → assegna posto · lista d'attesa · rifiuta. `in_attesa_posto` → assegna posto · aggiorna priorità · rifiuta. `assegnato` → comunica esito · annulla assegnazione. `in_casa` → azioni da Residenti (trasferisci, concludi). `archiviato` → solo contatta/elimina.
+
+"Assegna posto" naviga a `/admin/camere?candidatura=…` che apre il flusso di assegnazione; alla conferma la candidatura passa contestualmente a `accolta`. "Annulla assegnazione" cancella la riga di assegnazione (solo pre-arrivo) e riporta la candidatura a `da_decidere` azzerando `esito_email_inviata_il`; se il soggiorno è già iniziato bisogna usare "Concludi" da Residenti.
 
 ---
 
