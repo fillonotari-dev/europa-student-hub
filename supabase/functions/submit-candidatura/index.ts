@@ -20,6 +20,19 @@ const STORAGE_PATH_RE = /^pending\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 
 const GENERIC_ERROR = "Si è verificato un errore. Riprova più tardi.";
 
+// Codice neutro restituito al client per ogni forma di duplicazione (email
+// esistente, race 23505 su studenti, race 23505 su candidature). Nessun
+// dettaglio: il client non deve poter distinguere il motivo esatto, altrimenti
+// diventa un oracolo per capire se un'email è già registrata.
+const REJECT_CODE = "invio_rifiutato";
+
+function rejected() {
+  return new Response(JSON.stringify({ ok: false, code: REJECT_CODE }), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 function bad(message: string, status = 400) {
   return new Response(JSON.stringify({ error: message }), {
     status,
@@ -240,11 +253,12 @@ Deno.serve(async (req) => {
     let studenteId: string;
 
     if (existingStudent) {
-      // Do NOT overwrite PII of an existing student from a public, unauthenticated form
-      // (prevents takeover via known email). The new candidatura snapshot still captures
-      // the submitted academic data below.
-      studenteId = existingStudent.id;
-      console.warn("submit-candidatura: existing student matched by email; PII not overwritten", { studenteId });
+      // Un'email può avere una sola candidatura viva nel sistema. Rifiuto con
+      // codice neutro e non creo nulla. Log server-side per diagnosi, mai
+      // esposto al client.
+      const emailHash = vEmail.slice(0, 3) + "***";
+      console.warn("submit-candidatura: refused, existing student", { existing_id: existingStudent.id, email_hint: emailHash });
+      return rejected();
     } else {
       // Create new student
       const { data: newStudent, error: studentError } = await supabase
@@ -263,7 +277,13 @@ Deno.serve(async (req) => {
         .select("id")
         .single();
 
-      if (studentError) throw studentError;
+      if (studentError) {
+        if ((studentError as any).code === "23505") {
+          console.warn("submit-candidatura: refused, studenti 23505");
+          return rejected();
+        }
+        throw studentError;
+      }
       studenteId = newStudent.id;
     }
 

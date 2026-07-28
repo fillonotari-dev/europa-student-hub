@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   Send, MailCheck, XCircle, Archive, DoorOpen, Mail, Trash2, Undo2,
-  ArrowRightLeft, LogOut,
+  ArrowRightLeft, LogOut, RefreshCw, PlusCircle,
 } from 'lucide-react';
 
 /**
@@ -19,6 +19,8 @@ export type CandidaturaActionId =
   | 'rifiuta'
   | 'annulla_assegnazione'
   | 'trasferisci'
+  | 'rinnova_soggiorno'
+  | 'nuovo_soggiorno'
   | 'concludi_soggiorno'
   | 'contatta'
   | 'elimina';
@@ -64,6 +66,8 @@ const ACTION_META: Record<CandidaturaActionId, Omit<CandidaturaAction, 'id'>> = 
   rifiuta:               { label: 'Rifiuta', icon: XCircle, group: 'secondaria' },
   annulla_assegnazione:  { label: 'Annulla assegnazione', icon: Undo2, group: 'secondaria' },
   trasferisci:           { label: 'Trasferisci in altra camera', icon: ArrowRightLeft, group: 'secondaria' },
+  rinnova_soggiorno:     { label: 'Rinnova soggiorno', icon: RefreshCw, group: 'secondaria' },
+  nuovo_soggiorno:       { label: 'Nuovo soggiorno', icon: PlusCircle, group: 'principale' },
   concludi_soggiorno:    { label: 'Concludi soggiorno', icon: LogOut, group: 'pericolosa', destructive: true },
   contatta:              { label: 'Contatta', icon: Mail, group: 'secondaria' },
   elimina:               { label: 'Elimina candidatura', icon: Trash2, group: 'pericolosa', destructive: true },
@@ -128,20 +132,23 @@ export function getAvailableActions(c: CandidaturaLike, opts: AvailableActionsOp
     case 'in_casa':
       if (c.assegnazione_id) {
         out.push(make('trasferisci'));
+        out.push(make('rinnova_soggiorno'));
       }
       break;
     case 'archiviato':
-      // Solo azioni non-critiche.
+      out.push(make('nuovo_soggiorno'));
       break;
     default:
       break;
   }
 
-  // invia_esito è funzione dello STATO CANDIDATURA, non dello stadio:
-  // ogni candidatura accolta/rifiutata senza email inviata deve poter
-  // comunicare l'esito, incluso un rifiutato archiviato.
-  if ((c.stato === 'accolta' || c.stato === 'rifiutata') && !c.esito_email_inviata_il) {
-    out.push(make('invia_esito'));
+  // invia_esito compare per ogni candidatura accolta/rifiutata: se l'email non
+  // è mai stata inviata la label è "Invia esito"; altrimenti "Reinvia esito".
+  // Regola allargata così l'operatore ha sempre una rete se l'invio in-gesto è fallito.
+  if (c.stato === 'accolta' || c.stato === 'rifiutata') {
+    const a = make('invia_esito');
+    a.label = c.esito_email_inviata_il ? 'Reinvia esito' : 'Invia esito';
+    out.push(a);
   }
 
   if (c.studenti?.email) out.push(make('contatta'));

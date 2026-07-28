@@ -61,7 +61,6 @@ const emptyForm: CameraForm = {
 
 export default function Camere() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const candidaturaParam = searchParams.get('candidatura');
 
   const [selectedCamera, setSelectedCamera] = useState<any>(null);
   const [filterStato, setFilterStato] = useState<string>('tutti');
@@ -112,64 +111,6 @@ export default function Camere() {
     },
   });
 
-  const { data: studentiApprovati } = useQuery({
-    queryKey: ['studenti-approvati'],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('candidature')
-        .select('id, studente_id, struttura_preferita_id, periodo_inizio, periodo_fine, strutture(nome), studenti(id, nome, cognome)')
-        .in('stato', ['da_valutare', 'da_decidere', 'in_attesa_posto', 'accolta']);
-      return data ?? [];
-    },
-  });
-
-  // If navigated with ?candidatura=<id>, surface a hint by setting filter to 'libera'
-  useEffect(() => {
-    if (candidaturaParam) {
-      setFilterStato('disponibile');
-      toast({
-        title: 'Assegna candidatura',
-        description: 'Seleziona una camera disponibile e premi "Gestisci".',
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [candidaturaParam]);
-
-  const [assegnaInizio, setAssegnaInizio] = useState<string>('');
-  const [assegnaFine, setAssegnaFine] = useState<string>('');
-  const [assegnaTarget, setAssegnaTarget] = useState<{ candId: string; studenteId: string } | null>(null);
-
-  const assegna = useMutation({
-    mutationFn: async ({ camera_id, studente_id, candidatura_id, posto, data_inizio, data_fine }: any) => {
-      const { error } = await supabase.from('assegnazioni').insert({
-        camera_id, studente_id, candidatura_id, posto, data_inizio, data_fine, stato: 'attiva',
-      });
-      if (error) throw error;
-      // Contestualmente la candidatura passa ad "accolta": è la conseguenza
-      // logica dell'assegnazione di un posto letto reale.
-      const { error: updErr } = await supabase.from('candidature')
-        .update({ stato: 'accolta' }).eq('id', candidatura_id);
-      if (updErr) throw updErr;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['camere'] });
-      queryClient.invalidateQueries({ queryKey: ['assegnazioni-attive'] });
-      queryClient.invalidateQueries({ queryKey: ['residenti'] });
-      queryClient.invalidateQueries({ queryKey: ['stadio'] });
-      queryClient.invalidateQueries({ queryKey: ['candidature'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      toast({ title: 'Studente assegnato' });
-      setSelectedCamera(null);
-      setAssegnaInizio('');
-      setAssegnaFine('');
-      if (candidaturaParam) {
-        searchParams.delete('candidatura');
-        setSearchParams(searchParams);
-      }
-    },
-    onError: (e: any) => toast({ title: 'Errore', description: e.message, variant: 'destructive' }),
-  });
-
   const saveCamera = useMutation({
     mutationFn: async (f: CameraForm) => {
       const payload = {
@@ -181,11 +122,11 @@ export default function Camere() {
         note: f.note.trim() || null,
       };
       if (f.id) {
-        // Blocca se i nuovi posti < occupanti attivi (incongruenza matematica).
-        const occupantiAttuali = (assegnazioni ?? []).filter((a: any) => a.camera_id === f.id).length;
-        if (payload.posti < occupantiAttuali) {
-          throw new Error(`Ci sono ${occupantiAttuali} occupanti attivi. Riduci prima le assegnazioni o imposta almeno ${occupantiAttuali} posti.`);
-        }
+        // Il trigger camere_check_posti valida server-side rispetto a tutte le
+        // assegnazioni attive (in corso e future). Un pre-check client su
+        // "oggi" non copre le future e darebbe un falso via libera: lasciamo
+        // parlare l'errore del DB (messaggio esplicito, incluso il posto in
+        // conflitto).
         const { error } = await supabase.from('camere').update(payload).eq('id', f.id);
         if (error) throw error;
       } else {
@@ -359,15 +300,6 @@ export default function Camere() {
         </div>
       </div>
 
-      {candidaturaParam && (
-        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm flex items-center justify-between">
-          <span>Modalità assegnazione: scegli una camera disponibile e premi "Gestisci".</span>
-          <Button variant="ghost" size="sm" onClick={() => { searchParams.delete('candidatura'); setSearchParams(searchParams); }}>
-            Annulla
-          </Button>
-        </div>
-      )}
-
       {/* Rooms table */}
       <div className="border rounded-lg overflow-hidden">
         <Table>
@@ -525,72 +457,9 @@ export default function Camere() {
                   );
                 })()}
 
-                {selectedCamera.stato === 'disponibile' && studentiApprovati && studentiApprovati.length > 0 && (
-                  <div>
-                    <p className="text-sm font-semibold mb-2">Assegna studente approvato</p>
-                    {candidaturaParam && (() => {
-                      const cand = studentiApprovati.find((sa: any) => sa.id === candidaturaParam);
-                      if (!cand || !cand.struttura_preferita_id) return null;
-                      if (cand.struttura_preferita_id === selectedCamera.struttura_id) return null;
-                      return (
-                        <div className="mb-3 rounded-lg border border-warning/30 bg-warning/10 p-2.5 text-[12px] text-foreground">
-                          <strong>Attenzione:</strong> la struttura preferita di questa candidatura è
-                          {' '}<strong>{(cand as any).strutture?.nome ?? 'un\'altra'}</strong>, diversa da quella della camera selezionata. Puoi procedere comunque, ma verifica con lo studente.
-                        </div>
-                      );
-                    })()}
-                    <div className="space-y-2">
-                      {studentiApprovati
-                        .filter((sa: any) => !candidaturaParam || sa.id === candidaturaParam)
-                        .map((sa: any) => {
-                        const alreadyAssigned = assegnazioni?.some(a => a.studente_id === sa.studente_id && a.stato === 'attiva');
-                        if (alreadyAssigned) return null;
-                        const isOpen = assegnaTarget?.candId === sa.id;
-                        return (
-                          <div key={sa.id} className="p-2 rounded-lg hover:bg-muted/50 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm">{sa.studenti?.nome} {sa.studenti?.cognome}</span>
-                              {!isOpen && (
-                                <Button size="sm" onClick={() => {
-                                  setAssegnaTarget({ candId: sa.id, studenteId: sa.studente_id });
-                                  setAssegnaInizio(sa.periodo_inizio ?? new Date().toISOString().split('T')[0]);
-                                  setAssegnaFine(sa.periodo_fine ?? '');
-                                }}>Assegna</Button>
-                              )}
-                            </div>
-                            {isOpen && (
-                              <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <Label className="text-[11px]">Data inizio *</Label>
-                                  <Input type="date" value={assegnaInizio} onChange={e => setAssegnaInizio(e.target.value)} />
-                                </div>
-                                <div>
-                                  <Label className="text-[11px]">Data fine *</Label>
-                                  <Input type="date" value={assegnaFine} onChange={e => setAssegnaFine(e.target.value)} />
-                                </div>
-                                <div className="col-span-2 flex justify-end gap-2">
-                                  <Button size="sm" variant="ghost" onClick={() => setAssegnaTarget(null)}>Annulla</Button>
-                                  <Button size="sm" disabled={!assegnaInizio || !assegnaFine || assegnaFine < assegnaInizio} onClick={() => {
-                                    const currentAssignments = assegnazioni?.filter(a => a.camera_id === selectedCamera.id).length ?? 0;
-                                    assegna.mutate({
-                                      camera_id: selectedCamera.id,
-                                      studente_id: sa.studente_id,
-                                      candidatura_id: sa.id,
-                                      posto: currentAssignments + 1,
-                                      data_inizio: assegnaInizio,
-                                      data_fine: assegnaFine,
-                                    });
-                                    setAssegnaTarget(null);
-                                  }}>Conferma</Button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                <p className="text-[12px] text-muted-foreground">
+                  Le assegnazioni si creano dalla scheda persona, tramite il gesto "Assegna posto".
+                </p>
               </div>
             </>
           )}
