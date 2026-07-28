@@ -1,7 +1,7 @@
 # Studentato Europa — Gestionale: contesto e funzionamento
 
 **Destinazione:** sezione `/docs` dell'applicazione
-**Ultimo aggiornamento:** 27 luglio 2026
+**Ultimo aggiornamento:** 28 luglio 2026
 **Natura del documento:** riferimento unico sul funzionamento del sistema. Serve a chi ci mette mano — sviluppatore, agente AI, o chi subentra fra sei mesi — per capire cosa fa il sistema, perché è fatto così, e cosa non deve fare.
 
 Le affermazioni in questo documento sono verificate nel codice sorgente salvo dove indicato diversamente.
@@ -54,7 +54,7 @@ Lo studente compila il form su `/candidatura`, articolato in cinque step: anagra
 
 I file passano da `upload-candidatura-doc`, che li deposita in `pending/{temp_id}/{tipo}/{nome_file}`. Il record viene poi creato da `submit-candidatura`, che collega i documenti già caricati.
 
-Stato risultante: **`ricevuta`**. Parte in automatico l'email di conferma ricezione.
+Stato risultante: **`da_valutare`**. Parte in automatico l'email di conferma ricezione.
 
 ### Fase 2 — Completamento (su invito, con token)
 
@@ -66,13 +66,13 @@ Sono **obbligatori**: lingue parlate, orari prevalenti, personalità (con testo 
 
 Il token viene validato da `get-completion-form` prima di mostrare il modulo e di nuovo da `complete-candidatura` al momento dell'invio. È monouso: dopo il completamento il link restituisce `410`.
 
-Stato risultante: **`completata`**.
+All'invio del link di completamento la candidatura passa a **`in_attesa_studente`**; alla ricezione del form completo passa a **`da_decidere`**.
 
 ### Fase 3 — Valutazione e assegnazione
 
-L'amministratore approva o rifiuta la candidatura. L'azione è disponibile sia da `ricevuta` (candidatura arrivata ma senza il blocco completo) sia da `completata` (candidatura con anche stile di vita, garante e documenti del garante). Il passaggio ad `approvata` o `rifiutata` fa scattare il trigger `candidature_flag_esito_email`, che marca la candidatura come "esito da comunicare" e la fa comparire nella sezione **Task** della Dashboard.
+L'amministratore decide l'esito. L'azione è disponibile sia da `da_valutare` (candidatura arrivata ma senza il blocco completo) sia da `da_decidere` (candidatura con anche stile di vita, garante e documenti del garante). Gli esiti possibili sono tre: **`accolta`** (candidato ammesso con posto pronto), **`in_attesa_posto`** (candidato ammesso ma senza posto immediatamente disponibile, entra nella lista d'attesa ordinata per `candidature.priorita`), **`rifiutata`**. La marcatura "esito da comunicare" si legge da `esito_email_inviata_il IS NULL` sulle candidature in stato `accolta` o `rifiutata` e alimenta la sezione **Task** della Dashboard.
 
-Da `approvata` o `rifiutata` è possibile **riaprire** la candidatura: torna a `completata` se esiste un form completo, altrimenti a `ricevuta` (logica in `reopenStato`, `src/lib/candidaturaActions.ts`). La riapertura non è possibile se esiste già un'assegnazione attiva, per garanzia del trigger `candidature_check_stato_vs_assegnazione`.
+Da `accolta`, `in_attesa_posto` o `rifiutata` è possibile **riaprire** la candidatura: torna a `da_decidere` se esiste un form completo, altrimenti a `da_valutare` (logica in `reopenStato`, `src/lib/candidaturaActions.ts`). La riapertura non è possibile se esiste già un'assegnazione attiva, per garanzia del trigger `candidature_check_stato_vs_assegnazione`.
 
 L'invio dell'email di esito è **manuale**, non automatico: l'amministratore la conferma dalla scheda candidatura e può aggiungere una nota libera. Scelta deliberata — l'esito di una candidatura è una comunicazione che merita una rilettura umana.
 
@@ -80,11 +80,11 @@ Al candidato approvato viene poi assegnato un posto in una camera specifica. Nas
 
 ### Stati possibili
 
-**Candidature:** `ricevuta` → (`in_completamento` →) `completata` → `approvata` | `rifiutata`. Più `ritirata` (rinuncia del candidato) e `sostituita`. Lo stato intermedio `in_valutazione` non esiste: approvazione e rifiuto avvengono direttamente da `ricevuta` o `completata`.
+**Candidature:** `da_valutare` → `in_attesa_studente` → `da_decidere` → `accolta` | `in_attesa_posto` | `rifiutata`. Approvazione e rifiuto possono avvenire anche direttamente da `da_valutare` quando la valutazione non richiede il form completo.
 
-**Camere:** `libera`, `parzialmente_occupata`, `occupata`, `manutenzione`, `non_disponibile`.
+**Camere:** `disponibile`, `manutenzione`, `non_disponibile`. Sono **stati manuali** che descrivono lo stato fisico del posto letto. L'occupazione **non è più uno stato**: si legge dalle assegnazioni attive nel periodo.
 
-**Assegnazioni:** `attiva`, `conclusa`, `annullata`.
+**Assegnazioni:** `attiva`, `conclusa`. La chiusura può riportare un `motivo_chiusura` libero (fine periodo, rinuncia, cambio camera, ecc.).
 
 ---
 
@@ -95,10 +95,10 @@ Al candidato approvato viene poi assegnato un posto in una camera specifica. Nas
 | Tabella | Contenuto |
 |---|---|
 | `strutture` | Le due sedi. Unica tabella con lettura pubblica (solo se `attiva = true`) |
-| `camere` | Camere per struttura: numero, piano, tipo, posti, stato |
-| `studenti` | Anagrafica della persona, separata dalla candidatura. Email univoca |
-| `candidature` | La richiesta: stato, preferenze, dati accademici in snapshot, dichiarazioni, token di completamento, campi di gestione email |
-| `assegnazioni` | Il soggiorno: studente, candidatura, camera, posto (1 o 2), date, stato |
+| `camere` | Camere per struttura: numero, piano, tipo, posti, stato manuale (`disponibile` / `manutenzione` / `non_disponibile`) |
+| `studenti` | Anagrafica della persona, separata dalla candidatura. Email univoca. Include l'anagrafica fiscale strutturata (`indirizzo_via`, `indirizzo_civico`, `indirizzo_cap`, `indirizzo_comune`, `indirizzo_provincia`, `indirizzo_nazione` con default `IT`) e il flag `cf_non_disponibile` per i candidati senza codice fiscale italiano |
+| `candidature` | La richiesta: stato, preferenze, dati accademici in snapshot, dichiarazioni, token di completamento, campi di gestione email. `priorita` ordina la lista d'attesa (`in_attesa_posto`) |
+| `assegnazioni` | Il soggiorno: studente, candidatura, camera, posto (1 o 2), `data_inizio` (`NOT NULL`), `data_fine`, `stato` (`attiva` / `conclusa`), `motivo_chiusura` |
 | `documenti` | Metadati dei file caricati, con riferimento al path in storage |
 | `log_stato_candidature` | Traccia automatica di ogni cambio di stato |
 | `user_roles` | Ruoli applicativi. Tabella separata da `auth.users` per scelta di sicurezza |
@@ -106,6 +106,11 @@ Al candidato approvato viene poi assegnato un posto in una camera specifica. Nas
 **Perché `studenti` è separata da `candidature`:** una persona può candidarsi più volte, o candidarsi e poi diventare residente. Tenere l'identità separata dalla richiesta evita duplicazioni e permette di ricostruire la storia di una persona.
 
 **Perché i dati accademici sono anche in snapshot su `candidature`:** i campi `universita_snapshot`, `corso_snapshot`, `anno_corso_snapshot` congelano la situazione al momento della candidatura. Se lo studente cambia corso, la candidatura resta leggibile com'era.
+
+### Viste e funzioni di lettura
+
+- **Vista `v_studenti_stadio`**: per ogni studente riassume lo **stadio corrente** — `candidato`, `residente`, `archiviato` — insieme alla struttura di riferimento. È la sorgente unica dello stadio persona: non ricomporlo per pagina. Per gli studenti in stadio `archiviato` la colonna `struttura_id` ricade sulla **struttura preferita dichiarata in candidatura** e non sulla sede dell'ultima camera occupata (vedi §13, scelta esplicita).
+- **Funzione `camere_disponibilita(p_dal date, p_al date, p_struttura_id uuid)`**: restituisce, per ogni camera nel perimetro, i posti liberi nell'intervallo `[p_dal, p_al)` calcolando le assegnazioni attive che si sovrappongono al periodo. È l'API da usare per qualsiasi ricerca di posti liberi per intervallo: non ricalcolarla a mano nel client. La funzione **non filtra su `strutture.attiva`** (vedi §13, scelta esplicita).
 
 ### Tabella di sessione candidatura
 
@@ -123,18 +128,15 @@ La tabella è scritta esclusivamente da funzioni `SECURITY DEFINER` (`check_cand
 
 Questa è la scelta architetturale più importante del sistema, e va rispettata: **le invarianti di dominio sono applicate da trigger PostgreSQL, non dal frontend.** Il frontend può essere aggirato, il database no.
 
-| Trigger | Cosa garantisce |
+| Trigger / vincolo | Cosa garantisce |
 |---|---|
-| `camere_sync_stato` | Lo stato della camera deriva dalle assegnazioni attive. È l'unica fonte di verità |
 | `camere_check_posti` | Non si può ridurre il numero di posti sotto il numero di occupanti attivi |
 | `assegnazioni_check_overbooking` | Nessun overbooking, nessuna assegnazione su camera in manutenzione, posto entro il range |
+| `EXCLUDE` GIST su `assegnazioni` | Impedisce sovrapposizioni temporali su `(camera_id, posto)` per il periodo `[data_inizio, data_fine)`, anche fra assegnazioni storiche. Il trigger di overbooking resta come guardia complementare |
 | `candidature_check_stato_vs_assegnazione` | Non si può togliere l'approvazione a una candidatura con assegnazione attiva |
 | `candidature_log_stato` | Ogni cambio di stato viene tracciato automaticamente |
-| `candidature_flag_esito_email` | Marca l'esito da comunicare quando la candidatura viene approvata o rifiutata |
 
-C'è anche un indice univoco parziale su `(camera_id, posto)` per le assegnazioni attive: due persone non possono occupare lo stesso posto nemmeno in caso di scrittura concorrente.
-
-**Conseguenza pratica:** non scrivere mai `camere.stato` dal codice applicativo. Lo fa il trigger. Scritture ridondanti sono già state rimosse una volta e non vanno reintrodotte.
+**Conseguenza pratica:** lo stato di `camere` è **manuale** (`disponibile` / `manutenzione` / `non_disponibile`) e descrive la disponibilità fisica del posto letto; l'occupazione è invece derivata dalle assegnazioni. Non aggirare il vincolo `EXCLUDE` sulle assegnazioni con `session_replication_role` o simili trucchi: se serve modificare periodi sovrapposti, chiudere prima l'assegnazione confliggente.
 
 ### Registro dei cambi di stato: transizioni vs eventi
 
@@ -307,6 +309,11 @@ Contratti e fatturazione sono oggetto di una proposta integrativa separata (Fase
 | Gestionale su misura invece di un PMS di mercato | I PMS alberghieri costano 100–400 €/mese per funzioni non pertinenti e mancano di ciò che serve; i gestionali immobiliari sono sovradimensionati per 82 posti |
 | Rimozione del form configurabile | La funzionalità era di fatto inutilizzata; il modello dati resta più semplice e chiude una superficie di rischio |
 | Rimozione dello stato intermedio `in_valutazione` | Il flusso reale ha un solo passaggio decisionale (approva/rifiuta): uno stato in mezzo era rumore |
+| Dominio stati candidatura ridisegnato (`da_valutare` / `in_attesa_studente` / `da_decidere` / `accolta` / `in_attesa_posto` / `rifiutata`) | Allinea il modello al lessico operativo della direzione e distingue chi aspetta il posto da chi è già dentro |
+| Stato camera manuale, occupazione derivata dalle assegnazioni | Separa lo stato fisico (manutenzione, fuori uso) dall'occupazione, che è già ricavabile: rimosso il trigger di sincronizzazione che rendeva il campo di sola scrittura del DB |
+| Vincolo temporale `EXCLUDE` GIST sulle assegnazioni | Impedisce a livello DB doppie occupazioni dello stesso posto in periodi che si intersecano, anche per range storici, non solo fra assegnazioni attive |
+| Anagrafica fiscale strutturata su `studenti` | Necessaria per contrattualizzazione e rendicontazione, separata dai dati della singola candidatura |
+| Vista `v_studenti_stadio` come lettura unificata dello stadio persona | Evita di ricomporlo in ogni pagina con join ad hoc |
 | Documenti spostati fuori da `pending/` a fine invio | Separa il temporaneo dal definitivo, riduce residui e rende chiaro cosa appartiene a una candidatura reale |
 | Insieme fisso dei tipi documento in un modulo condiviso | Impedisce che client, edge function e vincolo DB divergano nel tempo |
 | Filtro sede come contesto globale dell'area admin | Impedisce filtri locali reimplementati per pagina, che avevano già prodotto incoerenze |
@@ -317,7 +324,7 @@ Contratti e fatturazione sono oggetto di una proposta integrativa separata (Fase
 
 ## 12. Regole per chi ci mette mano
 
-1. **Non scrivere `camere.stato` dal codice.** Lo gestisce il trigger.
+1. **`camere.stato` è manuale** (`disponibile` / `manutenzione` / `non_disponibile`) e descrive lo stato fisico del posto letto. L'occupazione **non** si scrive lì: si legge dalle assegnazioni. Non reintrodurre trigger di sincronizzazione.
 2. **Ogni nuovo endpoint pubblico valida server-side.** Tipi, lunghezze, formati. La validazione client è UX.
 3. **Ogni nuova email passa da `enqueue-transactional.ts`.** Non ricostruire il payload a mano: mancherebbero `idempotency_key` e `unsubscribe_token`.
 4. **Ogni nuova funzione `SECURITY DEFINER` va revocata esplicitamente da `PUBLIC`, `anon` e `authenticated`.** Revocare solo da `PUBLIC` non basta: Supabase concede l'esecuzione ad `anon` e `authenticated` separatamente. Questo errore è già stato commesso su sei funzioni.
@@ -332,6 +339,9 @@ Contratti e fatturazione sono oggetto di una proposta integrativa separata (Fase
 13. **Il filtro sede si legge da `useStrutturaFilter`.** Non reimplementare selettori locali per pagina.
 14. **Lo stato di una lista (ricerca, filtri, pagina) vive nell'indirizzo (query params).** Non in navigation state, non in `useState` locale che va perso alla navigazione: la pagina persona deve poter ricostruire l'URL di ritorno.
 15. **Le azioni disponibili su una candidatura si leggono da `getAvailableActions`** in `src/lib/candidaturaActions.ts`. Lista e scheda persona non devono mai calcolarle in modo indipendente.
+16. **Le ricerche di posti liberi per intervallo passano dalla funzione `camere_disponibilita`.** Non ricalcolare a mano in JS lo stato di occupazione per periodo: la funzione conosce le assegnazioni sovrapposte e il vincolo `EXCLUDE`.
+17. **Non aggirare il vincolo `EXCLUDE` GIST sulle assegnazioni** (niente `SET session_replication_role`, niente `DELETE + INSERT` in transazioni allentate): se serve modificare un periodo che si sovrappone, chiudere prima l'assegnazione confliggente con un `motivo_chiusura`.
+18. **La marcatura "esito da comunicare" si legge/scrive tramite `candidature.esito_email_inviata_il`**, non con un campo di stato dedicato: una candidatura in `accolta` o `rifiutata` con `esito_email_inviata_il IS NULL` è da comunicare.
 
 ---
 
@@ -342,3 +352,5 @@ Rilievi già esaminati e chiusi come non applicabili al perimetro attuale. Sono 
 - **Formule negli export.** Gli export sono in formato **XLSX**, dove il tipo della cella è dichiarato nel file e il testo non viene reinterpretato come formula. Il rilievo tornerebbe rilevante se venisse introdotto un export in **CSV**, formato in cui i valori che iniziano per `=`, `+`, `-`, `@` vengono interpretati come formula da alcuni fogli di calcolo.
 - **`candidatura_sessioni` senza policy RLS.** La tabella ha **RLS attiva e nessuna policy**, che è la configurazione più restrittiva possibile: la lettura e la scrittura passano solo dal ruolo `service_role`, che non è soggetto alle policy. Aggiungere una policy scritta larga la aprirebbe invece di chiuderla. Il rilievo tornerebbe rilevante solo se si volesse esporre la tabella a un ruolo applicativo (`anon` o `authenticated`).
 - **Restrizione delle origini (CORS) sulle edge function.** Non applicata deliberatamente: il CORS è imposto dal browser e non protegge da chiamate non-browser, mentre gli endpoint amministrativi richiedono comunque un token valido. Il rilievo tornerebbe rilevante se un endpoint si autenticasse tramite cookie (soggetto a CSRF) o se restituisse dati sensibili senza autenticazione.
+- **`camere_disponibilita` non filtra su `strutture.attiva`.** Le camere appartenenti a strutture disattivate compaiono comunque nei conteggi restituiti dalla funzione. È intenzionale: la disattivazione di una struttura è un flag amministrativo di visibilità nella lista sedi, non una rimozione dei posti letto — le assegnazioni storiche e in corso su quella struttura continuano a esistere. Il filtro per `attiva`, se serve nella UI, va applicato dal chiamante.
+- **`v_studenti_stadio.struttura_id` per lo stadio `archiviato` ricade sulla struttura preferita dichiarata in candidatura**, non su quella dell'ultima camera occupata. Motivo: le assegnazioni concluse non entrano nel join laterale della vista, quindi per gli archiviati l'unico riferimento disponibile è la preferenza espressa. È accettabile per la UI di storico attuale; se in futuro servisse la sede reale dell'ultimo soggiorno, va aggiunto un join dedicato sulle assegnazioni concluse più recenti anziché "correggere" la vista in modo silenzioso.

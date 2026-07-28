@@ -1,87 +1,51 @@
-# Allineamento `docs/Context.md` e `docs/design-system.md`
+## Obiettivo
 
-Documento riscritto per punti, mantenendo tono di riferimento (presente, non changelog) e struttura esistente. Ogni affermazione qui sotto è stata verificata nel codice.
+Aggiornare `docs/Context.md` solo per riflettere le modifiche dell'Intervento A. Non toccare le sezioni sul form pubblico e sul form di completamento (in evoluzione in un intervento parallelo).
 
-## `docs/Context.md`
+## Sezioni da toccare
 
-### §3 Ciclo di vita
-- Rimuovere lo stato `in_valutazione` dalla sequenza. Nuovo flusso: `ricevuta` → (opz. `in_completamento` →) `completata` → `approvata` | `rifiutata`, più `ritirata` (rinuncia del candidato) e `sostituita`.
-- Riscrivere "Fase 3": approvazione e rifiuto sono oggi possibili sia da `ricevuta` sia da `completata` (verificato in `getAvailableActions` di `src/lib/candidaturaActions.ts`).
-- Descrivere la riapertura: da `approvata` / `rifiutata` riporta a `completata` se esiste un form completo, altrimenti a `ricevuta` (funzione `reopenStato`).
-- Aggiornare l'elenco degli stati eliminando `in_valutazione`.
-- Rinominare `ritirata` in "Rinuncia del candidato" nella descrizione.
+### §3 Ciclo di vita — stati candidatura
+Sostituire ovunque il vecchio set (`ricevuta`, `in_completamento`, `completata`, `approvata`, `ritirata`, `sostituita`) con il nuovo dominio:
+- `da_valutare` — stato iniziale
+- `in_attesa_studente` — link di completamento inviato
+- `da_decidere` — form completo ricevuto
+- `accolta`, `in_attesa_posto`, `rifiutata` — esiti
+
+Aggiornare le transizioni e l'elenco "Stati possibili". Non toccare la descrizione dei form.
 
 ### §4 Modello dati
-- Eliminare la sotto-sezione "Tabelle del form configurabile" e ogni riferimento a `form_campi_custom`, `form_documenti_custom`, `candidature.risposte_custom` (tabelle e colonna droppate nella migration `20260727074958`).
-- Aggiungere una nuova sotto-sezione "Tabella di sessione candidatura" per `candidatura_sessioni`: registra ogni apertura del form pubblico (`temp_id`, `origine`, `upload_count`, `consumata_il`); è scritta solo da funzioni `SECURITY DEFINER` (`check_candidatura_sessione`, `consume_candidatura_upload_slot`, `consume_candidatura_sessione`) invocate dalle edge function pubbliche; ha RLS attiva e **zero policy** (accesso solo via `service_role`), che è la configurazione più restrittiva possibile.
+- `studenti`: aggiungere l'anagrafica fiscale strutturata (`indirizzo_via`, `indirizzo_civico`, `indirizzo_cap`, `indirizzo_comune`, `indirizzo_provincia`, `indirizzo_nazione` default `IT`) e il flag `cf_non_disponibile`.
+- `candidature`: aggiungere `priorita` (usata per ordinare la lista d'attesa). Rimuovere `indirizzo_residenza`.
+- `assegnazioni`: `data_inizio` ora è `NOT NULL`; aggiunta colonna `motivo_chiusura`; stati ridotti a `attiva` | `conclusa`.
+- `camere`: stati manuali ridotti a `disponibile` | `manutenzione` | `non_disponibile`. L'occupazione non è più uno stato: si legge dalle assegnazioni.
+- Aggiungere la vista **`v_studenti_stadio`** (stadio corrente della persona: candidato / residente / archiviato) e la funzione **`camere_disponibilita(dal, al, struttura_id)`** che restituisce posti liberi per intervallo temporale.
 
-### §5 Documenti e storage (integra §7 attuale sui documenti)
-- I file arrivano prima in `pending/{temp_id}/{tipo}/{filename}` tramite `upload-candidatura-doc`.
-- Al momento dell'invio andato a buon fine (`submit-candidatura` e `complete-candidatura`) l'helper `moveDocumentToFinal` (in `supabase/functions/_shared/move-documenti.ts`) sposta ciascun file in `candidature/{candidatura_id}/{tipo}/{filename}`.
-- Se lo spostamento fallisce, il file resta nella cartella temporanea e nel record `documenti` viene salvato il path originale, così la candidatura non si perde; l'errore viene loggato lato server.
-- L'insieme dei tipi accettati è fisso — `documento_identita`, `certificato_iscrizione`, `documento_garante`, `documento_aggiuntivo` — definito in un unico modulo condiviso `supabase/functions/_shared/documenti-tipi.ts` e applicato sia dalle edge function sia dal vincolo `documenti_tipo_check` sulla tabella `documenti`.
-
-### §? Limiti di caricamento
-- Dimensione massima: **5 MB per file**, sia server (`MAX_BYTES` in `upload-candidatura-doc`) sia client (`MAX_UPLOAD_BYTES` in `src/lib/uploads.ts`).
-- Formati accettati: **PDF, JPG, PNG**, sia lato client (`ACCEPTED_UPLOAD_MIME`) sia lato server (allowlist MIME).
-- Caricamenti massimi per sessione: **4 file**, imposti atomicamente dalla RPC `consume_candidatura_upload_slot` (migration più recente `20260727104357`).
-- Rimuovere dal §7 attuale la menzione dei 10 MB e di WEBP.
-
-### §5 Regole di dominio
-- Nella tabella dei trigger mantenere `candidature_log_stato`, ma chiarire nel testo: le righe di **transizione** (`stato_precedente` ≠ `stato_nuovo`) sono scritte esclusivamente dal trigger; il codice applicativo non deve inserire righe di transizione. Le funzioni server inseriscono soltanto righe di **evento** (es. `complete-candidatura` scrive `stato_precedente = stato_nuovo` con nota "Form completo inviato dallo studente") per lasciare traccia di azioni che non cambiano stato.
-
-### §8 Multi-struttura (area amministrativa)
-- Chiarire che il filtro sede non è per pagina ma **contesto globale** dell'area admin, con sorgente unica in `StrutturaFilterProvider` (`src/hooks/useStrutturaFilter.ts`), letta da tutte le pagine via `useStrutturaFilter()` e presentata nella top bar.
-- Eccezione documentata: `/admin/strutture` mostra sempre tutte le sedi (attive e non), indipendentemente dal filtro globale.
-
-### Nuova §"Area amministrativa"
-- Layout `AdminLayout` con sidebar + **top bar globale** che ospita titolo della pagina corrente e selettore struttura.
-- Le pagine sotto `/admin` non stampano più titolo proprio: partono dalla toolbar filtri.
-- Il titolo mostrato in top bar è risolto da `usePageTitle` (override per rotte con parametri) o dalla mappa statica rotta→label.
-- La finestra di dettaglio candidatura è sostituita dalla **pagina persona** `/admin/studenti/:id` (in `src/pages/admin/StudentePage.tsx`): anagrafica in alto, blocchi collassabili per ciascuna candidatura, storico soggiorni. Le liste (Candidature, Residenti) navigano a questa pagina preservando i filtri via URL.
-
-### §3 Form pubblico e §3 Form di completamento
-- Il form pubblico non ha più lo step "informazioni aggiuntive": gli step attuali sono anagrafica → dati accademici → preferenze → documenti → dichiarazioni, e l'invio parte dallo step dichiarazioni (verificato: `STEPS` in `Candidatura.tsx`).
-- Il form di completamento non ha più il riepilogo finale: step attuali `stile di vita → garante → documenti aggiuntivi → dichiarazioni`, invio dallo step dichiarazioni. Elencare come obbligatori: lingue parlate, orari, personalità (con "altro" testo), ordine/pulizia, fumatore (booleano esplicito), presentazione, garante (nome, relazione, telefono, email), documento d'identità del garante; la documentazione aggiuntiva resta facoltativa.
-
-### §9 Protezione dei dati
-- La spunta privacy del form ora rimanda all'informativa pubblicata (`PRIVACY_POLICY_URL = https://studentatoeuropa.it/privacy-policy`) ed è formulata come **presa visione** ("Dichiaro di aver preso visione dell'informativa privacy") e non come autorizzazione — coerente con la base giuridica dichiarata nell'informativa.
-- Mantenere invariati tutti i rilievi sull'informativa pubblicata (segnaposto non compilati, §2.2 sottodimensionato, mancata copertura dei candidati non contrattualizzati, garante non menzionato, mancanza di sub-responsabili e localizzazione dati): non risultano risolti.
+### §5 Regole di dominio (trigger e vincoli)
+- Rimuovere `camere_sync_stato` (lo stato camera è ora manuale).
+- `assegnazioni`: nuovo vincolo `EXCLUDE` GIST anti-sovrapposizione temporale su `(camera_id, posto)` per `[data_inizio, data_fine)`; il trigger `assegnazioni_check_overbooking` resta come guardia complementare.
+- Rimuovere la frase "non scrivere mai `camere.stato` dal codice" (ora è scrittura legittima).
 
 ### §11 Decisioni prese
-Aggiungere righe (stesso stile motivo → beneficio):
-- Rimozione del form configurabile — semplifica il modello dati e chiude una superficie non usata.
-- Rimozione dello stato intermedio `in_valutazione` — il flusso reale ha un solo passaggio decisionale.
-- Documenti spostati fuori da `pending/` a fine invio — separa il temporaneo dal definitivo e riduce residui.
-- Insieme fisso dei tipi documento in un unico modulo — impedisce divergenze fra client, edge function e DB.
-- Filtro sede come contesto globale — impedisce filtri locali incoerenti fra pagine.
-- Pagina persona al posto della modale di dettaglio — dà spazio ai dati e permette navigazione con URL.
-- Azioni candidatura definite in un unico punto (`src/lib/candidaturaActions.ts`) — lista e scheda non possono divergere.
+Aggiungere righe (formato "decisione → motivo"):
+- Stato camera manuale, occupazione derivata dalle assegnazioni — separa lo stato fisico (manutenzione, fuori uso) dall'occupazione, che è già ricavabile.
+- Vincolo temporale `EXCLUDE` GIST sulle assegnazioni — impedisce a livello DB doppie occupazioni dello stesso posto in periodi sovrapposti, anche storici.
+- Anagrafica fiscale strutturata su `studenti` — necessaria per contrattualizzazione, separata dai dati della singola candidatura.
+- Dominio stati candidatura ridisegnato sulle decisioni operative reali — allinea il modello al lessico della direzione.
+- Vista `v_studenti_stadio` come lettura unificata dello stadio persona — evita di ricomporlo in ogni pagina.
 
 ### §12 Regole per chi ci mette mano
-Aggiungere, in stile imperativo, queste voci:
-- Non scrivere righe di transizione in `log_stato_candidature` dal codice applicativo: lo fa il trigger; le funzioni server inseriscono al massimo righe di evento con nota.
-- I tipi documento si prendono da `supabase/functions/_shared/documenti-tipi.ts`, non si riscrivono altrove.
-- Il filtro sede si legge da `useStrutturaFilter`, mai reimplementato localmente.
-- Lo stato di una lista (ricerca, filtri, pagina) vive nell'indirizzo (query params), non in navigation state.
-- Le azioni disponibili su una candidatura si leggono da `getAvailableActions` in `candidaturaActions.ts`.
+- Rimuovere "non scrivere `camere.stato` dal codice".
+- Aggiungere: le nuove ricerche di posti liberi per intervallo passano da `camere_disponibilita`, non ricalcolarle a mano.
+- Aggiungere: non aggirare il vincolo `EXCLUDE` sulle assegnazioni (niente `session_replication_role`).
 
-### Nuova sezione "Rilievi di sicurezza archiviati"
-Rilievi esaminati e chiusi come non applicabili, con condizione di riapertura:
-- **Formule negli export**: gli export sono XLSX, dove il tipo cella è dichiarato nel file e il testo non viene reinterpretato. Tornerebbe rilevante se venisse introdotto un export in CSV.
-- **`candidatura_sessioni` senza policy**: la tabella ha RLS attiva e zero policy, ossia la configurazione più restrittiva; l'accesso avviene solo tramite `service_role`, che non è soggetto alle policy. Una policy scritta larga la aprirebbe invece di chiuderla.
-- **Restrizione delle origini (CORS) sulle edge function**: non applicata deliberatamente; il CORS è imposto dal browser e non protegge da chiamate non-browser, mentre gli endpoint amministrativi richiedono comunque un token. Tornerebbe rilevante se un endpoint iniziasse ad autenticarsi tramite cookie o restituisse dati sensibili senza autenticazione.
+### §13 Rilievi archiviati — aggiungere due scelte esplicite
+Documentare come **scelte volute**, non bug:
+- **`camere_disponibilita` non filtra su `strutture.attiva`.** Le camere appartenenti a strutture disattivate compaiono comunque nei conteggi restituiti dalla funzione. È intenzionale: la disattivazione di una struttura è un flag amministrativo di visibilità, non una rimozione dei posti letto; il filtro per attività, se serve, va applicato dal chiamante.
+- **`v_studenti_stadio.struttura_id` per lo stadio `archiviato` ricade sulla struttura preferita dichiarata in candidatura**, non su quella dell'ultima camera occupata. Motivo: le assegnazioni concluse non entrano nel join laterale della vista, quindi per gli archiviati l'unico riferimento disponibile è la preferenza espressa. È accettabile per la UI di storico attuale; se in futuro servisse la sede reale di soggiorno, va aggiunto un join dedicato sulle assegnazioni concluse più recenti.
 
-## `docs/design-system.md`
+### Metadati
+Aggiornare la data di "Ultimo aggiornamento".
 
-### §3 Tipografia (tabella)
-- Rimuovere le righe "H1 pagina" e "Sottotitolo / descrizione" (non esistono più titoli interni alle pagine admin).
-- Aggiungere una riga "Titolo pagina (top bar)" — reso da `AdminTopBar` con `text-sm font-semibold` (verificare in `AdminTopBar.tsx`) — e chiarire che le pagine non stampano un proprio H1 né sottotitolo; iniziano dalla toolbar filtri o dal contenuto.
-
-## Chiusura del lavoro
-Al termine, elencare nel messaggio finale:
-1. i punti dove il codice è risultato diverso da quanto indicato nella richiesta (es. numeri o percorsi da rileggere);
-2. le parti dei documenti lasciate invariate perché già corrette (es. §5 trigger già presente, §8 struttura filtro già menzionata parzialmente in `design-system.md`).
-
-## Nota tecnica
-Solo modifiche a `docs/Context.md` e `docs/design-system.md`. Nessuna modifica al codice, alle migration o alle edge function.
+## Fuori scope
+- Sezioni sul form pubblico e sul form di completamento (intervento parallelo).
+- Qualsiasi modifica a codice, migration, edge function o `design-system.md`.
