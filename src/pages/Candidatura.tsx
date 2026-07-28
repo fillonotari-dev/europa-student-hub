@@ -606,7 +606,7 @@ export default function Candidatura() {
             {stepKey === 'stepPreferences' && (
               <div className="space-y-4">
                 <div>
-                  <Label>{t(lang, 'form.strutturaPreferita')}</Label>
+                  <Label>{t(lang, 'form.strutturaPreferita')}<span className="text-destructive ml-0.5">*</span></Label>
                   <Select value={form.struttura_preferita_id} onValueChange={setStruttura}>
                     <SelectTrigger><SelectValue placeholder={t(lang, 'form.nessuna')} /></SelectTrigger>
                     <SelectContent>
