@@ -441,8 +441,8 @@ export default function StudentePage() {
   return (
     <CandidaturaActionsContext.Provider value={actions.ctxValue}>
       <div className="space-y-6">
-        {/* --- Intestazione --- */}
-        <div className="flex items-start justify-between gap-4 flex-wrap">
+        {/* --- 1. Intestazione (nessuna card) --- */}
+        <div className="flex items-start justify-between gap-4 flex-wrap border-b border-border/60 pb-4">
           <div className="min-w-0">
             <h1 className="text-2xl font-semibold text-foreground truncate">
               {studente.cognome} {studente.nome}
@@ -456,141 +456,169 @@ export default function StudentePage() {
           </div>
           {candRifDecorata && (
             <div className="shrink-0">
-              <CandidaturaActions.Buttons candidatura={candRifDecorata as any} />
+              <CandidaturaActions.PrimaryWithMenu candidatura={candRifDecorata as any} />
             </div>
           )}
         </div>
 
-        {/* --- Griglia principale --- */}
-        <div className="grid md:grid-cols-2 gap-6 items-start">
+        {/* --- 2. Soggiorno (banda, non card) --- */}
+        {attive.length > 0 && (
+          <div className="space-y-2">
+            {[...attive]
+              .sort((a, b) => (a.data_inizio || '').localeCompare(b.data_inizio || ''))
+              .map((a: any) => {
+                const stato = statoTemporale(a.data_inizio, a.data_fine ?? null);
+                const compagni = compagniPerAssegnazione.get(a.id) ?? [];
+                const parts = [
+                  a.camere?.strutture?.nome,
+                  `Camera ${a.camere?.numero ?? '—'}`,
+                  `posto ${a.posto}`,
+                  `${fmtIt(a.data_inizio)} → ${a.data_fine ? fmtIt(a.data_fine) : '—'}`,
+                  stato === 'in_corso' ? 'In corso' : 'Non ancora iniziato',
+                ].filter(Boolean);
+                return (
+                  <div key={a.id} className="bg-muted/40 rounded-lg px-5 py-4">
+                    <p className="text-sm">{parts.join(' · ')}</p>
+                    {compagni.length > 0 && (
+                      <p className="text-[13px] text-muted-foreground mt-1">
+                        Con {compagni.map((cp: any, i: number) => (
+                          <span key={cp.id}>
+                            {i > 0 && ', '}
+                            {cp.studenti ? (
+                              <Link
+                                to={`/admin/studenti/${cp.studenti.id}?from=residenti`}
+                                className="text-primary hover:underline"
+                              >
+                                {cp.studenti.cognome} {cp.studenti.nome}
+                              </Link>
+                            ) : '—'}
+                          </span>
+                        ))}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        )}
 
-          {/* Soggiorno (col-span-2) */}
-          {(assegnazioni?.length ?? 0) > 0 && (
-            <SoggiornoBlock
-              attive={attive}
-              concluse={concluse}
-              compagniPerAssegnazione={compagniPerAssegnazione}
-            />
-          )}
-
-          {/* Informazioni personali (col-span-2) */}
-          <Block title="Informazioni personali" wide right={
-            !edit ? (
+        {/* --- 3. Informazioni personali (larghezza piena, 3 colonne) --- */}
+        <section className="bg-card border border-border/50 rounded-lg p-5">
+          <header className="flex items-center justify-between gap-2 mb-4">
+            <h2 className="text-sm font-semibold">Informazioni personali</h2>
+            {!edit && (
               <Button size="sm" variant="ghost" onClick={() => setEdit(true)}>
                 <Pencil className="w-4 h-4 mr-1" /> Modifica
               </Button>
-            ) : null
-          }>
-            {!edit || !form ? (
-              <FieldGrid>
-                <ReadField label="Email" value={studente.email} />
-                <ReadField label="Telefono" value={studente.telefono} />
-                <ReadField label="Data di nascita" value={fmtIt(studente.data_nascita)} />
-                <ReadField label="Nazionalità" value={studente.nazionalita} />
-                <ReadField
-                  label="Codice fiscale"
-                  value={studente.cf_non_disponibile ? 'Non disponibile' : studente.codice_fiscale}
-                />
-                <ReadField label="N. documento identità" value={c?.documento_identita_n} />
-                <div className="sm:col-span-2">
-                  <ReadField label="Residenza fiscale" value={nomeIndirizzoCompatto(studente)} />
-                </div>
-                {(docIdentita.length > 0) && (
-                  <div className="sm:col-span-2 space-y-2 pt-1">
-                    <p className="text-[12px] text-muted-foreground">Allegati documento identità</p>
-                    {docIdentita.map((d: any) => <DocumentoRow key={d.id} doc={d} />)}
-                  </div>
-                )}
-              </FieldGrid>
-            ) : (
-              <EditAnagrafica
-                form={form} setForm={setForm} errors={errors}
-                onSalva={onSalva} onAnnulla={annullaEdit} saving={saving}
-              />
             )}
-          </Block>
+          </header>
+          {!edit || !form ? (
+            <InfoPersonaliRead
+              studente={studente}
+              docIdentita={docIdentita}
+              docIdN={c?.documento_identita_n}
+            />
+          ) : (
+            <EditAnagrafica
+              form={form} setForm={setForm} errors={errors}
+              onSalva={onSalva} onAnnulla={annullaEdit} saving={saving}
+            />
+          )}
+        </section>
 
-          {/* Dati accademici */}
-          <Block title="Dati accademici">
-            <FieldGrid single>
-              <ReadField label="Università" value={c?.universita_snapshot} />
-              <ReadField label="Corso" value={c?.corso_snapshot} />
-              <ReadField label="Anno" value={c?.anno_corso_snapshot} />
-              <ReadField
-                label="Tipo studente"
-                value={c?.tipo_studente === 'altro'
-                  ? (c?.tipo_studente_altro || 'Altro')
-                  : (TIPO_STUDENTE_LABELS[c?.tipo_studente] || c?.tipo_studente)}
-              />
-            </FieldGrid>
-          </Block>
-
-          {/* Preferenze */}
-          <Block title="Preferenze">
-            <FieldGrid single>
-              <ReadField label="Struttura" value={c?.strutture?.nome} />
-              <ReadField label="Tipo camera" value={c?.tipo_camera_preferito} />
-              <ReadField label="Periodo" value={c?.periodo_inizio || c?.periodo_fine
-                ? `${fmtIt(c?.periodo_inizio) || '—'} → ${fmtIt(c?.periodo_fine) || '—'}` : null} />
-              <ReadField label="Arrivo previsto" value={fmtIt(c?.data_arrivo_prevista)} />
-              <ReadField label="Note preferenze" value={c?.preferenze_note} />
-            </FieldGrid>
-            {avvisiDate.length > 0 && (
+        {/* --- 4. Griglia 2×2 (allineata in alto) --- */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+          <DataCard
+            title="Dati accademici"
+            items={[
+              ['Università', c?.universita_snapshot],
+              ['Corso', c?.corso_snapshot],
+              ['Anno', c?.anno_corso_snapshot],
+              ['Tipo studente', c?.tipo_studente === 'altro'
+                ? (c?.tipo_studente_altro || 'Altro')
+                : (TIPO_STUDENTE_LABELS[c?.tipo_studente] || c?.tipo_studente)],
+            ]}
+          />
+          <DataCard
+            title="Preferenze"
+            items={[
+              ['Struttura', c?.strutture?.nome],
+              ['Tipo camera', c?.tipo_camera_preferito],
+              ['Periodo', (c?.periodo_inizio || c?.periodo_fine)
+                ? `${fmtIt(c?.periodo_inizio) || '—'} → ${fmtIt(c?.periodo_fine) || '—'}` : null],
+              ['Arrivo previsto', fmtIt(c?.data_arrivo_prevista)],
+              ['Note preferenze', c?.preferenze_note],
+            ]}
+            footer={avvisiDate.length > 0 ? (
               <div className="mt-3 rounded-md border border-warning/30 bg-warning/10 p-3 space-y-1">
                 {avvisiDate.map((m, i) => (
                   <p key={i} className="text-[12px] text-warning">{m}</p>
                 ))}
               </div>
-            )}
-          </Block>
-
-          {/* Caratteristiche */}
-          {c?.versione_form === 'completa' && (
-            <Block title="Caratteristiche">
-              <FieldGrid single>
-                <ReadField label="Lingue parlate" value={c?.lingue_parlate} />
-                <ReadField label="Orari" value={ORARI_LABELS[c?.orari] || c?.orari} />
-                <ReadField
-                  label="Personalità"
-                  value={c?.personalita === 'altro'
-                    ? (c?.personalita_altro || 'Altro')
-                    : (PERSONALITA_LABELS[c?.personalita] || c?.personalita)}
-                />
-                <ReadField label="Ordine/pulizia" value={ORDINE_LABELS[c?.ordine_pulizia] || c?.ordine_pulizia} />
-                <ReadField label="Fumatore" value={c?.fumatore === true ? 'Sì' : c?.fumatore === false ? 'No' : null} />
-                {c?.presentazione && (
-                  <div className="pt-1">
-                    <p className="text-[12px] text-muted-foreground mb-1">Presentazione</p>
-                    <p className="text-[13px] whitespace-pre-wrap">{c.presentazione}</p>
-                  </div>
-                )}
-              </FieldGrid>
-            </Block>
-          )}
-
-          {/* Garante */}
-          {(c?.garante_nome || c?.garante_telefono || c?.garante_email || docGarante.length > 0) && (
-            <Block title="Garante">
-              <FieldGrid single>
-                <ReadField label="Nome" value={c?.garante_nome} />
-                <ReadField label="Relazione" value={c?.garante_relazione} />
-                <ReadField label="Telefono" value={c?.garante_telefono} />
-                <ReadField label="Email" value={c?.garante_email} />
-              </FieldGrid>
-              {docGarante.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  <p className="text-[12px] text-muted-foreground">Documento garante</p>
-                  {docGarante.map((d: any) => <DocumentoRow key={d.id} doc={d} />)}
-                </div>
-              )}
-            </Block>
-          )}
-
-          {/* Cronologia (col-span-2) */}
-          <Block title="Cronologia" wide>
-            <Cronologia log={log ?? []} />
-          </Block>
+            ) : null}
+          />
+          <DataCard
+            title="Caratteristiche"
+            items={c?.versione_form === 'completa' ? [
+              ['Lingue parlate', c?.lingue_parlate],
+              ['Orari', ORARI_LABELS[c?.orari] || c?.orari],
+              ['Personalità', c?.personalita === 'altro'
+                ? (c?.personalita_altro || 'Altro')
+                : (PERSONALITA_LABELS[c?.personalita] || c?.personalita)],
+              ['Ordine/pulizia', ORDINE_LABELS[c?.ordine_pulizia] || c?.ordine_pulizia],
+              ['Fumatore', c?.fumatore === true ? 'Sì' : c?.fumatore === false ? 'No' : null],
+              ['Presentazione', c?.presentazione],
+            ] : []}
+          />
+          <DataCard
+            title="Garante"
+            items={[
+              ['Nome', c?.garante_nome],
+              ['Relazione', c?.garante_relazione],
+              ['Telefono', c?.garante_telefono],
+              ['Email', c?.garante_email],
+            ]}
+            footer={docGarante.length > 0 ? (
+              <div className="mt-3 space-y-2">
+                <p className="text-[12px] text-muted-foreground">Documento garante</p>
+                {docGarante.map((d: any) => <DocumentoRow key={d.id} doc={d} />)}
+              </div>
+            ) : null}
+          />
         </div>
+
+        {/* --- 5. Cronologia + Note admin (2 col), poi soggiorni conclusi --- */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+          <section className="bg-card border border-border/50 rounded-lg p-5">
+            <h2 className="text-sm font-semibold mb-4">Cronologia</h2>
+            <Cronologia log={log ?? []} />
+          </section>
+          <section className="bg-card border border-border/50 rounded-lg p-5">
+            <h2 className="text-sm font-semibold mb-4">Note admin</h2>
+            <NoteAdmin candidaturaId={c?.id ?? null} initial={c?.note_admin ?? ''} studenteId={studenteId} />
+          </section>
+        </div>
+
+        {concluse.length > 0 && (
+          <section className="bg-card border border-border/50 rounded-lg p-5">
+            <h2 className="text-sm font-semibold mb-3">Soggiorni conclusi</h2>
+            <ul className="space-y-1.5">
+              {concluse.map((a: any) => {
+                const bits = [
+                  a.camere?.strutture?.nome,
+                  `Camera ${a.camere?.numero ?? '—'}`,
+                  `${fmtIt(a.data_inizio)} → ${a.data_fine ? fmtIt(a.data_fine) : '—'}`,
+                  a.motivo_chiusura,
+                ].filter(Boolean);
+                return (
+                  <li key={a.id} className="text-[13px] text-muted-foreground">
+                    {bits.join(' · ')}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
 
         {/* Altre candidature (raro) — sotto tutto, in sola lettura */}
         {altre.length > 0 && <AltreCandidature items={altre} studenteId={studenteId} />}
