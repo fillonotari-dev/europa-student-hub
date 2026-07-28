@@ -233,7 +233,7 @@ export default function Camere() {
   const occCount = (cameraId: string) => assegnazioni?.filter(a => a.camera_id === cameraId).length ?? 0;
 
   const filteredCamere = useMemo(() => (camere ?? [])
-    .filter(c => filterStato === 'tutti' || (c.stato || 'libera') === filterStato)
+    .filter(c => filterStato === 'tutti' || c.stato === filterStato)
     .sort((a: any, b: any) => {
       const dir = sortDir === 'asc' ? 1 : -1;
       switch (sortKey) {
@@ -250,7 +250,7 @@ export default function Camere() {
         case 'occupanti':
           return dir * (occCount(a.id) - occCount(b.id));
         case 'stato':
-          return dir * ((STATO_ORDER[a.stato || 'libera'] ?? 0) - (STATO_ORDER[b.stato || 'libera'] ?? 0));
+          return dir * ((STATO_ORDER[a.stato] ?? 0) - (STATO_ORDER[b.stato] ?? 0));
       }
     }), [camere, assegnazioni, filterStato, sortKey, sortDir]);
 
@@ -325,7 +325,7 @@ export default function Camere() {
               'Tipo': c.tipo,
               'Posti': c.posti,
               'Occupanti': occCount(c.id),
-              'Stato': STATO_CAMERA_LABELS[c.stato || 'libera'] ?? c.stato,
+              'Stato': STATO_CAMERA_LABELS[c.stato] ?? c.stato,
               'Note': c.note ?? '',
             }))}
           />
