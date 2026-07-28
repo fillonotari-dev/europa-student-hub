@@ -126,7 +126,7 @@ export default function StoricoCandidature() {
                       <div className="space-y-0.5">
                         <div className="text-[13px]">
                           {isFirst ? (
-                            l.stato_nuovo === 'ricevuta'
+                            l.stato_nuovo === 'da_valutare'
                               ? <>Candidatura ricevuta</>
                               : <>Candidatura registrata come <strong>{formatStato(l.stato_nuovo)}</strong></>
                           ) : isTransition ? (
