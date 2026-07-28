@@ -22,6 +22,11 @@ import logoStudentato from '@/assets/logo-studentato.svg';
 import { StepDots } from '@/components/candidatura/StepDots';
 import { MAX_UPLOAD_BYTES, ACCEPTED_UPLOAD_MIME } from '@/lib/uploads';
 import { PRIVACY_POLICY_URL } from '@/lib/privacy';
+import { DateOfBirthPicker } from '@/components/candidatura/DateOfBirthPicker';
+import { resizeImageIfNeeded, IMAGE_DECODE_FAILED } from '@/lib/imageResize';
+import { validateCodiceFiscale } from '@shared/codice-fiscale';
+import { PROVINCE } from '@shared/province';
+import { COUNTRIES } from '@shared/countries';
 
 const STEPS = ['stepPersonal', 'stepAcademic', 'stepPreferences', 'stepDocuments', 'stepDichiarazioni'] as const;
 const ACCEPTED_TYPES: readonly string[] = ACCEPTED_UPLOAD_MIME;
@@ -53,7 +58,7 @@ export default function Candidatura() {
     indirizzo_comune: '', indirizzo_provincia: '', indirizzo_nazione: 'IT',
     documento_identita_n: '',
     universita: UNIVERSITIES.length === 1 ? UNIVERSITIES[0].name : '',
-    corso_di_studi: '', anno_di_corso: '',
+    corso_di_studi: '',
     tipo_studente: '', tipo_studente_altro: '',
     struttura_preferita_id: '', tipo_camera_preferito: '', periodo_inizio: '', periodo_fine: '',
     messaggio: '',
@@ -62,6 +67,8 @@ export default function Candidatura() {
   const [files, setFiles] = useState<{ documento_identita: File | null; certificato_iscrizione: File | null }>({
     documento_identita: null, certificato_iscrizione: null,
   });
+  // Manteniamo i nomi originali dei file (prima di eventuale conversione JPEG) per la UI.
+  const [fileDisplayNames, setFileDisplayNames] = useState<Record<string, string>>({});
   const [dichiarazioni, setDichiarazioni] = useState({
     veridicita: false, privacy: false, info_struttura: false, contatto: false,
   });
@@ -160,7 +167,7 @@ export default function Candidatura() {
         'indirizzo_via', 'indirizzo_civico', 'indirizzo_cap', 'indirizzo_comune', 'indirizzo_provincia', 'indirizzo_nazione',
       ],
       stepAcademic: ['universita', 'corso_di_studi', 'periodo_inizio', 'periodo_fine'],
-      stepPreferences: [],
+      stepPreferences: ['struttura_preferita_id'],
       stepDocuments: ['_documenti'],
       stepDichiarazioni: ['_dichiarazioni'],
     };
@@ -198,8 +205,15 @@ export default function Candidatura() {
         toast({ title: t(lang, 'form.required'), variant: 'destructive' });
         return false;
       }
+      if (!form.cf_non_disponibile) {
+        const cf = validateCodiceFiscale(form.codice_fiscale);
+        if (!cf.ok) {
+          toast({ title: t(lang, 'form.invalidCf'), variant: 'destructive' });
+          return false;
+        }
+      }
       if (form.indirizzo_nazione === 'IT' && !/^\d{5}$/.test(form.indirizzo_cap)) {
-        toast({ title: t(lang, 'form.invalidCap') || 'CAP non valido', variant: 'destructive' });
+        toast({ title: t(lang, 'form.invalidCap'), variant: 'destructive' });
         return false;
       }
     }
@@ -212,8 +226,14 @@ export default function Candidatura() {
       }
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      const maxDate = new Date(today);
+      maxDate.setFullYear(maxDate.getFullYear() + 2);
       if (dInizio < today) {
         toast({ title: t(lang, 'form.periodoInizioPast'), variant: 'destructive' });
+        return false;
+      }
+      if (dInizio > maxDate || dFine > maxDate) {
+        toast({ title: t(lang, 'form.periodoTooFar'), variant: 'destructive' });
         return false;
       }
       if (dFine < dInizio) {
@@ -221,34 +241,55 @@ export default function Candidatura() {
         return false;
       }
     }
+    if (stepKey === 'stepPreferences' && !form.struttura_preferita_id) {
+      toast({ title: t(lang, 'form.strutturaRichiesta'), variant: 'destructive' });
+      return false;
+    }
     return true;
   };
 
   const next = () => { if (validateStep()) setStep(s => Math.min(s + 1, STEPS.length - 1)); };
   const prev = () => setStep(s => Math.max(s - 1, 0));
 
-  const validateFile = (file: File | null): string | null => {
-    if (!file) return null;
-    if (!ACCEPTED_TYPES.includes(file.type)) return t(lang, 'form.fileInvalidType');
-    if (file.size > MAX_SIZE) return t(lang, 'form.fileTooLarge');
-    return null;
-  };
-
-  const handleFile = (key: keyof typeof files, file: File | null) => {
-    if (file && !ACCEPTED_TYPES.includes(file.type)) {
+  const handleFile = async (key: keyof typeof files, file: File | null) => {
+    if (!file) {
+      setFileErrors(e => ({ ...e, [key]: undefined }));
+      setFiles(f => ({ ...f, [key]: null }));
+      setFileDisplayNames(n => { const c = { ...n }; delete c[key as string]; return c; });
+      return;
+    }
+    const originalName = file.name;
+    let processed = file;
+    // Ridimensiona (e converte in JPEG) le immagini prima dei controlli MIME/size,
+    // così una foto da 8 MB o un HEIC decodificabile diventa un JPEG accettato.
+    if (file.type.startsWith('image/')) {
+      try {
+        processed = await resizeImageIfNeeded(file);
+      } catch (err: any) {
+        if (err?.message === IMAGE_DECODE_FAILED) {
+          const msg = t(lang, 'form.fileImageDecodeFailed');
+          setFileErrors(e => ({ ...e, [key]: msg }));
+          toast({ title: msg, variant: 'destructive' });
+          return;
+        }
+        throw err;
+      }
+    }
+    if (!ACCEPTED_TYPES.includes(processed.type)) {
       const msg = t(lang, 'form.fileInvalidType');
       setFileErrors(e => ({ ...e, [key]: msg }));
       toast({ title: msg, variant: 'destructive' });
       return;
     }
-    if (file && file.size > MAX_SIZE) {
+    if (processed.size > MAX_SIZE) {
       const msg = t(lang, 'form.fileTooLarge');
       setFileErrors(e => ({ ...e, [key]: msg }));
       toast({ title: msg, variant: 'destructive' });
       return;
     }
     setFileErrors(e => ({ ...e, [key]: undefined }));
-    setFiles(f => ({ ...f, [key]: file }));
+    setFiles(f => ({ ...f, [key]: processed }));
+    setFileDisplayNames(n => ({ ...n, [key as string]: originalName }));
   };
 
   const handleSubmit = async () => {
@@ -303,7 +344,6 @@ export default function Candidatura() {
           ...form,
           temp_id: tempId,
           documenti: uploadedDocs,
-          struttura_preferita_id: form.struttura_preferita_id || null,
           lingua: lang,
           dichiarazioni: {
             veridicita: dichiarazioni.veridicita,
