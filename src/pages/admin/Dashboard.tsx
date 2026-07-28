@@ -35,7 +35,7 @@ export default function Dashboard() {
 
       const [
         daValutare, daDecidere, inAttesaPosto, manutenzione, scadenza,
-        vecchie, tokenScaduti, manutVecchia, assegnScadute, esitiDaComunicare,
+        vecchie, tokenScaduti, manutVecchia, assegnScadute,
       ] = await Promise.all([
         supabase.from('candidature').select('id', { count: 'exact', head: true }).eq('stato', 'da_valutare'),
         supabase.from('candidature').select('id', { count: 'exact', head: true }).eq('stato', 'da_decidere'),
@@ -51,8 +51,6 @@ export default function Dashboard() {
           .eq('stato', 'manutenzione').lt('updated_at', thirtyDaysAgo.toISOString()),
         supabase.from('assegnazioni').select('id', { count: 'exact', head: true })
           .eq('stato', 'attiva').not('data_fine', 'is', null).lt('data_fine', todayIso),
-        supabase.from('candidature').select('id', { count: 'exact', head: true })
-          .in('stato', ['accolta', 'rifiutata']).is('esito_email_inviata_il', null),
       ]);
 
       return {
@@ -65,7 +63,6 @@ export default function Dashboard() {
         tokenScaduti: tokenScaduti.count ?? 0,
         manutVecchia: manutVecchia.count ?? 0,
         assegnScadute: assegnScadute.count ?? 0,
-        esitiDaComunicare: esitiDaComunicare.count ?? 0,
       };
     },
   });
@@ -107,9 +104,6 @@ export default function Dashboard() {
     { key: 'attesa-posto', icon: UserPlus, color: 'text-success bg-success/10',
       label: 'Studenti accolti in lista d\'attesa da assegnare', count: tasks?.inAttesaPosto ?? 0,
       to: '/admin/candidature?stadio=in_attesa_posto' },
-    { key: 'esiti', icon: MailCheck, color: 'text-warning bg-warning/10',
-      label: 'Esiti da comunicare via email', count: tasks?.esitiDaComunicare ?? 0,
-      to: '/admin/candidature' },
     { key: 'manutenzione', icon: Wrench, color: 'text-muted-foreground bg-muted',
       label: 'Camere in manutenzione', count: tasks?.manutenzione ?? 0,
       to: '/admin/camere?stato=manutenzione' },

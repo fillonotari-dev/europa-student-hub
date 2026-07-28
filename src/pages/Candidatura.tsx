@@ -49,6 +49,7 @@ export default function Candidatura() {
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [rejected, setRejected] = useState(false);
   const { toast } = useToast();
 
   const [form, setForm] = useState({
@@ -369,6 +370,12 @@ export default function Candidatura() {
         throw new Error(serverMsg || error.message || t(lang, 'form.submitError'));
       }
       if ((data as any)?.error) throw new Error((data as any).error);
+      // Codice neutro di rifiuto per duplicazioni (vedi submit-candidatura).
+      // Non riveliamo il motivo: schermata generica con contatto.
+      if ((data as any)?.ok === false && (data as any)?.code === 'invio_rifiutato') {
+        setRejected(true);
+        return;
+      }
       setSuccess(true);
     } catch (err: any) {
       // Turnstile tokens are single-use and get consumed by siteverify.
@@ -399,6 +406,30 @@ export default function Candidatura() {
           <p className="text-muted-foreground text-[13px] mb-6">{t(lang, 'form.successMessage')}</p>
           <Button onClick={() => { window.location.href = 'https://www.studentatoeuropa.it'; }}>
             {t(lang, 'form.newApplication')}
+          </Button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (rejected) {
+    // Schermata generica: nessun dettaglio, indistinguibile fra i motivi di
+    // rifiuto server-side (email già presente, race di duplicazione, ecc.).
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center max-w-md space-y-4">
+          <h1 className="text-xl font-bold">
+            {lang === 'en' ? "We couldn't complete your submission" : 'Non è stato possibile completare l\'invio'}
+          </h1>
+          <p className="text-muted-foreground text-[13px]">
+            {lang === 'en'
+              ? 'If you already have an application in progress, please contact us.'
+              : 'Se hai già una candidatura in corso, contattaci.'}
+          </p>
+          <Button asChild>
+            <a href="mailto:info@studentatoeuropa.it?subject=Candidatura%20-%20Assistenza">
+              {lang === 'en' ? 'Contact us' : 'Contattaci'}
+            </a>
           </Button>
         </motion.div>
       </div>
