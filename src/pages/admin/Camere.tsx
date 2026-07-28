@@ -107,7 +107,7 @@ export default function Camere() {
       const { data } = await supabase
         .from('candidature')
         .select('id, studente_id, struttura_preferita_id, strutture(nome), studenti(id, nome, cognome)')
-        .eq('stato', 'approvata');
+        .eq('stato', 'accolta');
       return data ?? [];
     },
   });
