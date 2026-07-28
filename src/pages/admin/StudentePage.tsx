@@ -11,6 +11,7 @@ import { formatStatoCandidatura, formatStadio, STADIO_COLORS } from '@/lib/stato
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -22,8 +23,8 @@ import { validateCodiceFiscale } from '@shared/codice-fiscale';
 import { PROVINCE } from '@shared/province';
 import { COUNTRIES } from '@shared/countries';
 import {
-  User, ArrowLeft, ArrowRight, BedDouble, Pencil, X as XIcon, Check,
-  ChevronsUpDown, MessageSquare, ChevronDown, ChevronRight, FileText, DoorOpen,
+  User, ArrowLeft, ArrowRight, Pencil, X as XIcon, Check,
+  ChevronsUpDown, MessageSquare, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -440,8 +441,8 @@ export default function StudentePage() {
   return (
     <CandidaturaActionsContext.Provider value={actions.ctxValue}>
       <div className="space-y-6">
-        {/* --- Intestazione --- */}
-        <div className="flex items-start justify-between gap-4 flex-wrap">
+        {/* --- 1. Intestazione (nessuna card) --- */}
+        <div className="flex items-start justify-between gap-4 flex-wrap border-b border-border/60 pb-4">
           <div className="min-w-0">
             <h1 className="text-2xl font-semibold text-foreground truncate">
               {studente.cognome} {studente.nome}
@@ -455,141 +456,169 @@ export default function StudentePage() {
           </div>
           {candRifDecorata && (
             <div className="shrink-0">
-              <CandidaturaActions.Buttons candidatura={candRifDecorata as any} />
+              <CandidaturaActions.PrimaryWithMenu candidatura={candRifDecorata as any} />
             </div>
           )}
         </div>
 
-        {/* --- Griglia principale --- */}
-        <div className="grid md:grid-cols-2 gap-6 items-start">
+        {/* --- 2. Soggiorno (banda, non card) --- */}
+        {attive.length > 0 && (
+          <div className="space-y-2">
+            {[...attive]
+              .sort((a, b) => (a.data_inizio || '').localeCompare(b.data_inizio || ''))
+              .map((a: any) => {
+                const stato = statoTemporale(a.data_inizio, a.data_fine ?? null);
+                const compagni = compagniPerAssegnazione.get(a.id) ?? [];
+                const parts = [
+                  a.camere?.strutture?.nome,
+                  `Camera ${a.camere?.numero ?? '—'}`,
+                  `posto ${a.posto}`,
+                  `${fmtIt(a.data_inizio)} → ${a.data_fine ? fmtIt(a.data_fine) : '—'}`,
+                  stato === 'in_corso' ? 'In corso' : 'Non ancora iniziato',
+                ].filter(Boolean);
+                return (
+                  <div key={a.id} className="bg-muted/40 rounded-lg px-5 py-4">
+                    <p className="text-sm">{parts.join(' · ')}</p>
+                    {compagni.length > 0 && (
+                      <p className="text-[13px] text-muted-foreground mt-1">
+                        Con {compagni.map((cp: any, i: number) => (
+                          <span key={cp.id}>
+                            {i > 0 && ', '}
+                            {cp.studenti ? (
+                              <Link
+                                to={`/admin/studenti/${cp.studenti.id}?from=residenti`}
+                                className="text-primary hover:underline"
+                              >
+                                {cp.studenti.cognome} {cp.studenti.nome}
+                              </Link>
+                            ) : '—'}
+                          </span>
+                        ))}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        )}
 
-          {/* Soggiorno (col-span-2) */}
-          {(assegnazioni?.length ?? 0) > 0 && (
-            <SoggiornoBlock
-              attive={attive}
-              concluse={concluse}
-              compagniPerAssegnazione={compagniPerAssegnazione}
-            />
-          )}
-
-          {/* Informazioni personali (col-span-2) */}
-          <Block title="Informazioni personali" wide right={
-            !edit ? (
+        {/* --- 3. Informazioni personali (larghezza piena, 3 colonne) --- */}
+        <section className="bg-card border border-border/50 rounded-lg p-5">
+          <header className="flex items-center justify-between gap-2 mb-4">
+            <h2 className="text-sm font-semibold">Informazioni personali</h2>
+            {!edit && (
               <Button size="sm" variant="ghost" onClick={() => setEdit(true)}>
                 <Pencil className="w-4 h-4 mr-1" /> Modifica
               </Button>
-            ) : null
-          }>
-            {!edit || !form ? (
-              <FieldGrid>
-                <ReadField label="Email" value={studente.email} />
-                <ReadField label="Telefono" value={studente.telefono} />
-                <ReadField label="Data di nascita" value={fmtIt(studente.data_nascita)} />
-                <ReadField label="Nazionalità" value={studente.nazionalita} />
-                <ReadField
-                  label="Codice fiscale"
-                  value={studente.cf_non_disponibile ? 'Non disponibile' : studente.codice_fiscale}
-                />
-                <ReadField label="N. documento identità" value={c?.documento_identita_n} />
-                <div className="sm:col-span-2">
-                  <ReadField label="Residenza fiscale" value={nomeIndirizzoCompatto(studente)} />
-                </div>
-                {(docIdentita.length > 0) && (
-                  <div className="sm:col-span-2 space-y-2 pt-1">
-                    <p className="text-[12px] text-muted-foreground">Allegati documento identità</p>
-                    {docIdentita.map((d: any) => <DocumentoRow key={d.id} doc={d} />)}
-                  </div>
-                )}
-              </FieldGrid>
-            ) : (
-              <EditAnagrafica
-                form={form} setForm={setForm} errors={errors}
-                onSalva={onSalva} onAnnulla={annullaEdit} saving={saving}
-              />
             )}
-          </Block>
+          </header>
+          {!edit || !form ? (
+            <InfoPersonaliRead
+              studente={studente}
+              docIdentita={docIdentita}
+              docIdN={c?.documento_identita_n}
+            />
+          ) : (
+            <EditAnagrafica
+              form={form} setForm={setForm} errors={errors}
+              onSalva={onSalva} onAnnulla={annullaEdit} saving={saving}
+            />
+          )}
+        </section>
 
-          {/* Dati accademici */}
-          <Block title="Dati accademici">
-            <FieldGrid single>
-              <ReadField label="Università" value={c?.universita_snapshot} />
-              <ReadField label="Corso" value={c?.corso_snapshot} />
-              <ReadField label="Anno" value={c?.anno_corso_snapshot} />
-              <ReadField
-                label="Tipo studente"
-                value={c?.tipo_studente === 'altro'
-                  ? (c?.tipo_studente_altro || 'Altro')
-                  : (TIPO_STUDENTE_LABELS[c?.tipo_studente] || c?.tipo_studente)}
-              />
-            </FieldGrid>
-          </Block>
-
-          {/* Preferenze */}
-          <Block title="Preferenze">
-            <FieldGrid single>
-              <ReadField label="Struttura" value={c?.strutture?.nome} />
-              <ReadField label="Tipo camera" value={c?.tipo_camera_preferito} />
-              <ReadField label="Periodo" value={c?.periodo_inizio || c?.periodo_fine
-                ? `${fmtIt(c?.periodo_inizio) || '—'} → ${fmtIt(c?.periodo_fine) || '—'}` : null} />
-              <ReadField label="Arrivo previsto" value={fmtIt(c?.data_arrivo_prevista)} />
-              <ReadField label="Note preferenze" value={c?.preferenze_note} />
-            </FieldGrid>
-            {avvisiDate.length > 0 && (
+        {/* --- 4. Griglia 2×2 (allineata in alto) --- */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+          <DataCard
+            title="Dati accademici"
+            items={[
+              ['Università', c?.universita_snapshot],
+              ['Corso', c?.corso_snapshot],
+              ['Anno', c?.anno_corso_snapshot],
+              ['Tipo studente', c?.tipo_studente === 'altro'
+                ? (c?.tipo_studente_altro || 'Altro')
+                : (TIPO_STUDENTE_LABELS[c?.tipo_studente] || c?.tipo_studente)],
+            ]}
+          />
+          <DataCard
+            title="Preferenze"
+            items={[
+              ['Struttura', c?.strutture?.nome],
+              ['Tipo camera', c?.tipo_camera_preferito],
+              ['Periodo', (c?.periodo_inizio || c?.periodo_fine)
+                ? `${fmtIt(c?.periodo_inizio) || '—'} → ${fmtIt(c?.periodo_fine) || '—'}` : null],
+              ['Arrivo previsto', fmtIt(c?.data_arrivo_prevista)],
+              ['Note preferenze', c?.preferenze_note],
+            ]}
+            footer={avvisiDate.length > 0 ? (
               <div className="mt-3 rounded-md border border-warning/30 bg-warning/10 p-3 space-y-1">
                 {avvisiDate.map((m, i) => (
                   <p key={i} className="text-[12px] text-warning">{m}</p>
                 ))}
               </div>
-            )}
-          </Block>
-
-          {/* Caratteristiche */}
-          {c?.versione_form === 'completa' && (
-            <Block title="Caratteristiche">
-              <FieldGrid single>
-                <ReadField label="Lingue parlate" value={c?.lingue_parlate} />
-                <ReadField label="Orari" value={ORARI_LABELS[c?.orari] || c?.orari} />
-                <ReadField
-                  label="Personalità"
-                  value={c?.personalita === 'altro'
-                    ? (c?.personalita_altro || 'Altro')
-                    : (PERSONALITA_LABELS[c?.personalita] || c?.personalita)}
-                />
-                <ReadField label="Ordine/pulizia" value={ORDINE_LABELS[c?.ordine_pulizia] || c?.ordine_pulizia} />
-                <ReadField label="Fumatore" value={c?.fumatore === true ? 'Sì' : c?.fumatore === false ? 'No' : null} />
-                {c?.presentazione && (
-                  <div className="pt-1">
-                    <p className="text-[12px] text-muted-foreground mb-1">Presentazione</p>
-                    <p className="text-[13px] whitespace-pre-wrap">{c.presentazione}</p>
-                  </div>
-                )}
-              </FieldGrid>
-            </Block>
-          )}
-
-          {/* Garante */}
-          {(c?.garante_nome || c?.garante_telefono || c?.garante_email || docGarante.length > 0) && (
-            <Block title="Garante">
-              <FieldGrid single>
-                <ReadField label="Nome" value={c?.garante_nome} />
-                <ReadField label="Relazione" value={c?.garante_relazione} />
-                <ReadField label="Telefono" value={c?.garante_telefono} />
-                <ReadField label="Email" value={c?.garante_email} />
-              </FieldGrid>
-              {docGarante.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  <p className="text-[12px] text-muted-foreground">Documento garante</p>
-                  {docGarante.map((d: any) => <DocumentoRow key={d.id} doc={d} />)}
-                </div>
-              )}
-            </Block>
-          )}
-
-          {/* Cronologia (col-span-2) */}
-          <Block title="Cronologia" wide>
-            <Cronologia log={log ?? []} />
-          </Block>
+            ) : null}
+          />
+          <DataCard
+            title="Caratteristiche"
+            items={c?.versione_form === 'completa' ? [
+              ['Lingue parlate', c?.lingue_parlate],
+              ['Orari', ORARI_LABELS[c?.orari] || c?.orari],
+              ['Personalità', c?.personalita === 'altro'
+                ? (c?.personalita_altro || 'Altro')
+                : (PERSONALITA_LABELS[c?.personalita] || c?.personalita)],
+              ['Ordine/pulizia', ORDINE_LABELS[c?.ordine_pulizia] || c?.ordine_pulizia],
+              ['Fumatore', c?.fumatore === true ? 'Sì' : c?.fumatore === false ? 'No' : null],
+              ['Presentazione', c?.presentazione],
+            ] : []}
+          />
+          <DataCard
+            title="Garante"
+            items={[
+              ['Nome', c?.garante_nome],
+              ['Relazione', c?.garante_relazione],
+              ['Telefono', c?.garante_telefono],
+              ['Email', c?.garante_email],
+            ]}
+            footer={docGarante.length > 0 ? (
+              <div className="mt-3 space-y-2">
+                <p className="text-[12px] text-muted-foreground">Documento garante</p>
+                {docGarante.map((d: any) => <DocumentoRow key={d.id} doc={d} />)}
+              </div>
+            ) : null}
+          />
         </div>
+
+        {/* --- 5. Cronologia + Note admin (2 col), poi soggiorni conclusi --- */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+          <section className="bg-card border border-border/50 rounded-lg p-5">
+            <h2 className="text-sm font-semibold mb-4">Cronologia</h2>
+            <Cronologia log={log ?? []} />
+          </section>
+          <section className="bg-card border border-border/50 rounded-lg p-5">
+            <h2 className="text-sm font-semibold mb-4">Note admin</h2>
+            <NoteAdmin candidaturaId={c?.id ?? null} initial={c?.note_admin ?? ''} studenteId={studenteId} />
+          </section>
+        </div>
+
+        {concluse.length > 0 && (
+          <section className="bg-card border border-border/50 rounded-lg p-5">
+            <h2 className="text-sm font-semibold mb-3">Soggiorni conclusi</h2>
+            <ul className="space-y-1.5">
+              {concluse.map((a: any) => {
+                const bits = [
+                  a.camere?.strutture?.nome,
+                  `Camera ${a.camere?.numero ?? '—'}`,
+                  `${fmtIt(a.data_inizio)} → ${a.data_fine ? fmtIt(a.data_fine) : '—'}`,
+                  a.motivo_chiusura,
+                ].filter(Boolean);
+                return (
+                  <li key={a.id} className="text-[13px] text-muted-foreground">
+                    {bits.join(' · ')}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
 
         {/* Altre candidature (raro) — sotto tutto, in sola lettura */}
         {altre.length > 0 && <AltreCandidature items={altre} studenteId={studenteId} />}
@@ -620,169 +649,159 @@ export default function StudentePage() {
 
 // -------------------- Componenti locali --------------------
 
-function Block({ title, children, wide, right }: {
+function isEmpty(v: any): boolean {
+  if (v === null || v === undefined) return true;
+  if (typeof v === 'string') return v.trim() === '';
+  return false;
+}
+
+function DataCard({ title, items, footer }: {
   title: string;
-  children: React.ReactNode;
-  wide?: boolean;
-  right?: React.ReactNode;
+  items: Array<[string, any]>;
+  footer?: React.ReactNode;
 }) {
+  const filtered = items.filter(([, v]) => !isEmpty(v));
   return (
-    <section className={cn('bg-card border border-border/50 rounded-lg p-4', wide && 'md:col-span-2')}>
-      <header className="flex items-center justify-between gap-2 mb-3">
-        <h2 className="text-sm font-semibold">{title}</h2>
-        {right}
-      </header>
-      {children}
-    </section>
-  );
-}
-
-function FieldGrid({ children, single }: { children: React.ReactNode; single?: boolean }) {
-  return (
-    <div className={cn('grid gap-x-6 gap-y-3', single ? 'grid-cols-1' : 'sm:grid-cols-2')}>
-      {children}
-    </div>
-  );
-}
-
-function ReadField({ label, value }: { label: string; value: any }) {
-  const v = value === 0 || value === false ? String(value) : (value || '—');
-  return (
-    <div className="min-w-0">
-      <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="text-[13px] font-medium break-words">{v}</p>
-    </div>
-  );
-}
-
-function SoggiornoBlock({ attive, concluse, compagniPerAssegnazione }: {
-  attive: any[]; concluse: any[]; compagniPerAssegnazione: Map<string, any[]>;
-}) {
-  const sorted = [...attive].sort((a, b) => (a.data_inizio || '').localeCompare(b.data_inizio || ''));
-  return (
-    <section className="bg-card border border-border/50 rounded-lg p-4 md:col-span-2">
-      <header className="flex items-center gap-2 mb-3">
-        <BedDouble className="w-4 h-4 text-muted-foreground" />
-        <h2 className="text-sm font-semibold">Soggiorno</h2>
-      </header>
-
-      {sorted.length > 0 ? (
-        <div className="space-y-3">
-          {sorted.map((a: any) => {
-            const stato = statoTemporale(a.data_inizio, a.data_fine ?? null);
-            const compagni = compagniPerAssegnazione.get(a.id) ?? [];
-            return (
-              <div key={a.id} className="rounded-md border border-border/50 p-3">
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div className="min-w-0">
-                    <p className="text-[13px]">
-                      <span className="text-muted-foreground">{a.camere?.strutture?.nome ?? '—'} · </span>
-                      Cam. <strong>{a.camere?.numero ?? '—'}</strong>
-                      <span className="text-muted-foreground"> · posto {a.posto}</span>
-                    </p>
-                    <p className="text-[12px] text-muted-foreground mt-0.5">
-                      Dal {fmtIt(a.data_inizio)} al {a.data_fine ? fmtIt(a.data_fine) : '—'}
-                    </p>
-                  </div>
-                  <span className={cn(
-                    'text-[11px] uppercase tracking-wider px-2 py-0.5 rounded',
-                    stato === 'in_corso' ? 'bg-success/10 text-success' : 'bg-accent/20 text-foreground',
-                  )}>
-                    {stato === 'in_corso' ? 'In corso' : 'Non ancora iniziato'}
-                  </span>
-                </div>
-                {compagni.length > 0 && (
-                  <p className="text-[12px] text-muted-foreground mt-2">
-                    Compagno di stanza:{' '}
-                    {compagni.map((cp, i) => (
-                      <span key={cp.id}>
-                        {i > 0 && ', '}
-                        {cp.studenti ? (
-                          <Link
-                            to={`/admin/studenti/${cp.studenti.id}?from=residenti`}
-                            className="text-primary hover:underline"
-                          >
-                            {cp.studenti.cognome} {cp.studenti.nome}
-                          </Link>
-                        ) : '—'}
-                      </span>
-                    ))}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-        </div>
+    <section className="bg-card border border-border/50 rounded-lg p-5">
+      <h2 className="text-sm font-semibold mb-4">{title}</h2>
+      {filtered.length === 0 && !footer ? (
+        <p className="text-[13px] text-muted-foreground">Non ancora compilato</p>
       ) : (
-        <div className="text-[13px] text-muted-foreground flex items-center gap-2">
-          <DoorOpen className="w-4 h-4" /> Nessun soggiorno attivo
+        <div className="space-y-4">
+          {filtered.map(([label, value]) => (
+            <div key={label} className="min-w-0">
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+              <div className="text-sm mt-0.5 break-words whitespace-pre-wrap">{value}</div>
+            </div>
+          ))}
         </div>
       )}
-
-      {concluse.length > 0 && (
-        <div className="mt-4 border-t border-border/40 pt-3">
-          <p className="text-[12px] font-medium text-muted-foreground mb-2">Soggiorni conclusi</p>
-          <ul className="space-y-1.5">
-            {concluse.map((a: any) => (
-              <li key={a.id} className="text-[12px] text-muted-foreground flex flex-wrap items-center gap-x-2">
-                <span>Cam. <strong>{a.camere?.numero ?? '—'}</strong></span>
-                <span>· {a.camere?.strutture?.nome ?? '—'}</span>
-                <span>· dal {fmtIt(a.data_inizio)} al {a.data_fine ? fmtIt(a.data_fine) : '—'}</span>
-                {a.motivo_chiusura && <span>· {a.motivo_chiusura}</span>}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {footer}
     </section>
+  );
+}
+
+function InfoPersonaliRead({ studente, docIdentita, docIdN }: {
+  studente: any; docIdentita: any[]; docIdN: string | null | undefined;
+}) {
+  const items: Array<[string, any, boolean?]> = [
+    ['Email', studente.email],
+    ['Telefono', studente.telefono],
+    ['Data di nascita', fmtIt(studente.data_nascita)],
+    ['Cittadinanza', studente.nazionalita],
+    ['Codice fiscale', studente.cf_non_disponibile ? 'Non disponibile' : studente.codice_fiscale],
+    ['N. documento identità', docIdN],
+    ['Residenza', nomeIndirizzoCompatto(studente), true /* wide */],
+  ];
+  const filtered = items.filter(([, v]) => !isEmpty(v));
+  if (filtered.length === 0 && docIdentita.length === 0) {
+    return <p className="text-[13px] text-muted-foreground">Non ancora compilato</p>;
+  }
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-5">
+      {filtered.map(([label, value, wide]) => (
+        <div key={label} className={cn('min-w-0', wide && 'md:col-span-3')}>
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+          <div className="text-sm mt-0.5 break-words">{value}</div>
+        </div>
+      ))}
+      {docIdentita.length > 0 && (
+        <div className="md:col-span-3 space-y-2 pt-1">
+          <p className="text-[12px] text-muted-foreground">Allegati documento identità</p>
+          {docIdentita.map((d: any) => <DocumentoRow key={d.id} doc={d} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NoteAdmin({ candidaturaId, initial, studenteId }: {
+  candidaturaId: string | null; initial: string; studenteId: string;
+}) {
+  const qc = useQueryClient();
+  const [saved, setSaved] = useState(false);
+  if (!candidaturaId) {
+    return <p className="text-[13px] text-muted-foreground">Nessuna candidatura di riferimento.</p>;
+  }
+  return (
+    <div className="space-y-2">
+      <Textarea
+        defaultValue={initial}
+        placeholder="Note interne su questa persona…"
+        className="min-h-[120px]"
+        onBlur={async (e) => {
+          const val = e.target.value;
+          if (val === (initial || '')) return;
+          const { error } = await supabase.from('candidature').update({ note_admin: val }).eq('id', candidaturaId);
+          if (error) {
+            toast.error('Nota non salvata');
+          } else {
+            await qc.invalidateQueries({ queryKey: ['studente-candidature', studenteId] });
+            await qc.invalidateQueries({ queryKey: ['candidature'] });
+            setSaved(true);
+            setTimeout(() => setSaved(false), 1800);
+          }
+        }}
+      />
+      {saved && <p className="text-[11px] text-success">Salvato</p>}
+    </div>
   );
 }
 
 function Cronologia({ log }: { log: any[] }) {
+  const [showAll, setShowAll] = useState(false);
   if (!log || log.length === 0) {
     return <p className="text-[13px] text-muted-foreground">Nessun cambio di stato registrato</p>;
   }
+  const visible = showAll ? log : log.slice(-5);
   return (
-    <ol className="relative border-l border-border/60 pl-4 space-y-3">
-      {log.map((l: any) => {
-        const isTransition = !!l.stato_precedente && l.stato_precedente !== l.stato_nuovo;
-        const isEvent = !isTransition;
-        const hasNote = !!(l.note && String(l.note).trim());
-        const Icon = isTransition ? ArrowRight : MessageSquare;
-        return (
-          <li key={l.id} className="relative">
-            <span className={cn(
-              'absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-background',
-              isTransition ? 'bg-primary/60' : 'bg-accent',
-            )} />
-            <div className="text-[13px] flex items-start gap-2">
-              <Icon className={cn('w-3.5 h-3.5 mt-0.5 shrink-0', isTransition ? 'text-primary' : 'text-accent-foreground/70')} />
-              <div className="min-w-0">
-                {isTransition ? (
-                  <span>
-                    Stato passato da <strong>{formatStatoCandidatura(l.stato_precedente)}</strong>{' '}
-                    a <strong>{formatStatoCandidatura(l.stato_nuovo)}</strong>
-                  </span>
-                ) : (
-                  <span>
-                    Evento su <strong>{formatStatoCandidatura(l.stato_nuovo)}</strong>
-                  </span>
-                )}
-                {hasNote && (
-                  <div className={cn(
-                    'mt-1 whitespace-pre-wrap',
-                    isEvent ? 'text-[13px]' : 'text-[12px] text-muted-foreground',
-                  )}>{l.note}</div>
-                )}
-                <div className="text-[11px] text-muted-foreground mt-0.5">
-                  {new Date(l.created_at).toLocaleString('it-IT')}
+    <div>
+      <ol className="relative border-l border-border/60 pl-4 space-y-3">
+        {visible.map((l: any) => {
+          const isTransition = !!l.stato_precedente && l.stato_precedente !== l.stato_nuovo;
+          const hasNote = !!(l.note && String(l.note).trim());
+          const Icon = isTransition ? ArrowRight : MessageSquare;
+          return (
+            <li key={l.id} className="relative">
+              <span className={cn(
+                'absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-background',
+                isTransition ? 'bg-primary/60' : 'bg-accent',
+              )} />
+              <div className="text-[13px] flex items-start gap-2">
+                <Icon className={cn('w-3.5 h-3.5 mt-0.5 shrink-0', isTransition ? 'text-primary' : 'text-accent-foreground/70')} />
+                <div className="min-w-0">
+                  {isTransition ? (
+                    <span>
+                      Stato passato da <strong>{formatStatoCandidatura(l.stato_precedente)}</strong>{' '}
+                      a <strong>{formatStatoCandidatura(l.stato_nuovo)}</strong>
+                    </span>
+                  ) : (
+                    <span className="whitespace-pre-wrap">
+                      {hasNote ? l.note : 'Evento registrato'}
+                    </span>
+                  )}
+                  {isTransition && hasNote && (
+                    <div className="mt-1 text-[12px] text-muted-foreground whitespace-pre-wrap">{l.note}</div>
+                  )}
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    {new Date(l.created_at).toLocaleString('it-IT')}
+                  </div>
                 </div>
               </div>
-            </div>
-          </li>
-        );
-      })}
-    </ol>
+            </li>
+          );
+        })}
+      </ol>
+      {log.length > 5 && (
+        <button
+          type="button"
+          onClick={() => setShowAll(v => !v)}
+          className="mt-3 text-[12px] text-primary hover:underline"
+        >
+          {showAll ? 'Mostra solo le ultime 5' : `Mostra tutto (${log.length})`}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -876,7 +895,7 @@ function EditAnagrafica({ form, setForm, errors, onSalva, onAnnulla, saving }: {
       </div>
 
       <div>
-        <p className="text-[12px] uppercase tracking-wider text-muted-foreground mb-2">Residenza fiscale</p>
+        <p className="text-[12px] uppercase tracking-wider text-muted-foreground mb-2">Residenza</p>
         <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
           <FormField label="Via" required error={errors.indirizzo_via}>
             <Input value={form.indirizzo_via} onChange={e => set('indirizzo_via', e.target.value)} />
