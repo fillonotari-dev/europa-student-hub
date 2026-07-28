@@ -225,11 +225,30 @@ export default function StudentePage() {
       return data ?? [];
     },
   });
-  const docIdentita = (documenti ?? []).filter((d: any) => d.tipo === 'documento_identita');
-  const docGarante = (documenti ?? []).filter((d: any) => d.tipo === 'documento_garante');
-  const docAltri = (documenti ?? []).filter(
-    (d: any) => d.tipo !== 'documento_identita' && d.tipo !== 'documento_garante',
-  );
+  const TIPO_DOC_LABELS: Record<string, string> = {
+    documento_identita: 'Documento di identità',
+    certificato_iscrizione: 'Certificato di iscrizione',
+    documento_garante: 'Documento garante',
+    documento_aggiuntivo: 'Documento aggiuntivo',
+  };
+  const TIPO_DOC_ORDER = [
+    'documento_identita',
+    'certificato_iscrizione',
+    'documento_garante',
+    'documento_aggiuntivo',
+  ];
+  const documentiOrdinati = (documenti ?? []).slice().sort((a: any, b: any) => {
+    const ia = TIPO_DOC_ORDER.indexOf(a.tipo);
+    const ib = TIPO_DOC_ORDER.indexOf(b.tipo);
+    const na = ia === -1 ? 999 : ia;
+    const nb = ib === -1 ? 999 : ib;
+    if (na !== nb) return na - nb;
+    return String(a.created_at ?? '').localeCompare(String(b.created_at ?? ''));
+  });
+  const documentiPerTipo = documentiOrdinati.reduce((acc: Record<string, any[]>, d: any) => {
+    (acc[d.tipo] ||= []).push(d);
+    return acc;
+  }, {});
 
   // Compagno di stanza — UNA sola query, sovrapposizione calcolata in JS.
   const attive = useMemo(
