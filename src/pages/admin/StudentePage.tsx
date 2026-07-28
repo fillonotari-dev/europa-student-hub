@@ -895,7 +895,7 @@ function EditAnagrafica({ form, setForm, errors, onSalva, onAnnulla, saving }: {
       </div>
 
       <div>
-        <p className="text-[12px] uppercase tracking-wider text-muted-foreground mb-2">Residenza fiscale</p>
+        <p className="text-[12px] uppercase tracking-wider text-muted-foreground mb-2">Residenza</p>
         <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
           <FormField label="Via" required error={errors.indirizzo_via}>
             <Input value={form.indirizzo_via} onChange={e => set('indirizzo_via', e.target.value)} />
