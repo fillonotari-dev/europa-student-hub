@@ -1,21 +1,26 @@
 import type { LucideIcon } from 'lucide-react';
 import {
-  Send, MailCheck, CheckCircle2, XCircle, RotateCcw, Archive,
-  DoorOpen, Mail, Trash2,
+  Send, MailCheck, XCircle, Archive, DoorOpen, Mail, Trash2, Undo2,
 } from 'lucide-react';
+
+/**
+ * Le azioni disponibili su una candidatura si decidono dallo **stadio persona**
+ * (vista `v_studenti_stadio`), non dallo stato candidatura. La lista è
+ * intenzionalmente breve: mostrare pochi verbi coerenti con la posizione della
+ * persona nel processo evita menu di 8 voci quasi tutte non pertinenti.
+ */
 
 export type CandidaturaActionId =
   | 'invia_form_completo'
   | 'invia_esito'
-  | 'approva'
-  | 'rifiuta'
-  | 'riapri'
-  | 'metti_in_attesa_posto'
   | 'assegna_camera'
+  | 'metti_in_attesa_posto'
+  | 'rifiuta'
+  | 'annulla_assegnazione'
   | 'contatta'
   | 'elimina';
 
-export type CandidaturaActionGroup = 'stato' | 'operativa' | 'pericolosa';
+export type CandidaturaActionGroup = 'principale' | 'secondaria' | 'pericolosa';
 
 export interface CandidaturaAction {
   id: CandidaturaActionId;
@@ -32,56 +37,78 @@ export interface CandidaturaLike {
   esito_email_inviata_il?: string | null;
   token_scade_il?: string | null;
   completata_il?: string | null;
+  studente_id?: string | null;
   studenti?: { email?: string | null } | null;
+  /** Stadio letto dalla vista v_studenti_stadio. Se assente si ricade sullo stato. */
+  stadio?: string | null;
 }
 
-/** Stato di riapertura dopo accoglimento/rifiuto. */
-export function reopenStato(c: CandidaturaLike): 'da_decidere' | 'da_valutare' {
-  return (c.versione_form === 'completa' || c.completata_il) ? 'da_decidere' : 'da_valutare';
-}
-
-/** L'esito è stato comunicato allo studente via email. */
 export function esitoInviato(c: CandidaturaLike): boolean {
   return !!c.esito_email_inviata_il;
 }
 
 const ACTION_META: Record<CandidaturaActionId, Omit<CandidaturaAction, 'id'>> = {
-  invia_form_completo: { label: 'Invia form completo', icon: Send, group: 'stato' },
-  invia_esito:         { label: 'Invia comunicazione esito', icon: MailCheck, group: 'stato' },
-  approva:             { label: 'Accogli', icon: CheckCircle2, group: 'stato' },
-  rifiuta:             { label: 'Rifiuta', icon: XCircle, group: 'stato' },
-  riapri:              { label: 'Riapri', icon: RotateCcw, group: 'stato' },
-  metti_in_attesa_posto: { label: 'Metti in attesa di posto', icon: Archive, group: 'stato' },
-  assegna_camera:      { label: 'Assegna a camera', icon: DoorOpen, group: 'operativa' },
-  contatta:            { label: 'Contatta studente', icon: Mail, group: 'operativa' },
-  elimina:             { label: 'Elimina candidatura', icon: Trash2, group: 'pericolosa', destructive: true },
+  invia_form_completo:   { label: 'Invia form completo', icon: Send, group: 'principale' },
+  invia_esito:           { label: 'Comunica esito', icon: MailCheck, group: 'principale' },
+  assegna_camera:        { label: 'Assegna posto', icon: DoorOpen, group: 'principale' },
+  metti_in_attesa_posto: { label: 'Metti in lista d\'attesa', icon: Archive, group: 'secondaria' },
+  rifiuta:               { label: 'Rifiuta', icon: XCircle, group: 'secondaria' },
+  annulla_assegnazione:  { label: 'Annulla assegnazione', icon: Undo2, group: 'secondaria' },
+  contatta:              { label: 'Contatta', icon: Mail, group: 'secondaria' },
+  elimina:               { label: 'Elimina candidatura', icon: Trash2, group: 'pericolosa', destructive: true },
 };
 
 function make(id: CandidaturaActionId): CandidaturaAction {
   return { id, ...ACTION_META[id] };
 }
 
+/**
+ * Restituisce le azioni pertinenti in base allo stadio persona.
+ * Le voci sono ordinate: la prima del gruppo `principale` è quella che le
+ * liste mostrano come pulsante primario; le altre finiscono nel menu overflow.
+ */
 export function getAvailableActions(c: CandidaturaLike): CandidaturaAction[] {
   const out: CandidaturaAction[] = [];
-  const stato = c.stato;
+  const stadio = c.stadio ?? c.stato ?? '';
 
-  if (c.versione_form !== 'completa') out.push(make('invia_form_completo'));
-  if ((stato === 'accolta' || stato === 'rifiutata') && !esitoInviato(c)) {
-    out.push(make('invia_esito'));
+  switch (stadio) {
+    case 'da_valutare':
+      if (c.versione_form !== 'completa') out.push(make('invia_form_completo'));
+      out.push(make('assegna_camera'));
+      out.push(make('metti_in_attesa_posto'));
+      out.push(make('rifiuta'));
+      break;
+    case 'in_attesa_studente':
+      out.push(make('invia_form_completo'));
+      out.push(make('rifiuta'));
+      break;
+    case 'da_decidere':
+      out.push(make('assegna_camera'));
+      out.push(make('metti_in_attesa_posto'));
+      out.push(make('rifiuta'));
+      break;
+    case 'in_attesa_posto':
+      out.push(make('assegna_camera'));
+      out.push(make('metti_in_attesa_posto')); // per riordinare priorità
+      out.push(make('rifiuta'));
+      break;
+    case 'assegnato':
+      if (!esitoInviato(c)) out.push(make('invia_esito'));
+      out.push(make('annulla_assegnazione'));
+      break;
+    case 'in_casa':
+      // Concludi / trasferisci vivono sulla riga Residenti.
+      break;
+    case 'archiviato':
+      // Solo azioni non-critiche.
+      break;
+    default:
+      break;
   }
-  if (stato === 'da_valutare' || stato === 'da_decidere') {
-    out.push(make('approva'));
-    out.push(make('rifiuta'));
-  }
-  if (stato === 'accolta' || stato === 'rifiutata') {
-    out.push(make('riapri'));
-  }
-  if (stato === 'accolta') {
-    out.push(make('metti_in_attesa_posto'));
-  }
-  if (stato === 'accolta') out.push(make('assegna_camera'));
+
   if (c.studenti?.email) out.push(make('contatta'));
-  out.push(make('elimina'));
-
+  if (stadio === 'archiviato' || stadio === 'da_valutare' || stadio === 'in_attesa_studente') {
+    out.push(make('elimina'));
+  }
   return out;
 }

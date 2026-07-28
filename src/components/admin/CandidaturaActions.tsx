@@ -1,24 +1,22 @@
 import { Button } from '@/components/ui/button';
-import { DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { RowActions } from '@/components/admin/RowActions';
 import { useCandidaturaActionsCtx } from '@/hooks/useCandidaturaActions';
-import { getAvailableActions, type CandidaturaLike, type CandidaturaAction } from '@/lib/candidaturaActions';
+import { getAvailableActions, type CandidaturaLike } from '@/lib/candidaturaActions';
 
-function groupOf(actions: CandidaturaAction[]) {
-  return {
-    stato: actions.filter(a => a.group === 'stato'),
-    operativa: actions.filter(a => a.group === 'operativa'),
-    pericolosa: actions.filter(a => a.group === 'pericolosa'),
-  };
-}
-
+/**
+ * Menu di riga: mostra tutte le azioni disponibili senza separazione visiva
+ * fra principali e secondarie (le liste sono corte per stadio). L'ultimo
+ * gruppo "pericolosa" resta separato dal resto.
+ */
 function Menu({ candidatura }: { candidatura: CandidaturaLike }) {
   const { trigger } = useCandidaturaActionsCtx();
-  const groups = groupOf(getAvailableActions(candidatura));
+  const actions = getAvailableActions(candidatura);
+  const safe = actions.filter(a => a.group !== 'pericolosa');
+  const danger = actions.filter(a => a.group === 'pericolosa');
   return (
     <RowActions>
-      {groups.stato.length > 0 && <DropdownMenuLabel>Cambia stato</DropdownMenuLabel>}
-      {groups.stato.map(a => {
+      {safe.map(a => {
         const Icon = a.icon;
         return (
           <DropdownMenuItem key={a.id} onClick={() => trigger(a.id, candidatura)}>
@@ -26,22 +24,13 @@ function Menu({ candidatura }: { candidatura: CandidaturaLike }) {
           </DropdownMenuItem>
         );
       })}
-      {groups.operativa.length > 0 && <DropdownMenuSeparator />}
-      {groups.operativa.map(a => {
-        const Icon = a.icon;
-        return (
-          <DropdownMenuItem key={a.id} onClick={() => trigger(a.id, candidatura)}>
-            <Icon className="w-4 h-4 mr-2" /> {a.label}
-          </DropdownMenuItem>
-        );
-      })}
-      {groups.pericolosa.length > 0 && <DropdownMenuSeparator />}
-      {groups.pericolosa.map(a => {
+      {danger.length > 0 && safe.length > 0 && <DropdownMenuSeparator />}
+      {danger.map(a => {
         const Icon = a.icon;
         return (
           <DropdownMenuItem
             key={a.id}
-            className={a.destructive ? 'text-destructive focus:text-destructive' : ''}
+            className="text-destructive focus:text-destructive"
             onClick={() => trigger(a.id, candidatura)}
           >
             <Icon className="w-4 h-4 mr-2" /> {a.label}
@@ -52,16 +41,21 @@ function Menu({ candidatura }: { candidatura: CandidaturaLike }) {
   );
 }
 
+/** Pulsanti orizzontali (usati nella scheda persona): la prima "principale"
+ *  diventa il default; il resto è outline; le pericolose sono destructive. */
 function Buttons({ candidatura }: { candidatura: CandidaturaLike }) {
   const { trigger } = useCandidaturaActionsCtx();
   const actions = getAvailableActions(candidatura);
+  let primaryTaken = false;
   return (
     <div className="flex flex-wrap gap-2">
       {actions.map(a => {
         const Icon = a.icon;
-        const variant = a.destructive ? 'destructive' : a.group === 'stato' && (a.id === 'approva' || a.id === 'invia_form_completo' || a.id === 'invia_esito') ? 'default' : 'outline';
+        let variant: 'default' | 'outline' | 'destructive' = 'outline';
+        if (a.destructive) variant = 'destructive';
+        else if (a.group === 'principale' && !primaryTaken) { variant = 'default'; primaryTaken = true; }
         return (
-          <Button key={a.id} size="sm" variant={variant as any} onClick={() => trigger(a.id, candidatura)}>
+          <Button key={a.id} size="sm" variant={variant} onClick={() => trigger(a.id, candidatura)}>
             <Icon className="w-4 h-4 mr-1" /> {a.label}
           </Button>
         );

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,11 +11,11 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Label } from '@/components/ui/label';
 import { MailCheck, Copy, CheckCircle, Mail } from 'lucide-react';
 import {
-  type CandidaturaActionId, type CandidaturaLike, reopenStato,
+  type CandidaturaActionId, type CandidaturaLike,
 } from '@/lib/candidaturaActions';
-import { formatStato } from '@/lib/statoCandidatura';
 
 type Ctx = {
   trigger: (id: CandidaturaActionId, c: CandidaturaLike) => void;
@@ -31,11 +31,8 @@ export function useCandidaturaActionsCtx(): Ctx {
 }
 
 interface Options {
-  /** Set opzionale di candidature con assegnazione attiva (per warning cambio stato). */
   candidatureConAssegnazione?: Set<string> | null;
-  /** Chiavi extra da invalidare (es. viste della scheda persona). */
   extraInvalidateKeys?: readonly (readonly unknown[])[];
-  /** Chiamata dopo eliminazione, per pulire selezioni locali della pagina. */
   onDeleted?: (c: CandidaturaLike) => void;
 }
 
@@ -53,6 +50,9 @@ export function useCandidaturaActions(options: Options = {}) {
   const invalidateAll = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['candidature'] });
     queryClient.invalidateQueries({ queryKey: ['studenti-approvati'] });
+    queryClient.invalidateQueries({ queryKey: ['stadio'] });
+    queryClient.invalidateQueries({ queryKey: ['residenti'] });
+    queryClient.invalidateQueries({ queryKey: ['assegnazioni-attive'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     for (const k of extraInvalidateKeys ?? []) {
       queryClient.invalidateQueries({ queryKey: k as unknown[] });
@@ -62,16 +62,59 @@ export function useCandidaturaActions(options: Options = {}) {
   // ---- Mutazioni ---------------------------------------------------------
 
   const updateStato = useMutation({
-    mutationFn: async ({ id, stato }: { id: string; stato: string }) => {
-      const { error } = await supabase.from('candidature').update({ stato }).eq('id', id);
+    mutationFn: async ({ id, stato, patch }: { id: string; stato: string; patch?: Record<string, any> }) => {
+      const { error } = await supabase.from('candidature')
+        .update({ stato, ...(patch ?? {}) })
+        .eq('id', id);
       if (error) throw error;
-      // La riga di transizione la scrive il trigger DB `candidature_log_stato`.
+    },
+    onSuccess: () => { invalidateAll(); toast({ title: 'Stato aggiornato' }); },
+    onError: (e: any) => toast({ title: 'Errore', description: e?.message ?? 'Aggiornamento fallito', variant: 'destructive' }),
+  });
+
+  const setPriorita = useMutation({
+    mutationFn: async ({ id, priorita }: { id: string; priorita: number | null }) => {
+      const { error } = await supabase.from('candidature')
+        .update({ stato: 'in_attesa_posto', priorita })
+        .eq('id', id);
+      if (error) throw error;
     },
     onSuccess: () => {
       invalidateAll();
-      toast({ title: 'Stato aggiornato' });
+      toast({ title: 'Aggiunto in lista d\'attesa' });
+      setPrioritaTarget(null);
     },
-    onError: (e: any) => toast({ title: 'Errore', description: e?.message ?? 'Aggiornamento fallito', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: 'Errore', description: e?.message, variant: 'destructive' }),
+  });
+
+  const annullaAssegnazione = useMutation({
+    mutationFn: async (c: CandidaturaLike) => {
+      // Trova l'assegnazione attiva per questa candidatura e cancellala.
+      // Poi rimette la candidatura in `da_decidere` azzerando i campi esito.
+      const { data: att } = await supabase
+        .from('assegnazioni')
+        .select('id, data_inizio')
+        .eq('candidatura_id', c.id)
+        .eq('stato', 'attiva')
+        .maybeSingle();
+      if (!att) throw new Error('Nessuna assegnazione attiva da annullare.');
+      // Solo pre-arrivo: se il soggiorno è iniziato, va concluso da Residenti.
+      if (att.data_inizio && new Date(att.data_inizio) <= new Date()) {
+        throw new Error('Il soggiorno è già iniziato: concludilo dalla pagina Residenti.');
+      }
+      const { error: delErr } = await supabase.from('assegnazioni').delete().eq('id', att.id);
+      if (delErr) throw delErr;
+      const { error: updErr } = await supabase.from('candidature')
+        .update({ stato: 'da_decidere', esito_email_inviata_il: null, esito_email_nota: null })
+        .eq('id', c.id);
+      if (updErr) throw updErr;
+    },
+    onSuccess: () => {
+      invalidateAll();
+      toast({ title: 'Assegnazione annullata', description: 'La candidatura torna in "Da decidere".' });
+      setAnnullaTarget(null);
+    },
+    onError: (e: any) => toast({ title: 'Errore', description: e?.message, variant: 'destructive' }),
   });
 
   const deleteCandidatura = useMutation({
@@ -132,6 +175,9 @@ export function useCandidaturaActions(options: Options = {}) {
   const [esitoTarget, setEsitoTarget] = useState<CandidaturaLike | null>(null);
   const [esitoNota, setEsitoNota] = useState('');
   const [esitoLoading, setEsitoLoading] = useState(false);
+  const [prioritaTarget, setPrioritaTarget] = useState<CandidaturaLike | null>(null);
+  const [prioritaValue, setPrioritaValue] = useState<string>('');
+  const [annullaTarget, setAnnullaTarget] = useState<CandidaturaLike | null>(null);
 
   // ---- Handler -----------------------------------------------------------
 
@@ -163,10 +209,8 @@ export function useCandidaturaActions(options: Options = {}) {
 
   const requestStatoChange = useCallback((c: CandidaturaLike, nextStato: string) => {
     const rischioso = hasAssegnazioneAttiva(c) &&
-      (nextStato === 'rifiutata' || nextStato === 'in_attesa_posto' ||
-       nextStato === 'da_valutare' || nextStato === 'da_decidere');
-    const approvaIncompleta = nextStato === 'accolta' && c.versione_form !== 'completa';
-    if (rischioso || approvaIncompleta) {
+      (nextStato === 'rifiutata' || nextStato === 'in_attesa_posto');
+    if (rischioso) {
       setStatoConfirm({ c, nextStato });
       return;
     }
@@ -186,17 +230,15 @@ export function useCandidaturaActions(options: Options = {}) {
         setEsitoNota('');
         setEsitoTarget(c);
         return;
-      case 'approva':
-        requestStatoChange(c, 'accolta');
-        return;
       case 'rifiuta':
         requestStatoChange(c, 'rifiutata');
         return;
-      case 'riapri':
-        requestStatoChange(c, reopenStato(c));
-        return;
       case 'metti_in_attesa_posto':
-        requestStatoChange(c, 'in_attesa_posto');
+        setPrioritaValue('');
+        setPrioritaTarget(c);
+        return;
+      case 'annulla_assegnazione':
+        setAnnullaTarget(c);
         return;
       case 'assegna_camera':
         navigate(`/admin/camere?candidatura=${c.id}`);
@@ -255,19 +297,11 @@ export function useCandidaturaActions(options: Options = {}) {
             <AlertDialogTitle>Confermare il cambio di stato?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-[13px]">
-                {statoConfirm && hasAssegnazioneAttiva(statoConfirm.c) && (
-                  <p>
-                    Esiste già un'<strong>assegnazione attiva</strong> per questa candidatura.
-                    Cambiare stato a "{formatStato(statoConfirm.nextStato)}" non chiude l'assegnazione:
-                    lo studente resterà residente. Per concludere il soggiorno vai in <strong>Residenti</strong>.
-                  </p>
-                )}
-                {statoConfirm && statoConfirm.nextStato === 'accolta' && statoConfirm.c.versione_form !== 'completa' && (
-                  <p>
-                    Lo studente <strong>non ha ancora compilato il form completo</strong> (stile di vita, garante,
-                    documenti aggiuntivi). Confermi di volerlo accogliere comunque?
-                  </p>
-                )}
+                <p>
+                  Esiste già un'<strong>assegnazione attiva</strong> per questa candidatura.
+                  Il cambio di stato non chiude l'assegnazione: lo studente resta residente.
+                  Per concludere il soggiorno vai in <strong>Residenti</strong>.
+                </p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -280,6 +314,55 @@ export function useCandidaturaActions(options: Options = {}) {
               }}
             >
               Procedi
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Priorità lista d'attesa */}
+      <Dialog open={!!prioritaTarget} onOpenChange={open => { if (!open) setPrioritaTarget(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Metti in lista d'attesa</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-[13px] text-muted-foreground">
+              Le candidature in attesa sono ordinate per priorità crescente (1 = prima). Lascia vuoto per ordinamento in fondo.
+            </p>
+            <div>
+              <Label>Priorità</Label>
+              <Input type="number" min={1} value={prioritaValue}
+                onChange={e => setPrioritaValue(e.target.value)} placeholder="es. 1" />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setPrioritaTarget(null)}>Annulla</Button>
+              <Button onClick={() => {
+                if (!prioritaTarget) return;
+                const p = prioritaValue.trim() === '' ? null : Math.max(1, parseInt(prioritaValue, 10) || 1);
+                setPriorita.mutate({ id: prioritaTarget.id, priorita: p });
+              }}>Conferma</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Annulla assegnazione */}
+      <AlertDialog open={!!annullaTarget} onOpenChange={open => { if (!open) setAnnullaTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Annullare l'assegnazione?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-[13px]">
+                <p>L'assegnazione verrà eliminata e la candidatura torna a <strong>Da decidere</strong>. Eventuale flag "esito comunicato" viene azzerato.</p>
+                <p className="text-muted-foreground">Se il soggiorno è già iniziato, dovrai invece <strong>concluderlo</strong> dalla pagina Residenti.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => annullaTarget && annullaAssegnazione.mutate(annullaTarget)}
+            >
+              Annulla assegnazione
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

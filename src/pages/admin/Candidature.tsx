@@ -4,7 +4,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
@@ -12,51 +11,44 @@ import {
 } from '@/components/ui/pagination';
 import { ExportButton } from '@/components/admin/ExportButton';
 import { fmtDate } from '@/lib/exportXlsx';
-import {
-  Search, FileText, Download, ArrowUp, ArrowDown, ArrowUpDown,
-  MailCheck,
-} from 'lucide-react';
-import { useStrutturaFilter } from '@/hooks/useStrutturaFilter';
-import { STATO_LABELS, STATO_COLORS, formatStato } from '@/lib/statoCandidatura';
+import { Search, FileText, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { STADIO_LABELS, STADI_CANDIDATURE, formatStadio } from '@/lib/statoCandidatura';
+import { StadioBadge } from '@/components/admin/candidatura/CandidaturaBadges';
 import { useCandidaturaActions, CandidaturaActionsContext } from '@/hooks/useCandidaturaActions';
 import { CandidaturaActions } from '@/components/admin/CandidaturaActions';
+import { fetchStadi, type StadioRow } from '@/lib/studentiQuery';
 
-const STATI = ['da_valutare', 'in_attesa_studente', 'da_decidere', 'accolta', 'in_attesa_posto', 'rifiutata'] as const;
-const STATO_ORDER: Record<string, number> = {
-  da_valutare: 0, in_attesa_studente: 1, da_decidere: 2,
-  accolta: 3, in_attesa_posto: 4, rifiutata: 5,
-};
-const TIPO_STUDENTE_LABELS: Record<string, string> = {
-  universitario: 'Corso di laurea', erasmus: 'Erasmus o scambio', master: 'Master o dottorato', altro: 'Altro',
-};
-const COME_CONOSCIUTO_LABELS: Record<string, string> = {
-  instagram: 'Instagram', google: 'Google', universita: 'Università', esn: 'ESN',
-  amici: 'Amici', sito: 'Sito web', altro: 'Altro',
-};
-const ORARI_LABELS: Record<string, string> = {
-  mattiniero: 'Si sveglia presto', serale: 'Fa tardi la sera', variabile: 'Dipende dai giorni',
-};
-const PERSONALITA_LABELS: Record<string, string> = {
-  tranquilla: 'Persona tranquilla', socievole: 'Persona socievole', riservata: 'Persona riservata', altro: 'Altro',
-};
-const ORDINE_LABELS: Record<string, string> = {
-  molto: 'Rimette tutto a posto subito', abbastanza: 'Rimette a posto, ma non sempre subito', poco: 'Tende a lasciare le cose in giro',
+const STADI_LISTA = [...STADI_CANDIDATURE, 'archiviato'] as const;
+const STADIO_ORDER: Record<string, number> = {
+  da_valutare: 0, in_attesa_studente: 1, da_decidere: 2, in_attesa_posto: 3, archiviato: 9,
 };
 const PAGE_SIZE = 15;
-type SortKey = 'studente' | 'struttura' | 'anno' | 'stato' | 'data';
+type SortKey = 'studente' | 'struttura' | 'priorita' | 'stadio';
+
+function toCandidaturaLike(r: StadioRow) {
+  return {
+    id: r.candidatura_id ?? r.studente_id,
+    stato: r.candidatura_stato,
+    stadio: r.stadio,
+    versione_form: r.versione_form,
+    esito_email_inviata_il: r.esito_email_inviata_il,
+    token_scade_il: r.token_scade_il,
+    completata_il: r.completata_il,
+    studente_id: r.studente_id,
+    studenti: { email: r.email },
+  };
+}
 
 export default function Candidature() {
-  const { strutturaId, isAll } = useStrutturaFilter();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Tutto lo stato della lista vive nell'URL: reload e tasto indietro lo ripristinano.
   const search = searchParams.get('q') ?? '';
-  const filterStato = searchParams.get('stato') ?? 'tutti';
-  const sortKey = ((searchParams.get('sk') as SortKey) ?? 'data');
-  const sortDir = ((searchParams.get('sd') as 'asc' | 'desc') ?? 'desc');
+  const filterStadio = searchParams.get('stadio') ?? 'tutti';
+  const filterStruttura = searchParams.get('sede') ?? 'tutti';
+  const sortKey = ((searchParams.get('sk') as SortKey) ?? 'priorita');
+  const sortDir = ((searchParams.get('sd') as 'asc' | 'desc') ?? 'asc');
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1);
-  const esitoFilter = searchParams.get('esito_da_inviare') === '1';
 
   const patchParams = (patch: Record<string, string | null>, opts: { resetPage?: boolean } = {}) => {
     const next = new URLSearchParams(searchParams);
@@ -67,28 +59,23 @@ export default function Candidature() {
     setSearchParams(next, { replace: true });
   };
 
-  const { data: candidature } = useQuery({
-    queryKey: ['candidature', filterStato, strutturaId],
+  const { data: rows } = useQuery({
+    queryKey: ['stadio', 'candidature'],
+    queryFn: () => fetchStadi([...STADI_CANDIDATURE, 'archiviato']),
+  });
+
+  const { data: strutture } = useQuery({
+    queryKey: ['strutture-tutte'],
     queryFn: async () => {
-      let query = supabase
-        .from('candidature')
-        .select('*, studenti(nome, cognome, email, telefono, nazionalita, data_nascita, codice_fiscale), strutture(nome)')
-        .order('created_at', { ascending: false });
-      if (filterStato !== 'tutti') query = query.eq('stato', filterStato);
-      if (!isAll) query = query.eq('struttura_preferita_id', strutturaId);
-      const { data } = await query;
+      const { data } = await supabase.from('strutture').select('id, nome').order('nome');
       return data ?? [];
     },
   });
 
-  // Set di candidature con assegnazione attiva (per warning sui cambi stato).
   const { data: candidatureConAssegnazione } = useQuery({
-    queryKey: ['candidature-con-assegnazione-attiva'],
+    queryKey: ['assegnazioni-attive', 'set'],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('assegnazioni')
-        .select('candidatura_id')
-        .eq('stato', 'attiva');
+      const { data } = await supabase.from('assegnazioni').select('candidatura_id').eq('stato', 'attiva');
       return new Set((data ?? []).map((a: any) => a.candidatura_id));
     },
   });
@@ -97,28 +84,36 @@ export default function Candidature() {
     candidatureConAssegnazione: candidatureConAssegnazione ?? null,
   });
 
-  const filtered = (candidature ?? [])
-    .filter(c => {
-      if (!search) return true;
-      const s = search.toLowerCase();
-      return c.studenti?.nome?.toLowerCase().includes(s) || c.studenti?.cognome?.toLowerCase().includes(s) || c.studenti?.email?.toLowerCase().includes(s);
-    })
-    .filter(c => !esitoFilter || (!c.esito_email_inviata_il && (c.stato === 'accolta' || c.stato === 'rifiutata')))
-    .sort((a: any, b: any) => {
-      const dir = sortDir === 'asc' ? 1 : -1;
-      switch (sortKey) {
-        case 'studente':
-          return dir * `${a.studenti?.cognome ?? ''} ${a.studenti?.nome ?? ''}`.localeCompare(`${b.studenti?.cognome ?? ''} ${b.studenti?.nome ?? ''}`);
-        case 'struttura':
-          return dir * (a.strutture?.nome ?? '').localeCompare(b.strutture?.nome ?? '');
-        case 'anno':
-          return dir * String(a.anno_accademico ?? '').localeCompare(String(b.anno_accademico ?? ''));
-        case 'stato':
-          return dir * ((STATO_ORDER[a.stato] ?? 99) - (STATO_ORDER[b.stato] ?? 99));
-        case 'data':
-          return dir * (new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      }
-    });
+  const filtered = useMemo(() => {
+    const list = (rows ?? []).filter(r =>
+      filterStadio === 'tutti' ? r.stadio !== 'archiviato' : r.stadio === filterStadio,
+    );
+    return list
+      .filter(r => filterStruttura === 'tutti' || r.struttura_id === filterStruttura)
+      .filter(r => {
+        if (!search) return true;
+        const s = search.toLowerCase();
+        return r.nome?.toLowerCase().includes(s)
+            || r.cognome?.toLowerCase().includes(s)
+            || r.email?.toLowerCase().includes(s);
+      })
+      .sort((a, b) => {
+        const dir = sortDir === 'asc' ? 1 : -1;
+        switch (sortKey) {
+          case 'studente':
+            return dir * `${a.cognome ?? ''} ${a.nome ?? ''}`.localeCompare(`${b.cognome ?? ''} ${b.nome ?? ''}`);
+          case 'struttura':
+            return dir * (a.struttura_nome ?? '').localeCompare(b.struttura_nome ?? '');
+          case 'stadio':
+            return dir * ((STADIO_ORDER[a.stadio] ?? 99) - (STADIO_ORDER[b.stadio] ?? 99));
+          case 'priorita': {
+            const pa = a.priorita ?? Number.POSITIVE_INFINITY;
+            const pb = b.priorita ?? Number.POSITIVE_INFINITY;
+            return dir * (pa - pb);
+          }
+        }
+      });
+  }, [rows, filterStadio, filterStruttura, search, sortKey, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -131,17 +126,15 @@ export default function Candidature() {
   };
 
   const toggleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      patchParams({ sd: sortDir === 'asc' ? 'desc' : 'asc' }, { resetPage: true });
-    } else {
-      patchParams({ sk: key, sd: key === 'data' ? 'desc' : 'asc' }, { resetPage: true });
-    }
+    if (sortKey === key) patchParams({ sd: sortDir === 'asc' ? 'desc' : 'asc' }, { resetPage: true });
+    else patchParams({ sk: key, sd: 'asc' }, { resetPage: true });
   };
 
-  const openScheda = (c: any) => {
+  const openScheda = (r: StadioRow) => {
     const qs = searchParams.toString();
     const suffix = qs ? `&${qs}` : '';
-    navigate(`/admin/studenti/${c.studente_id}?candidatura=${c.id}&from=candidature${suffix}`);
+    const cand = r.candidatura_id ? `&candidatura=${r.candidatura_id}` : '';
+    navigate(`/admin/studenti/${r.studente_id}?from=candidature${cand}${suffix}`);
   };
 
   const SortHeader = ({ k, label }: { k: SortKey; label: string }) => {
@@ -160,177 +153,113 @@ export default function Candidature() {
 
   return (
     <CandidaturaActionsContext.Provider value={actions.ctxValue}>
-    <div className="space-y-6">
-      <div className="flex gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Cerca per nome o email..." value={search}
-            onChange={e => patchParams({ q: e.target.value || null }, { resetPage: true })} className="pl-9" />
-        </div>
-        <Select value={filterStato} onValueChange={(v) => patchParams({ stato: v === 'tutti' ? null : v }, { resetPage: true })}>
-          <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="tutti">Tutti gli stati</SelectItem>
-            {STATI.map(s => <SelectItem key={s} value={s}>{STATO_LABELS[s]}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        {esitoFilter && (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => patchParams({ esito_da_inviare: null }, { resetPage: true })}
-          >
-            <MailCheck className="w-4 h-4 mr-2" /> Solo esiti da comunicare · Rimuovi
-          </Button>
-        )}
-        <ExportButton
-          filename="candidature"
-          getRows={() => filtered.map((c: any) => {
-            const base: Record<string, any> = {
-              'Nome': c.studenti?.nome ?? '',
-              'Cognome': c.studenti?.cognome ?? '',
-              'Email': c.studenti?.email ?? '',
-              'Telefono': c.studenti?.telefono ?? '',
-              'Nazionalità': c.studenti?.nazionalita ?? '',
-              'Data di nascita': fmtDate(c.studenti?.data_nascita),
-              'Codice fiscale': c.studenti?.codice_fiscale ?? '',
-              'Indirizzo residenza': [
-                c.studenti?.indirizzo_via, c.studenti?.indirizzo_civico,
-                c.studenti?.indirizzo_cap, c.studenti?.indirizzo_comune,
-                c.studenti?.indirizzo_provincia, c.studenti?.indirizzo_nazione,
-              ].filter(Boolean).join(' '),
-              'N. documento identità': c.documento_identita_n ?? '',
-              'Struttura preferita': c.strutture?.nome ?? '',
-              'Università': c.universita_snapshot ?? '',
-              'Corso': c.corso_snapshot ?? '',
-              'Anno corso': c.anno_corso_snapshot ?? '',
-              'Matricola': c.matricola_snapshot ?? '',
-              'Tipo studente': c.tipo_studente === 'altro' ? (c.tipo_studente_altro ?? 'Altro') : (TIPO_STUDENTE_LABELS[c.tipo_studente] ?? c.tipo_studente ?? ''),
-              'Stato': formatStato(c.stato),
-              'Versione form': c.versione_form === 'completa' ? 'Completa' : 'Pre-screening',
-              'Anno accademico': c.anno_accademico ?? '',
-              'Periodo inizio': fmtDate(c.periodo_inizio),
-              'Periodo fine': fmtDate(c.periodo_fine),
-              'Data arrivo prevista': fmtDate(c.data_arrivo_prevista),
-              'Come conosciuto': c.come_conosciuto === 'altro' ? (c.come_conosciuto_altro ?? 'Altro') : (COME_CONOSCIUTO_LABELS[c.come_conosciuto] ?? c.come_conosciuto ?? ''),
-              'Note preferenze': c.preferenze_note ?? '',
-              'Lingue parlate': c.lingue_parlate ?? '',
-              'Orari': ORARI_LABELS[c.orari] ?? c.orari ?? '',
-              'Personalità': c.personalita === 'altro' ? (c.personalita_altro ?? 'Altro') : (PERSONALITA_LABELS[c.personalita] ?? c.personalita ?? ''),
-              'Ordine/pulizia': ORDINE_LABELS[c.ordine_pulizia] ?? c.ordine_pulizia ?? '',
-              'Fumatore': c.fumatore === true ? 'Sì' : c.fumatore === false ? 'No' : '',
-              'Presentazione': c.presentazione ?? '',
-              'Garante nome': c.garante_nome ?? '',
-              'Garante relazione': c.garante_relazione ?? '',
-              'Garante telefono': c.garante_telefono ?? '',
-              'Garante email': c.garante_email ?? '',
-              'Data candidatura': fmtDate(c.created_at),
-              'Completata il': fmtDate(c.completata_il),
-            };
-            return base;
-          })}
-        />
-      </div>
-
-      <div className="bg-card border border-border/50 rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-muted/70 text-xs uppercase tracking-wider text-muted-foreground">
-                <SortHeader k="studente" label="Studente" />
-                <SortHeader k="struttura" label="Struttura" />
-                <SortHeader k="anno" label="Anno" />
-                <SortHeader k="stato" label="Stato" />
-                <SortHeader k="data" label="Data" />
-                <th className="px-4 py-3 text-right font-semibold">Azioni</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pageItems.map((c: any, i: number) => (
-                <motion.tr key={c.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}
-                  className="border-b border-border/30 hover:bg-muted/50 cursor-pointer transition-colors"
-                  onClick={() => openScheda(c)}>
-                  <td className="px-4 py-3">
-                    <p className="text-sm font-medium">{c.studenti?.nome} {c.studenti?.cognome}</p>
-                    <p className="text-[11px] text-muted-foreground">{c.studenti?.email}</p>
-                    {c.versione_form === 'completa' && (
-                      <span className="inline-block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-success/10 text-success">
-                        Form completo
-                      </span>
-                    )}
-                    {c.versione_form !== 'completa' && c.token_scade_il && new Date(c.token_scade_il) > new Date() && (
-                      <span className="inline-block mt-1 ml-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-accent/20 text-foreground">
-                        Link attivo · scade {new Date(c.token_scade_il).toLocaleDateString('it-IT')}
-                      </span>
-                    )}
-                    {c.versione_form !== 'completa' && c.token_scade_il && new Date(c.token_scade_il) <= new Date() && (
-                      <span className="inline-block mt-1 ml-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">
-                        Link scaduto
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-sm">{c.strutture?.nome || '-'}</td>
-                  <td className="px-4 py-3 text-sm">{c.anno_accademico}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${STATO_COLORS[c.stato] ?? 'bg-muted text-muted-foreground'}`}>
-                      {formatStato(c.stato)}
-                    </span>
-                    {(c.stato === 'accolta' || c.stato === 'rifiutata') && !c.esito_email_inviata_il && (
-                      <span className="block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-warning/10 text-warning">
-                        Esito da comunicare
-                      </span>
-                    )}
-                    {(c.stato === 'accolta' || c.stato === 'rifiutata') && !!c.esito_email_inviata_il && (
-                      <span className="block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-success/10 text-success">
-                        Esito inviato
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">{new Date(c.created_at).toLocaleDateString('it-IT')}</td>
-                  <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                    <CandidaturaActions.Menu candidatura={c} />
-                  </td>
-                </motion.tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {filtered.length === 0 && (
-          <div className="py-12 text-center">
-            <FileText className="w-8 h-8 text-muted-foreground/50 mx-auto mb-2" />
-            <p className="text-[13px] text-muted-foreground">Nessuna candidatura trovata</p>
+      <div className="space-y-6">
+        <div className="flex gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input placeholder="Cerca per nome o email..." value={search}
+              onChange={e => patchParams({ q: e.target.value || null }, { resetPage: true })} className="pl-9" />
           </div>
-        )}
-      </div>
+          <Select value={filterStadio} onValueChange={(v) => patchParams({ stadio: v === 'tutti' ? null : v }, { resetPage: true })}>
+            <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">Tutti gli stadi attivi</SelectItem>
+              {STADI_LISTA.map(s => <SelectItem key={s} value={s}>{STADIO_LABELS[s]}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filterStruttura} onValueChange={(v) => patchParams({ sede: v === 'tutti' ? null : v }, { resetPage: true })}>
+            <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">Tutte le sedi</SelectItem>
+              {(strutture ?? []).map((s: any) => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <ExportButton
+            filename="candidature"
+            getRows={() => filtered.map(r => ({
+              'Cognome': r.cognome ?? '',
+              'Nome': r.nome ?? '',
+              'Email': r.email ?? '',
+              'Stadio': formatStadio(r.stadio),
+              'Struttura': r.struttura_nome ?? '',
+              'Priorità': r.priorita ?? '',
+              'Anno accademico': r.anno_accademico ?? '',
+              'Data candidatura': fmtDate(r.created_at ?? undefined),
+              'Versione form': r.versione_form === 'completa' ? 'Completa' : 'Pre-screening',
+              'Esito inviato il': fmtDate(r.esito_email_inviata_il ?? undefined),
+            }))}
+          />
+        </div>
 
-      {filtered.length > 0 && (
-        <div className="flex items-center justify-between text-[13px] text-muted-foreground">
-          <span>{pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filtered.length)} di {filtered.length}</span>
-          {totalPages > 1 && (
-            <Pagination className="mx-0 w-auto justify-end">
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); setPage(p => Math.max(1, p - 1)); }}
-                    className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''} />
-                </PaginationItem>
-                {Array.from({ length: totalPages }).map((_, i) => (
-                  <PaginationItem key={i}>
-                    <PaginationLink href="#" isActive={currentPage === i + 1}
-                      onClick={(e) => { e.preventDefault(); setPage(i + 1); }}>{i + 1}</PaginationLink>
-                  </PaginationItem>
+        <div className="bg-card border border-border/50 rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-muted/70 text-xs uppercase tracking-wider text-muted-foreground">
+                  <SortHeader k="studente" label="Studente" />
+                  <SortHeader k="struttura" label="Struttura" />
+                  <SortHeader k="priorita" label="Priorità" />
+                  <SortHeader k="stadio" label="Stadio" />
+                  <th className="px-4 py-3 text-right font-semibold">Azioni</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pageItems.map((r, i) => (
+                  <motion.tr key={`${r.studente_id}-${r.candidatura_id ?? ''}`}
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}
+                    className="border-b border-border/30 hover:bg-muted/50 cursor-pointer transition-colors"
+                    onClick={() => openScheda(r)}>
+                    <td className="px-4 py-3">
+                      <p className="text-sm font-medium">{r.cognome} {r.nome}</p>
+                      <p className="text-[11px] text-muted-foreground">{r.email}</p>
+                    </td>
+                    <td className="px-4 py-3 text-sm">{r.struttura_nome || '—'}</td>
+                    <td className="px-4 py-3 text-sm tabular-nums">{r.priorita ?? '—'}</td>
+                    <td className="px-4 py-3"><StadioBadge stadio={r.stadio} /></td>
+                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                      {r.candidatura_id ? <CandidaturaActions.Menu candidatura={toCandidaturaLike(r) as any} /> : null}
+                    </td>
+                  </motion.tr>
                 ))}
-                <PaginationItem>
-                  <PaginationNext href="#" onClick={(e) => { e.preventDefault(); setPage(p => Math.min(totalPages, p + 1)); }}
-                    className={currentPage === totalPages ? 'pointer-events-none opacity-50' : ''} />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
+              </tbody>
+            </table>
+          </div>
+          {filtered.length === 0 && (
+            <div className="py-12 text-center">
+              <FileText className="w-8 h-8 text-muted-foreground/50 mx-auto mb-2" />
+              <p className="text-[13px] text-muted-foreground">Nessuna candidatura trovata</p>
+            </div>
           )}
         </div>
-      )}
 
-      {actions.dialogs}
-    </div>
+        {filtered.length > 0 && (
+          <div className="flex items-center justify-between text-[13px] text-muted-foreground">
+            <span>{pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filtered.length)} di {filtered.length}</span>
+            {totalPages > 1 && (
+              <Pagination className="mx-0 w-auto justify-end">
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); setPage(p => Math.max(1, p - 1)); }}
+                      className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''} />
+                  </PaginationItem>
+                  {Array.from({ length: totalPages }).map((_, i) => (
+                    <PaginationItem key={i}>
+                      <PaginationLink href="#" isActive={currentPage === i + 1}
+                        onClick={(e) => { e.preventDefault(); setPage(i + 1); }}>{i + 1}</PaginationLink>
+                    </PaginationItem>
+                  ))}
+                  <PaginationItem>
+                    <PaginationNext href="#" onClick={(e) => { e.preventDefault(); setPage(p => Math.min(totalPages, p + 1)); }}
+                      className={currentPage === totalPages ? 'pointer-events-none opacity-50' : ''} />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            )}
+          </div>
+        )}
+
+        {actions.dialogs}
+      </div>
     </CandidaturaActionsContext.Provider>
   );
 }

@@ -51,8 +51,21 @@ export default function StudentePage() {
   usePageTitle(studente ? `${studente.cognome ?? ''} ${studente.nome ?? ''}`.trim() : null);
   usePageBack(backTo);
 
+  const { data: stadioRow } = useQuery({
+    queryKey: ['studente-stadio', studenteId],
+    enabled: !!studenteId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('v_studenti_stadio')
+        .select('stadio, candidatura_id')
+        .eq('studente_id', studenteId)
+        .maybeSingle();
+      return data;
+    },
+  });
+
   const { data: candidature } = useQuery({
-    queryKey: ['studente-candidature', studenteId],
+    queryKey: ['studente-candidature', studenteId, stadioRow?.candidatura_id ?? null, stadioRow?.stadio ?? null],
     enabled: !!studenteId,
     queryFn: async () => {
       const { data } = await supabase
@@ -60,8 +73,13 @@ export default function StudentePage() {
         .select('*, strutture(nome)')
         .eq('studente_id', studenteId)
         .order('created_at', { ascending: false });
-      // Iniettiamo studenti inline così i componenti condivisi trovano quello che si aspettano.
-      return (data ?? []).map((c: any) => ({ ...c, studenti: studente ?? null }));
+      // Iniettiamo studenti inline e lo stadio (dalla vista) per la candidatura
+      // corrente, così le azioni condivise leggono un CandidaturaLike completo.
+      return (data ?? []).map((c: any) => ({
+        ...c,
+        studenti: studente ?? null,
+        stadio: stadioRow?.candidatura_id === c.id ? stadioRow?.stadio : (c.stato ?? null),
+      }));
     },
   });
 
