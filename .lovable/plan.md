@@ -1,156 +1,102 @@
-## Intervento — Cinque pagine, uno stadio unico, ricerca globale (rev.3)
 
-Rifondazione della navigazione admin attorno a `v_studenti_stadio` e `camere_disponibilita`. Nessuna migration, nessun ricalcolo locale di stadio od occupazione.
+## Verifica preliminare
 
-### 0. Documentazione (prima di tutto)
-`docs/Context.md`:
-- Riscrivere gli stadi con i valori reali della vista: `in_casa, assegnato, da_valutare, in_attesa_studente, da_decidere, in_attesa_posto, archiviato`.
-- Verificare che `camere_disponibilita` e vincolo GIST siano descritti con intervalli CHIUSI `[]` (data_fine = ultimo giorno incluso).
+`fetchStadi` (src/lib/studentiQuery.ts) unisce `versione_form / esito_email_inviata_il / token_scade_il / completata_il / anno_accademico / created_at` alla riga di vista tramite un secondo select su `candidature`. I badge e il gate `versione_form !== 'completa'` funzionano. Nessun undefined silenzioso.
 
-### 1. Helper query condiviso
-Nuovo `src/lib/studentiQuery.ts`: due query lato client
-1. `v_studenti_stadio` filtrata per stadi della lista → id + colonne base
-2. tabella dettaglio (`candidature` o `studenti`) filtrata sugli id
-3. una query su `strutture` per risolvere i nomi (no embed per riga)
-4. join per id lato client
+## Correzioni
 
-Nessuna paginazione server. Filtri/sort/pagina lato client.
+### 1. `invia_esito` universale su stato candidatura
 
-### 2. Etichette e colori — due mappe separate
-`src/lib/statoCandidatura.ts` copre solo i 6 stati candidatura; le liste mostrano lo STADIO (7 valori).
+In `getAvailableActions`, valutato fuori dallo switch:
 
-Due mappe distinte:
-- `STATO_CANDIDATURA_COLORS` + `formatStatoCandidatura` — per la cronologia
-- `STADIO_COLORS` + `formatStadio` — per le liste, copre tutti e 7 gli stadi
+```
+if ((c.stato === 'accolta' || c.stato === 'rifiutata')
+    && !c.esito_email_inviata_il) push('invia_esito')
+```
 
-Aggiornare `src/components/admin/candidatura/CandidaturaBadges.tsx`: sdoppiare in `StadioBadge` (liste + testata scheda) e `StatoCandidaturaBadge`.
+Rimuovere `invia_esito` dal case `assegnato`. `CandidaturaLike.stato` esiste già; `toCandidaturaLike` lo popola con `candidatura_stato`.
 
-La timeline dei log vive in `src/components/admin/candidatura/CandidaturaDetail.tsx` (verificato: linee 63 e 194–200 usano `log_stato_candidature` + `formatStato`). Lì sostituire `formatStato` → `formatStatoCandidatura`.
+### 2. `in_casa`: `trasferisci` e `concludi_soggiorno`
 
-### 3. Le due liste
-`Candidature.tsx` — stadi `da_valutare, in_attesa_studente, da_decidere, in_attesa_posto`. Colonne: nome, stadio, struttura, arrivo previsto, tipo camera preferito, priorità, badge documenti/link, data invio. Ordinabile per priorità (NULL in fondo).
+Le due mutazioni si estraggono da `Residenti.tsx` in `useCandidaturaActions.tsx`. Nuovi `CandidaturaActionId`: `trasferisci`, `concludi_soggiorno`.
 
-`Residenti.tsx` — stadi `assegnato, in_casa`. Colonne: nome, stadio, struttura, camera, posto, data inizio, data fine. Filtro "in arrivo" per isolare `assegnato`.
+`CandidaturaLike` guadagna campi opzionali:
+- `assegnazione_id`, `camera_id_corrente`, `data_fine_corrente`
+Valorizzati in `toCandidaturaLike` delle liste (già in `StadioRow`) e in `StudentePage.tsx` dalla assegnazione `attiva` corrente.
 
-Entrambe: filtro archiviati OFF di default con contatore; filtro sede locale (query param); stato in query params; clic riga → `/admin/studenti/:id` con URL di ritorno.
+Dialoghi trasferimento + conclusione spostati nell'hook, con lo stesso comportamento attuale: chiusura vecchia a `nuovo_inizio - 1` + insert nuova (motivo `trasferimento`); RPC `camere_disponibilita` per calcolare posto libero.
 
-### 4. Rimozione filtro sede globale
-Consumatori: `Dashboard.tsx`, `Candidature.tsx`, `Camere.tsx`, `Residenti.tsx`, `AdminLayout.tsx`, `StrutturaSelect.tsx`. `Strutture.tsx` no.
-- Eliminare `useStrutturaFilter.ts` e `StrutturaSelect.tsx`
-- Rimuovere provider/select dalla top bar
-- Filtro sede locale (query param) nelle tre pagine
+**Query camere di destinazione**: la query `tutteCamere` va portata dentro l'hook, altrimenti la tendina esce vuota. Nell'occasione filtro corretto: `.eq('stato','disponibile')` (oggi è `.neq('stato','manutenzione')` e include per errore `non_disponibile`).
 
-### 5. Ricerca globale in top bar
-Interroga `v_studenti_stadio` su nome/cognome/email, TUTTI gli stadi (archiviati inclusi). Risultati con `StadioBadge`, apre `/admin/studenti/:id`.
+`Residenti.tsx` rimuove stati/mutazioni/dialoghi locali; le voci del `RowActions` chiamano `trigger('trasferisci', c)` / `trigger('concludi_soggiorno', c)`. La scheda persona ottiene le azioni "gratis" via `getAvailableActions`.
 
-### 6. Home (`Dashboard.tsx`) — due blocchi
+Gate: `trasferisci` e `concludi_soggiorno` compaiono solo se `c.assegnazione_id` presente.
 
-Blocco "Da fare" (righe cliccabili → lista pre-filtrata):
-- N `da_valutare`, N `da_decidere`
-- N `in_attesa_studente` > 7 giorni
-- N link completamento scaduti
-- N esiti da comunicare (`accolta`/`rifiutata` con `esito_email_inviata_il IS NULL`)
-- N soggiorni in scadenza ≤ 30 gg
-- N soggiorni scaduti da chiudere (assegnazioni `attiva` con `data_fine < CURRENT_DATE`)
+### 3. `assegnato`: solo `annulla_assegnazione` (+ `contatta`, + `invia_esito` da §1)
 
-Blocco "Stato dello studentato" — per sede, affiancati:
-- posti occupati/totale via `camere_disponibilita(CURRENT_DATE, CURRENT_DATE, <struttura>)`
-- ingressi previsti ≤ 30 gg
-- camere in manutenzione
+**Trasferisci NON si offre su `assegnato`.** Il flusso attuale chiude la vecchia riga a `nuovo_inizio - 1`; se l'assegnazione non è ancora cominciata, quella data cade prima della sua `data_inizio` e daterange con estremi invertiti fa esplodere il vincolo GIST con errore Postgres grezzo.
 
-### 7. Azioni per stadio (`candidaturaActions.ts` + `useCandidaturaActions.tsx`)
-`getAvailableActions(input)` con input **stadio**. Principale = pulsante pieno.
+Per rimpiazzare un'assegnazione pre-arrivo esiste già `annulla_assegnazione`, che cancella la riga e riporta a `da_decidere` (da cui si riassegna in modo pulito).
 
-| Stadio | Principale | Secondarie |
-|---|---|---|
-| da_valutare | Chiedi dati completi | Rifiuta, Contatta, Elimina |
-| in_attesa_studente | — | Rinvia link, Contatta, Rifiuta, Elimina |
-| da_decidere | Assegna camera | Metti in lista d'attesa, Rifiuta, Contatta, Elimina |
-| in_attesa_posto | Assegna camera | Rifiuta, Contatta, Elimina |
-| assegnato | — | Trasferisci, Contatta, Annulla assegnazione |
-| in_casa | — | Trasferisci, Contatta, Concludi soggiorno |
-| archiviato | — | Contatta, Elimina (solo se mai assegnato) |
+`case 'assegnato'`:
+- `annulla_assegnazione`
+- (`invia_esito` arriva da §1 se pertinente, `contatta` in fondo)
 
-Rimuovere `riapri`, `segna_rinuncia`, `reopenStato` e handler.
+Nessun ramo "aggiorna la stessa riga" per l'assegnazione mai iniziata: se serve, sarà un intervento separato.
 
-**Metti in lista d'attesa**: dialogo con campo numerico Priorità (int, opzionale). Setta `stato → in_attesa_posto` e scrive `candidature.priorita`. Priorità editabile inline in lista dallo stadio `in_attesa_posto`. Ordinamento ASC, NULL in fondo.
+### 4. `da_valutare`: una sola azione principale
 
-**Annulla assegnazione** (solo stadio `assegnato`): AlertDialog di conferma. Nella stessa operazione:
-1. `DELETE FROM assegnazioni WHERE id = …`
-2. `UPDATE candidature SET stato='da_decidere', esito_email_inviata_il=NULL, esito_email_nota=NULL WHERE id=<candidatura_id>`
+Regola: principale = `invia_form_completo`. Retrocedere `assegna_camera` e `metti_in_attesa_posto` a `secondaria` **solo in questo case**, via override in `getAvailableActions` (copia dell'oggetto action con `group: 'secondaria'` prima del push). `ACTION_META` resta invariato.
 
-Senza l'azzeramento email, alla decisione successiva quella persona non ricompare fra "esiti da comunicare".
+**Sotto-caso**: se `c.versione_form === 'completa'`, `invia_form_completo` non si pusha (già oggi). In quel solo caso `assegna_camera` resta **principale** — evitiamo di lasciare la riga senza pulsante primario.
 
-Lista e scheda studente leggono azioni SOLO da questa funzione.
+`rifiuta` resta secondaria.
 
-### 8. Flusso "Assegna una camera" (Camere.tsx)
-Azione principale di `da_decidere` e `in_attesa_posto`. Correzioni obbligatorie:
+### 5. `elimina`: escludere chi ha MAI avuto un'assegnazione
 
-**(a) Query candidati selezionabili**: `studentiApprovati` oggi filtra `.eq('stato','accolta')`. Estendere a `.in('stato', ['da_decidere','in_attesa_posto','accolta'])` — altrimenti chi arriva da `da_decidere` non è selezionabile.
+Serve **sdoppiare l'insieme oggi chiamato `candidatureConAssegnazione`**, che alimenta due cose diverse in `useCandidaturaActions`:
 
-**(b) Mutazione `assegna`**: nella stessa operazione:
-1. `INSERT INTO assegnazioni …`
-2. `UPDATE candidature SET stato='accolta' WHERE id=<candidatura_id>` (idempotente se già `accolta`)
+- gate di `elimina` — deve considerare **qualsiasi** assegnazione (anche conclusa)
+- avviso "Esiste già un'assegnazione attiva" nel dialogo di conferma cambio stato rischioso (`requestStatoChange`) — deve considerare **solo `attiva`**, altrimenti l'avviso comparirebbe per chi ha finito il soggiorno un anno fa.
 
-Approvare e assegnare sono lo stesso gesto. Senza (2), la persona compare correttamente in Residenti (lo stadio arriva dall'assegnazione) ma NON entra nel contatore "esiti da comunicare" e l'email non parte.
+Rifattorizzazione:
 
-**(c) Preselezione**: se URL contiene `?candidatura=<id>`, preselezionare quella candidatura nel dialogo.
+- `Options` di `useCandidaturaActions` diventa:
+  - `studentiHaAvutoAssegnazione?: Set<string>` — set di **candidatura_id** senza filtro `stato`. Usato dal gate di `elimina` (che oggi vive lato hook come `count > 0` server-side; il set client serve a **nascondere** l'azione, non solo a bloccarla).
+  - `studentiHaAssegnazioneAttiva?: Set<string>` — set di candidatura_id con `stato='attiva'`. Usato da `hasAssegnazioneAttiva` e da `requestStatoChange`.
+- `getAvailableActions` accetta come opzione booleana `haAvutoAssegnazione` (già calcolato dal chiamante via set). Se `true`, `elimina` non viene aggiunto per lo stadio `archiviato / da_valutare / in_attesa_studente`.
+- In `Candidature.tsx` e `StudentePage.tsx`: due useQuery separate.
+  - `assegnazioni-any` → `select('candidatura_id')` senza filtro.
+  - `assegnazioni-attive` → `select('candidatura_id').eq('stato','attiva')`.
+- Passare `hasAssegnazioneAttiva` al context (già presente) e `haAvutoAssegnazione` alle `getAvailableActions`. `CandidaturaActions.Menu` legge dal context e passa il flag prima di renderizzare le voci.
 
-NON costruire in questo intervento: vista compagni di stanza, verifica periodo contestuale, assegnazione multi-posto.
+Il gate server-side in `deleteCandidatura` (mutation) resta come rete di sicurezza.
 
-### 9. `StudentePage.tsx` — allineamento
-NON riprogettare. Solo:
-- leggere lo **stadio** da `v_studenti_stadio` per lo studente
-- passarlo a `getAvailableActions` (input stadio, non `c.stato`)
-- badge di testata → `StadioBadge`
-- rimuovere riferimenti alle azioni eliminate (`riapri`, `segna_rinuncia`) e a `reopenStato`
-- sostituire `any` residui sui props azioni
+Verifica dei punti d'uso attuali di `candidatureConAssegnazione` prima di riassegnarli:
+- `useCandidaturaActions.hasAssegnazioneAttiva` (contesto) → **attiva**
+- `requestStatoChange` (branch "rischioso") → **attiva**
+- `Candidature.tsx` (opzione hook) → passa **entrambi** i set
 
-Layout, ordine sezioni, timeline log invariati (usa `formatStatoCandidatura`).
+## File toccati
 
-### 10. Storico: rimozione + redirect
-- Eliminare `src/pages/admin/storico/` intera
-- Rimuovere import/route da `App.tsx` e voce in `AdminSidebar.tsx`
-- Redirect:
-  - `/admin/storico/candidature` → `/admin/candidature?archiviati=1`
-  - `/admin/storico/residenti` → `/admin/residenti?archiviati=1`
-  - `/admin/storico/camere` → `/admin/camere`
-  - `/admin/storico` → `/admin/residenti?archiviati=1`
+- `src/lib/candidaturaActions.ts` — nuovi id, override group per `da_valutare`, `invia_esito` globale, flag `haAvutoAssegnazione` in signature, campi opzionali su `CandidaturaLike`.
+- `src/hooks/useCandidaturaActions.tsx` — sdoppio opzioni set (attiva/mai), mutazioni + dialog `trasferisci` / `concludi_soggiorno`, query interna camere destinazione con `.eq('stato','disponibile')`.
+- `src/pages/admin/Residenti.tsx` — rimozione mutazioni/state/dialog locali; toCandidaturaLike include `assegnazione_id`, `camera_id_corrente`, `data_fine_corrente`; menu chiama `trigger`.
+- `src/pages/admin/Candidature.tsx` — due useQuery separate (any / attiva); toCandidaturaLike include `stato` (già ok) e nessun campo assegnazione (non applicabile).
+- `src/pages/admin/StudentePage.tsx` — stesso sdoppio set; toCandidaturaLike include assegnazione attiva se presente.
+- `src/components/admin/CandidaturaActions.tsx` — legge `haAvutoAssegnazione` per la riga corrente e lo passa a `getAvailableActions`.
 
-### 11. Export
-Rifare `ExportButton.tsx` + `exportXlsx.ts`: due profili (Candidature/Residenti), colonne rispettive, VISTA CORRENTE filtrata. Verificare no colonne rimosse.
+## Fuori scopo
 
-### Vincoli
-- Nessun ricalcolo locale di stadio o occupazione
-- Nessuna migration
-- Design system invariato
+Nessuna migration. Nessun cambio a `v_studenti_stadio`, RPC, schema. Nessun ramo "modifica in place" per il trasferimento pre-arrivo.
 
-### Verifiche finali
-- Con filtri archiviati SPENTI in entrambe le liste:
-  `count(Candidature) + count(Residenti) + count(archiviato) = count(*) v_studenti_stadio` (archiviati una sola volta)
-- Persona con assegnazione futura → Residenti/`assegnato`, non in Candidature
-- Ricerca globale trova archiviati con badge stadio e apre la scheda
-- `useStrutturaFilter` zero consumatori residui
-- Redirect `/admin/storico/*` funzionanti
-- Posti occupati Home invariati con assegnazione futura registrata
-- `StudentePage` mostra le azioni della tabella §7 per lo stadio corrente
-- **Flusso assegna end-to-end**: da candidatura in `da_decidere` → "Assegna camera" → completare. Verificare:
-  (i) compare in Residenti con `assegnato` o `in_casa`
-  (ii) `candidature.stato = 'accolta'`
-  (iii) Home la conta fra "esiti da comunicare"
-  Se (i)(ii) tornano e (iii) no, lo stato candidatura non è stato scritto.
+## Verifica
 
-### Ordine di esecuzione
-1. `Context.md` (§0)
-2. Due mappe stato/stadio + badge sdoppiati + `CandidaturaDetail.tsx` (§2)
-3. Helper query (§1)
-4. Azioni per stadio, priorità, Annulla assegnazione con reset esito (§7)
-5. Camere.tsx: query estesa + update stato in assegna + preselezione (§8)
-6. `StudentePage.tsx` (§9)
-7. Candidature + Residenti riscritte con filtro sede locale (§3)
-8. Rimozione `useStrutturaFilter`/StrutturaSelect (§4)
-9. Ricerca globale (§5)
-10. Home (§6)
-11. Storico + redirect (§10)
-12. Export (§11)
-13. Typecheck + checklist verifiche
+- `bunx tsgo --noEmit`.
+- Manuale:
+  - Rifiutato archiviato → mostra "Comunica esito" finché non inviato.
+  - `in_casa` sulla scheda persona → Trasferisci + Concludi soggiorno.
+  - `assegnato` → Annulla assegnazione (nessun Trasferisci).
+  - `da_valutare` non completa → pulsante primario "Invia form completo"; `da_valutare` completa → primario "Assegna camera".
+  - Persona con soggiorno concluso l'anno scorso: nessun avviso "assegnazione attiva" al cambio stato; `elimina` non compare.
+  - Tendina camere del dialogo Trasferisci non include camere `non_disponibile`.

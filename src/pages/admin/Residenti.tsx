@@ -1,31 +1,22 @@
-import { useMemo, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
   PaginationNext, PaginationPrevious,
 } from '@/components/ui/pagination';
-import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import { RowActions } from '@/components/admin/RowActions';
-import { useToast } from '@/hooks/use-toast';
 import { ExportButton } from '@/components/admin/ExportButton';
 import { fmtDate } from '@/lib/exportXlsx';
-import { Search, Users as UsersIcon, ArrowUp, ArrowDown, ArrowUpDown, User, ArrowRightLeft, LogOut, Mail } from 'lucide-react';
+import { Search, Users as UsersIcon, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { STADI_RESIDENTI, formatStadio } from '@/lib/statoCandidatura';
 import { StadioBadge } from '@/components/admin/candidatura/CandidaturaBadges';
 import { fetchStadi, type StadioRow } from '@/lib/studentiQuery';
+import { useCandidaturaActions, CandidaturaActionsContext } from '@/hooks/useCandidaturaActions';
+import { CandidaturaActions } from '@/components/admin/CandidaturaActions';
 
 const PAGE_SIZE = 15;
 type SortKey = 'nome' | 'email' | 'camera' | 'struttura' | 'stadio';
@@ -59,18 +50,6 @@ export default function Residenti() {
     navigate(`/admin/studenti/${studenteId}?from=residenti${suffix}`);
   };
 
-  const [transferTarget, setTransferTarget] = useState<StadioRow | null>(null);
-  const [transferCameraId, setTransferCameraId] = useState<string>('');
-  const [transferData, setTransferData] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [transferFine, setTransferFine] = useState<string>('');
-  const [endTarget, setEndTarget] = useState<StadioRow | null>(null);
-  const [endData, setEndData] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [endNote, setEndNote] = useState('');
-  const [endMotivo, setEndMotivo] = useState<string>('');
-
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-
   const { data: rows } = useQuery({
     queryKey: ['stadio', 'residenti'],
     queryFn: () => fetchStadi([...STADI_RESIDENTI, 'archiviato']),
@@ -84,73 +63,42 @@ export default function Residenti() {
     },
   });
 
-  const { data: tutteCamere } = useQuery({
-    queryKey: ['camere-disponibili'],
+  const { data: studentiHaAssegnazioneAttiva } = useQuery({
+    queryKey: ['assegnazioni-attive', 'set'],
     queryFn: async () => {
-      const { data } = await supabase.from('camere').select('*, strutture(nome)').neq('stato', 'manutenzione');
-      return data ?? [];
+      const { data } = await supabase.from('assegnazioni').select('candidatura_id').eq('stato', 'attiva');
+      return new Set((data ?? []).map((a: any) => a.candidatura_id));
     },
   });
 
-  const { data: tutteAssegnazioniAttive } = useQuery({
-    queryKey: ['assegnazioni-attive'],
+  const { data: studentiHaAvutoAssegnazione } = useQuery({
+    queryKey: ['assegnazioni-any', 'set'],
     queryFn: async () => {
-      const { data } = await supabase.from('assegnazioni').select('camera_id').eq('stato', 'attiva');
-      return data ?? [];
+      const { data } = await supabase.from('assegnazioni').select('candidatura_id');
+      return new Set((data ?? []).map((a: any) => a.candidatura_id));
     },
   });
 
-  const invalidateAll = () => {
-    queryClient.invalidateQueries({ queryKey: ['stadio'] });
-    queryClient.invalidateQueries({ queryKey: ['camere'] });
-    queryClient.invalidateQueries({ queryKey: ['assegnazioni-attive'] });
-    queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-  };
-
-  const transferisci = useMutation({
-    mutationFn: async (v: { assegnazione_id: string; studente_id: string; vecchia_camera_id: string;
-                            nuova_camera_id: string; nuova_data_inizio: string; nuova_data_fine: string }) => {
-      if (v.nuova_camera_id === v.vecchia_camera_id) throw new Error('La camera di destinazione coincide con quella attuale.');
-      const { data: disp, error: dispErr } = await supabase.rpc('camere_disponibilita', {
-        p_dal: v.nuova_data_inizio, p_al: v.nuova_data_fine, p_struttura_id: null,
-      });
-      if (dispErr) throw dispErr;
-      const row = (disp ?? []).find((r: any) => r.camera_id === v.nuova_camera_id);
-      if (!row) throw new Error('Camera non trovata.');
-      const occupati: number[] = row.posti_occupati_numeri ?? [];
-      let nextPosto = 0;
-      for (let p = 1; p <= row.posti; p++) if (!occupati.includes(p)) { nextPosto = p; break; }
-      if (nextPosto === 0) throw new Error('La camera non ha posti liberi nel periodo scelto.');
-      const { data: lastCand } = await supabase
-        .from('candidature').select('id').eq('studente_id', v.studente_id)
-        .order('created_at', { ascending: false }).limit(1).maybeSingle();
-      if (!lastCand) throw new Error('Nessuna candidatura trovata per lo studente.');
-      const inizio = new Date(v.nuova_data_inizio + 'T00:00:00Z');
-      const chiusuraStr = new Date(inizio.getTime() - 86400000).toISOString().split('T')[0];
-      const { error: updErr } = await supabase.from('assegnazioni')
-        .update({ stato: 'conclusa', data_fine: chiusuraStr, motivo_chiusura: 'trasferimento' })
-        .eq('id', v.assegnazione_id);
-      if (updErr) throw updErr;
-      const { error: insErr } = await supabase.from('assegnazioni').insert({
-        camera_id: v.nuova_camera_id, studente_id: v.studente_id, candidatura_id: lastCand.id,
-        posto: nextPosto, data_inizio: v.nuova_data_inizio, data_fine: v.nuova_data_fine, stato: 'attiva',
-      });
-      if (insErr) throw insErr;
-    },
-    onSuccess: () => { invalidateAll(); toast({ title: 'Trasferimento completato' }); setTransferTarget(null); setTransferCameraId(''); },
-    onError: (e: any) => toast({ title: 'Errore', description: e.message, variant: 'destructive' }),
+  const actions = useCandidaturaActions({
+    studentiHaAssegnazioneAttiva: studentiHaAssegnazioneAttiva ?? null,
+    studentiHaAvutoAssegnazione: studentiHaAvutoAssegnazione ?? null,
   });
 
-  const concludi = useMutation({
-    mutationFn: async (v: { assegnazione_id: string; data: string; note: string; motivo: string }) => {
-      if (!v.motivo) throw new Error('Seleziona un motivo di chiusura.');
-      const { error } = await supabase.from('assegnazioni')
-        .update({ stato: 'conclusa', data_fine: v.data, note: v.note || null, motivo_chiusura: v.motivo })
-        .eq('id', v.assegnazione_id);
-      if (error) throw error;
-    },
-    onSuccess: () => { invalidateAll(); toast({ title: 'Soggiorno concluso' }); setEndTarget(null); setEndNote(''); setEndMotivo(''); },
-    onError: (e: any) => toast({ title: 'Errore', description: e.message, variant: 'destructive' }),
+  const toCandidaturaLike = (r: StadioRow) => ({
+    id: r.candidatura_id ?? r.studente_id,
+    stato: r.candidatura_stato,
+    stadio: r.stadio,
+    versione_form: r.versione_form,
+    esito_email_inviata_il: r.esito_email_inviata_il,
+    token_scade_il: r.token_scade_il,
+    completata_il: r.completata_il,
+    studente_id: r.studente_id,
+    studenti: { email: r.email, nome: r.nome, cognome: r.cognome },
+    assegnazione_id: r.assegnazione_id,
+    camera_id_corrente: r.camera_id,
+    camera_numero_corrente: r.camera_numero,
+    struttura_nome_corrente: r.struttura_nome,
+    data_fine_corrente: r.data_fine,
   });
 
   const filtered = useMemo(() => {
@@ -205,13 +153,8 @@ export default function Residenti() {
     );
   };
 
-  const camereDisponibili = (tutteCamere ?? []).filter((c: any) => {
-    if (transferTarget && c.id === transferTarget.camera_id) return false;
-    const occ = (tutteAssegnazioniAttive ?? []).filter((a: any) => a.camera_id === c.id).length;
-    return occ < c.posti;
-  });
-
   return (
+    <CandidaturaActionsContext.Provider value={actions.ctxValue}>
     <div className="space-y-6">
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 max-w-sm">
@@ -275,35 +218,7 @@ export default function Residenti() {
                 <td className="px-4 py-3 text-sm">{r.struttura_nome || '—'}</td>
                 <td className="px-4 py-3"><StadioBadge stadio={r.stadio} /></td>
                 <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                  <RowActions>
-                    <DropdownMenuItem onClick={() => openScheda(r.studente_id)}>
-                      <User className="w-4 h-4 mr-2" /> Visualizza profilo
-                    </DropdownMenuItem>
-                    {r.assegnazione_id && (r.stadio === 'in_casa' || r.stadio === 'assegnato') && (
-                      <DropdownMenuItem onClick={() => {
-                        setTransferTarget(r); setTransferCameraId('');
-                        setTransferData(new Date().toISOString().split('T')[0]); setTransferFine(r.data_fine ?? '');
-                      }}>
-                        <ArrowRightLeft className="w-4 h-4 mr-2" /> Trasferisci in altra camera
-                      </DropdownMenuItem>
-                    )}
-                    {r.email && (
-                      <DropdownMenuItem asChild>
-                        <a href={`mailto:${r.email}`}><Mail className="w-4 h-4 mr-2" /> Contatta via email</a>
-                      </DropdownMenuItem>
-                    )}
-                    {r.assegnazione_id && (r.stadio === 'in_casa' || r.stadio === 'assegnato') && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={() => { setEndTarget(r); setEndData(new Date().toISOString().split('T')[0]); setEndNote(''); setEndMotivo(''); }}
-                        >
-                          <LogOut className="w-4 h-4 mr-2" /> Concludi soggiorno
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                  </RowActions>
+                  <CandidaturaActions.Menu candidatura={toCandidaturaLike(r) as any} />
                 </td>
               </motion.tr>
             ))}
@@ -343,114 +258,8 @@ export default function Residenti() {
         </div>
       )}
 
-      {/* Transfer dialog */}
-      <Dialog open={!!transferTarget} onOpenChange={open => { if (!open) { setTransferTarget(null); setTransferCameraId(''); } }}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Trasferisci residente</DialogTitle></DialogHeader>
-          {transferTarget && (
-            <div className="space-y-3">
-              <p className="text-sm">
-                <strong>{transferTarget.cognome} {transferTarget.nome}</strong>
-                <br />
-                <span className="text-muted-foreground">
-                  Da camera {transferTarget.camera_numero} ({transferTarget.struttura_nome})
-                </span>
-              </p>
-              <div>
-                <Label>Nuova camera</Label>
-                <Select value={transferCameraId} onValueChange={setTransferCameraId}>
-                  <SelectTrigger><SelectValue placeholder="Seleziona camera disponibile" /></SelectTrigger>
-                  <SelectContent>
-                    {camereDisponibili.map((c: any) => {
-                      const occ = (tutteAssegnazioniAttive ?? []).filter((a: any) => a.camera_id === c.id).length;
-                      return (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.strutture?.nome} – Cam. {c.numero} ({occ}/{c.posti})
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label>Data inizio nuovo soggiorno *</Label>
-                  <Input type="date" value={transferData} onChange={e => setTransferData(e.target.value)} />
-                </div>
-                <div>
-                  <Label>Data fine nuovo soggiorno *</Label>
-                  <Input type="date" value={transferFine} onChange={e => setTransferFine(e.target.value)} />
-                </div>
-              </div>
-              <p className="text-[12px] text-muted-foreground">La vecchia assegnazione verrà chiusa il giorno precedente con motivo <strong>trasferimento</strong>.</p>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setTransferTarget(null)}>Annulla</Button>
-            <Button
-              disabled={!transferCameraId || !transferData || !transferFine || transferFine < transferData || transferisci.isPending}
-              onClick={() => transferTarget?.assegnazione_id && transferisci.mutate({
-                assegnazione_id: transferTarget.assegnazione_id,
-                vecchia_camera_id: transferTarget.camera_id!,
-                studente_id: transferTarget.studente_id,
-                nuova_camera_id: transferCameraId,
-                nuova_data_inizio: transferData,
-                nuova_data_fine: transferFine,
-              })}
-            >
-              Trasferisci
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* End stay */}
-      <AlertDialog open={!!endTarget} onOpenChange={open => { if (!open) setEndTarget(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Concludere il soggiorno?</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-2 text-[13px]">
-                <p><strong>{endTarget?.cognome} {endTarget?.nome}</strong> – Camera {endTarget?.camera_numero}.</p>
-                <p>Lo studente uscirà dall'elenco Residenti; il posto si libera dal giorno successivo alla data di fine.</p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="space-y-2">
-            <div>
-              <Label>Data fine *</Label>
-              <Input type="date" value={endData} onChange={e => setEndData(e.target.value)} />
-            </div>
-            <div>
-              <Label>Motivo chiusura *</Label>
-              <Select value={endMotivo} onValueChange={setEndMotivo}>
-                <SelectTrigger><SelectValue placeholder="Seleziona motivo" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="fine_naturale">Fine naturale</SelectItem>
-                  <SelectItem value="partenza_anticipata">Partenza anticipata</SelectItem>
-                  <SelectItem value="mai_arrivato">Mai arrivato</SelectItem>
-                  <SelectItem value="allontanato">Allontanato</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Nota (opzionale)</Label>
-              <Textarea rows={2} value={endNote} onChange={e => setEndNote(e.target.value)} />
-            </div>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={!endData || !endMotivo}
-              onClick={() => endTarget?.assegnazione_id && concludi.mutate({
-                assegnazione_id: endTarget.assegnazione_id, data: endData, note: endNote, motivo: endMotivo,
-              })}
-            >
-              Conferma
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {actions.dialogs}
     </div>
+    </CandidaturaActionsContext.Provider>
   );
 }

@@ -1,12 +1,13 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -20,6 +21,7 @@ import {
 type Ctx = {
   trigger: (id: CandidaturaActionId, c: CandidaturaLike) => void;
   hasAssegnazioneAttiva: (c: CandidaturaLike) => boolean;
+  haAvutoAssegnazione: (c: CandidaturaLike) => boolean;
 };
 
 const CandidaturaActionsContext = createContext<Ctx | null>(null);
@@ -31,20 +33,33 @@ export function useCandidaturaActionsCtx(): Ctx {
 }
 
 interface Options {
-  candidatureConAssegnazione?: Set<string> | null;
+  /** Set di candidatura_id con almeno un'assegnazione, di qualunque stato. Usato dal gate di `elimina`. */
+  studentiHaAvutoAssegnazione?: Set<string> | null;
+  /** Set di candidatura_id con un'assegnazione attualmente `attiva`. Usato dagli avvisi di cambio stato. */
+  studentiHaAssegnazioneAttiva?: Set<string> | null;
   extraInvalidateKeys?: readonly (readonly unknown[])[];
   onDeleted?: (c: CandidaturaLike) => void;
 }
 
 export function useCandidaturaActions(options: Options = {}) {
-  const { candidatureConAssegnazione, extraInvalidateKeys, onDeleted } = options;
+  const {
+    studentiHaAvutoAssegnazione,
+    studentiHaAssegnazioneAttiva,
+    extraInvalidateKeys,
+    onDeleted,
+  } = options;
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
   const hasAssegnazioneAttiva = useCallback(
-    (c: CandidaturaLike) => !!candidatureConAssegnazione?.has(c.id),
-    [candidatureConAssegnazione],
+    (c: CandidaturaLike) => !!studentiHaAssegnazioneAttiva?.has(c.id),
+    [studentiHaAssegnazioneAttiva],
+  );
+
+  const haAvutoAssegnazione = useCallback(
+    (c: CandidaturaLike) => !!studentiHaAvutoAssegnazione?.has(c.id),
+    [studentiHaAvutoAssegnazione],
   );
 
   const invalidateAll = useCallback(() => {
@@ -53,6 +68,8 @@ export function useCandidaturaActions(options: Options = {}) {
     queryClient.invalidateQueries({ queryKey: ['stadio'] });
     queryClient.invalidateQueries({ queryKey: ['residenti'] });
     queryClient.invalidateQueries({ queryKey: ['assegnazioni-attive'] });
+    queryClient.invalidateQueries({ queryKey: ['assegnazioni-any'] });
+    queryClient.invalidateQueries({ queryKey: ['camere-disponibili-hook'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     for (const k of extraInvalidateKeys ?? []) {
       queryClient.invalidateQueries({ queryKey: k as unknown[] });
@@ -113,6 +130,66 @@ export function useCandidaturaActions(options: Options = {}) {
       invalidateAll();
       toast({ title: 'Assegnazione annullata', description: 'La candidatura torna in "Da decidere".' });
       setAnnullaTarget(null);
+    },
+    onError: (e: any) => toast({ title: 'Errore', description: e?.message, variant: 'destructive' }),
+  });
+
+  // ---- Trasferisci / Concludi soggiorno ---------------------------------
+
+  const trasferisci = useMutation({
+    mutationFn: async (v: {
+      assegnazione_id: string; studente_id: string; vecchia_camera_id: string;
+      nuova_camera_id: string; nuova_data_inizio: string; nuova_data_fine: string;
+    }) => {
+      if (v.nuova_camera_id === v.vecchia_camera_id) {
+        throw new Error('La camera di destinazione coincide con quella attuale.');
+      }
+      const { data: disp, error: dispErr } = await supabase.rpc('camere_disponibilita', {
+        p_dal: v.nuova_data_inizio, p_al: v.nuova_data_fine, p_struttura_id: null,
+      });
+      if (dispErr) throw dispErr;
+      const row = (disp ?? []).find((r: any) => r.camera_id === v.nuova_camera_id);
+      if (!row) throw new Error('Camera non trovata.');
+      const occupati: number[] = row.posti_occupati_numeri ?? [];
+      let nextPosto = 0;
+      for (let p = 1; p <= row.posti; p++) if (!occupati.includes(p)) { nextPosto = p; break; }
+      if (nextPosto === 0) throw new Error('La camera non ha posti liberi nel periodo scelto.');
+      const { data: lastCand } = await supabase
+        .from('candidature').select('id').eq('studente_id', v.studente_id)
+        .order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (!lastCand) throw new Error('Nessuna candidatura trovata per lo studente.');
+      const inizio = new Date(v.nuova_data_inizio + 'T00:00:00Z');
+      const chiusuraStr = new Date(inizio.getTime() - 86400000).toISOString().split('T')[0];
+      const { error: updErr } = await supabase.from('assegnazioni')
+        .update({ stato: 'conclusa', data_fine: chiusuraStr, motivo_chiusura: 'trasferimento' })
+        .eq('id', v.assegnazione_id);
+      if (updErr) throw updErr;
+      const { error: insErr } = await supabase.from('assegnazioni').insert({
+        camera_id: v.nuova_camera_id, studente_id: v.studente_id, candidatura_id: lastCand.id,
+        posto: nextPosto, data_inizio: v.nuova_data_inizio, data_fine: v.nuova_data_fine, stato: 'attiva',
+      });
+      if (insErr) throw insErr;
+    },
+    onSuccess: () => {
+      invalidateAll();
+      toast({ title: 'Trasferimento completato' });
+      setTransferTarget(null); setTransferCameraId('');
+    },
+    onError: (e: any) => toast({ title: 'Errore', description: e?.message, variant: 'destructive' }),
+  });
+
+  const concludi = useMutation({
+    mutationFn: async (v: { assegnazione_id: string; data: string; note: string; motivo: string }) => {
+      if (!v.motivo) throw new Error('Seleziona un motivo di chiusura.');
+      const { error } = await supabase.from('assegnazioni')
+        .update({ stato: 'conclusa', data_fine: v.data, note: v.note || null, motivo_chiusura: v.motivo })
+        .eq('id', v.assegnazione_id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidateAll();
+      toast({ title: 'Soggiorno concluso' });
+      setEndTarget(null); setEndNote(''); setEndMotivo('');
     },
     onError: (e: any) => toast({ title: 'Errore', description: e?.message, variant: 'destructive' }),
   });
@@ -179,6 +256,38 @@ export function useCandidaturaActions(options: Options = {}) {
   const [prioritaValue, setPrioritaValue] = useState<string>('');
   const [annullaTarget, setAnnullaTarget] = useState<CandidaturaLike | null>(null);
 
+  // Trasferisci dialog
+  const [transferTarget, setTransferTarget] = useState<CandidaturaLike | null>(null);
+  const [transferCameraId, setTransferCameraId] = useState<string>('');
+  const [transferData, setTransferData] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [transferFine, setTransferFine] = useState<string>('');
+
+  // Concludi soggiorno dialog
+  const [endTarget, setEndTarget] = useState<CandidaturaLike | null>(null);
+  const [endData, setEndData] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [endNote, setEndNote] = useState('');
+  const [endMotivo, setEndMotivo] = useState<string>('');
+
+  // Camere di destinazione: caricate on-demand quando si apre il dialogo di trasferimento.
+  const { data: camereDest } = useQuery({
+    queryKey: ['camere-disponibili-hook'],
+    enabled: !!transferTarget,
+    queryFn: async () => {
+      const { data } = await supabase.from('camere')
+        .select('*, strutture(nome)')
+        .eq('stato', 'disponibile');
+      return data ?? [];
+    },
+  });
+  const { data: assegnazioniAttiveRaw } = useQuery({
+    queryKey: ['assegnazioni-attive'],
+    enabled: !!transferTarget,
+    queryFn: async () => {
+      const { data } = await supabase.from('assegnazioni').select('camera_id').eq('stato', 'attiva');
+      return data ?? [];
+    },
+  });
+
   // ---- Handler -----------------------------------------------------------
 
   const runGenerateLink = useCallback(async (c: CandidaturaLike) => {
@@ -240,6 +349,18 @@ export function useCandidaturaActions(options: Options = {}) {
       case 'annulla_assegnazione':
         setAnnullaTarget(c);
         return;
+      case 'trasferisci':
+        setTransferCameraId('');
+        setTransferData(new Date().toISOString().split('T')[0]);
+        setTransferFine(c.data_fine_corrente ?? '');
+        setTransferTarget(c);
+        return;
+      case 'concludi_soggiorno':
+        setEndData(new Date().toISOString().split('T')[0]);
+        setEndNote('');
+        setEndMotivo('');
+        setEndTarget(c);
+        return;
       case 'assegna_camera':
         navigate(`/admin/camere?candidatura=${c.id}`);
         return;
@@ -254,7 +375,16 @@ export function useCandidaturaActions(options: Options = {}) {
     }
   }, [navigate, runGenerateLink, requestStatoChange]);
 
-  const ctxValue = useMemo<Ctx>(() => ({ trigger, hasAssegnazioneAttiva }), [trigger, hasAssegnazioneAttiva]);
+  const ctxValue = useMemo<Ctx>(
+    () => ({ trigger, hasAssegnazioneAttiva, haAvutoAssegnazione }),
+    [trigger, hasAssegnazioneAttiva, haAvutoAssegnazione],
+  );
+
+  const camereDisponibili = (camereDest ?? []).filter((c: any) => {
+    if (transferTarget && c.id === transferTarget.camera_id_corrente) return false;
+    const occ = (assegnazioniAttiveRaw ?? []).filter((a: any) => a.camera_id === c.id).length;
+    return occ < c.posti;
+  });
 
   // ---- Dialogs render ----------------------------------------------------
 
@@ -480,10 +610,119 @@ export function useCandidaturaActions(options: Options = {}) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Trasferisci in altra camera */}
+      <Dialog open={!!transferTarget} onOpenChange={open => { if (!open) { setTransferTarget(null); setTransferCameraId(''); } }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Trasferisci residente</DialogTitle></DialogHeader>
+          {transferTarget && (
+            <div className="space-y-3">
+              <p className="text-sm">
+                <strong>{transferTarget.studenti?.cognome ?? ''} {transferTarget.studenti?.nome ?? ''}</strong>
+                <br />
+                <span className="text-muted-foreground">
+                  Da camera {transferTarget.camera_numero_corrente ?? '-'} ({transferTarget.struttura_nome_corrente ?? ''})
+                </span>
+              </p>
+              <div>
+                <Label>Nuova camera</Label>
+                <Select value={transferCameraId} onValueChange={setTransferCameraId}>
+                  <SelectTrigger><SelectValue placeholder="Seleziona camera disponibile" /></SelectTrigger>
+                  <SelectContent>
+                    {camereDisponibili.map((c: any) => {
+                      const occ = (assegnazioniAttiveRaw ?? []).filter((a: any) => a.camera_id === c.id).length;
+                      return (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.strutture?.nome} – Cam. {c.numero} ({occ}/{c.posti})
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>Data inizio nuovo soggiorno *</Label>
+                  <Input type="date" value={transferData} onChange={e => setTransferData(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Data fine nuovo soggiorno *</Label>
+                  <Input type="date" value={transferFine} onChange={e => setTransferFine(e.target.value)} />
+                </div>
+              </div>
+              <p className="text-[12px] text-muted-foreground">La vecchia assegnazione verrà chiusa il giorno precedente con motivo <strong>trasferimento</strong>.</p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTransferTarget(null)}>Annulla</Button>
+            <Button
+              disabled={!transferCameraId || !transferData || !transferFine || transferFine < transferData || trasferisci.isPending}
+              onClick={() => transferTarget?.assegnazione_id && transferTarget.camera_id_corrente && trasferisci.mutate({
+                assegnazione_id: transferTarget.assegnazione_id,
+                vecchia_camera_id: transferTarget.camera_id_corrente,
+                studente_id: transferTarget.studente_id ?? '',
+                nuova_camera_id: transferCameraId,
+                nuova_data_inizio: transferData,
+                nuova_data_fine: transferFine,
+              })}
+            >
+              Trasferisci
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Concludi soggiorno */}
+      <AlertDialog open={!!endTarget} onOpenChange={open => { if (!open) setEndTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Concludere il soggiorno?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-[13px]">
+                <p><strong>{endTarget?.studenti?.cognome ?? ''} {endTarget?.studenti?.nome ?? ''}</strong> – Camera {endTarget?.camera_numero_corrente ?? '-'}.</p>
+                <p>Lo studente uscirà dall'elenco Residenti; il posto si libera dal giorno successivo alla data di fine.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <div>
+              <Label>Data fine *</Label>
+              <Input type="date" value={endData} onChange={e => setEndData(e.target.value)} />
+            </div>
+            <div>
+              <Label>Motivo chiusura *</Label>
+              <Select value={endMotivo} onValueChange={setEndMotivo}>
+                <SelectTrigger><SelectValue placeholder="Seleziona motivo" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fine_naturale">Fine naturale</SelectItem>
+                  <SelectItem value="partenza_anticipata">Partenza anticipata</SelectItem>
+                  <SelectItem value="mai_arrivato">Mai arrivato</SelectItem>
+                  <SelectItem value="allontanato">Allontanato</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Nota (opzionale)</Label>
+              <Textarea rows={2} value={endNote} onChange={e => setEndNote(e.target.value)} />
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!endData || !endMotivo}
+              onClick={() => endTarget?.assegnazione_id && concludi.mutate({
+                assegnazione_id: endTarget.assegnazione_id, data: endData, note: endNote, motivo: endMotivo,
+              })}
+            >
+              Conferma
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 
-  return { trigger, hasAssegnazioneAttiva, dialogs, ctxValue, Provider: CandidaturaActionsContext.Provider };
+  return { trigger, hasAssegnazioneAttiva, haAvutoAssegnazione, dialogs, ctxValue, Provider: CandidaturaActionsContext.Provider };
 }
 
 export { CandidaturaActionsContext };

@@ -10,8 +10,8 @@ import { getAvailableActions, type CandidaturaLike } from '@/lib/candidaturaActi
  * gruppo "pericolosa" resta separato dal resto.
  */
 function Menu({ candidatura }: { candidatura: CandidaturaLike }) {
-  const { trigger } = useCandidaturaActionsCtx();
-  const actions = getAvailableActions(candidatura);
+  const { trigger, haAvutoAssegnazione } = useCandidaturaActionsCtx();
+  const actions = getAvailableActions(candidatura, { haAvutoAssegnazione: haAvutoAssegnazione(candidatura) });
   const safe = actions.filter(a => a.group !== 'pericolosa');
   const danger = actions.filter(a => a.group === 'pericolosa');
   return (
@@ -44,8 +44,8 @@ function Menu({ candidatura }: { candidatura: CandidaturaLike }) {
 /** Pulsanti orizzontali (usati nella scheda persona): la prima "principale"
  *  diventa il default; il resto è outline; le pericolose sono destructive. */
 function Buttons({ candidatura }: { candidatura: CandidaturaLike }) {
-  const { trigger } = useCandidaturaActionsCtx();
-  const actions = getAvailableActions(candidatura);
+  const { trigger, haAvutoAssegnazione } = useCandidaturaActionsCtx();
+  const actions = getAvailableActions(candidatura, { haAvutoAssegnazione: haAvutoAssegnazione(candidatura) });
   let primaryTaken = false;
   return (
     <div className="flex flex-wrap gap-2">
