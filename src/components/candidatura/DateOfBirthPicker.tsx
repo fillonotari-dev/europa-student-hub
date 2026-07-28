@@ -3,6 +3,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Lang, t } from '@/i18n/translations';
 
+const MONTHS_IT = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+const MONTHS_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
 // Data di nascita come tre Select (giorno / mese / anno). Emette YYYY-MM-DD o ''.
 // Anni da currentYear-16 (età minima) fino al 1900, in ordine decrescente.
 // Il giorno viene ricomputato in base al mese/anno; se non è più valido, viene azzerato.
@@ -30,8 +33,7 @@ export function DateOfBirthPicker({
     return { y: m[1], mo: m[2], d: m[3] };
   }, [value]);
 
-  const months = t(lang, 'form.monthsFull');
-  const monthList = Array.isArray(months) ? (months as unknown as string[]) : [];
+  const monthList = lang === 'it' ? MONTHS_IT : MONTHS_EN;
 
   const currentYear = new Date().getFullYear();
   const maxYear = currentYear - 16;
