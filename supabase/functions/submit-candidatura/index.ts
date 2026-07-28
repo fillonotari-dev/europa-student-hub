@@ -3,6 +3,9 @@ import { enqueueTransactional, SITE_NAME } from "../_shared/enqueue-transactiona
 import { CandidaturaRicevutaEmail } from "../_shared/email-templates/candidatura-ricevuta.tsx";
 import { DOCUMENTO_TIPI_SET, extractTipoFromPath } from "../_shared/documenti-tipi.ts";
 import { moveDocumentToFinal } from "../_shared/move-documenti.ts";
+import { validateCodiceFiscale } from "../_shared/codice-fiscale.ts";
+import { SIGLE_PROVINCE_SET } from "../_shared/province.ts";
+import { COUNTRY_CODE_SET } from "../_shared/countries.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -54,9 +57,9 @@ Deno.serve(async (req) => {
 
     const {
       nome, cognome, email, telefono, data_nascita, nazionalita, codice_fiscale,
-      universita, dipartimento, corso_di_studi, anno_di_corso, matricola,
+      universita, dipartimento, corso_di_studi,
       struttura_preferita_id, tipo_camera_preferito, periodo_inizio, periodo_fine,
-      anno_accademico, messaggio, documenti,
+      messaggio, documenti,
       indirizzo_via, indirizzo_civico, indirizzo_cap, indirizzo_comune,
       indirizzo_provincia, indirizzo_nazione, cf_non_disponibile,
       documento_identita_n, tipo_studente, tipo_studente_altro,
@@ -87,43 +90,79 @@ Deno.serve(async (req) => {
     const vEmail = vEmailRaw.toLowerCase();
     if (!EMAIL_RE.test(vEmail)) return bad("Email non valida");
 
-    // anno_accademico: optional in PDF — compute server-side from current date
-    const _now = new Date();
-    const _startYear = _now.getUTCMonth() >= 8 ? _now.getUTCFullYear() : _now.getUTCFullYear() - 1;
-    const vAnnoAccComputed = `${_startYear}/${_startYear + 1}`;
     const vMatricola: string | null = null;
+    const vAnnoCorso: string | null = null;
 
     // Optional fields
     const vTelefono = optStr(telefono, 30);
     const vNazionalita = optStr(nazionalita, 100);
     const vCodiceFiscale = optStr(codice_fiscale, 32);
     const vDipartimento = optStr(dipartimento, 200);
-    const vAnnoCorso = optStr(anno_di_corso, 30);
     const vTipoCamera = optStr(tipo_camera_preferito, 50);
     const vMessaggio = optStr(messaggio, 2000);
-    if ([vTelefono, vNazionalita, vCodiceFiscale, vDipartimento, vAnnoCorso, vTipoCamera, vMessaggio].includes(undefined as any)) {
+    if ([vTelefono, vNazionalita, vCodiceFiscale, vDipartimento, vTipoCamera, vMessaggio].includes(undefined as any)) {
       return bad("Campo opzionale non valido");
     }
 
-    // Optional fields — pre_screening extension (blocco 1 + 3)
-    const vVia = optStr(indirizzo_via, 200);
-    const vCivico = optStr(indirizzo_civico, 20);
-    const vCap = optStr(indirizzo_cap, 20);
-    const vComune = optStr(indirizzo_comune, 100);
-    const vProvincia = optStr(indirizzo_provincia, 100);
-    const vNazione = optStr(indirizzo_nazione, 2);
+    // Anagrafica residenza: obbligatoria (provincia solo se nazione = IT).
+    // Nazione: ISO-3166 alpha-2. Default IT se assente.
+    const vNazione = (typeof indirizzo_nazione === "string" && indirizzo_nazione.trim())
+      ? indirizzo_nazione.trim().toUpperCase()
+      : "IT";
+    if (!COUNTRY_CODE_SET.has(vNazione)) return bad("Nazione non valida");
+
+    const vVia = str(indirizzo_via, 200);
+    const vCivico = str(indirizzo_civico, 20);
+    const vComune = str(indirizzo_comune, 100);
+    if (!vVia || !vCivico || !vComune) return bad("Indirizzo di residenza incompleto");
+
+    const rawCap = typeof indirizzo_cap === "string" ? indirizzo_cap.trim() : "";
+    if (!rawCap) return bad("CAP obbligatorio");
+    if (vNazione === "IT") {
+      if (!/^\d{5}$/.test(rawCap)) return bad("CAP italiano non valido");
+    } else if (rawCap.length > 20) {
+      return bad("CAP non valido");
+    }
+    const vCap = rawCap;
+
+    let vProvincia: string | null = null;
+    if (vNazione === "IT") {
+      const rawProv = typeof indirizzo_provincia === "string" ? indirizzo_provincia.trim().toUpperCase() : "";
+      if (!rawProv) return bad("Provincia obbligatoria per residenza in Italia");
+      if (!SIGLE_PROVINCE_SET.has(rawProv)) return bad("Provincia non valida");
+      vProvincia = rawProv;
+    } else {
+      const optProv = optStr(indirizzo_provincia, 100);
+      if (optProv === undefined) return bad("Provincia non valida");
+      vProvincia = optProv;
+    }
+
     const vCfNonDisp = !!cf_non_disponibile;
+    if (!vCfNonDisp) {
+      const cfCheck = validateCodiceFiscale(vCodiceFiscale ?? "");
+      if (!cfCheck.ok) return bad("Codice fiscale non valido");
+    }
+
     const vDocIdN = optStr(documento_identita_n, 64);
     const vTipoStud = optStr(tipo_studente, 30);
     const vTipoStudAltro = optStr(tipo_studente_altro, 200);
     const vComeConosc = optStr(come_conosciuto, 30);
     const vComeConoscAltro = optStr(come_conosciuto_altro, 200);
     const vPrefNote = optStr(preferenze_note, 1000);
-    if ([vVia, vCivico, vCap, vComune, vProvincia, vNazione, vDocIdN, vTipoStud, vTipoStudAltro, vComeConosc, vComeConoscAltro, vPrefNote].includes(undefined as any)) {
+    if ([vDocIdN, vTipoStud, vTipoStudAltro, vComeConosc, vComeConoscAltro, vPrefNote].includes(undefined as any)) {
       return bad("Campo opzionale non valido");
     }
+
+    // Limiti temporali (server-side).
+    const TODAY = new Date();
+    TODAY.setUTCHours(0, 0, 0, 0);
+    const MAX_DATE = new Date(TODAY);
+    MAX_DATE.setUTCFullYear(MAX_DATE.getUTCFullYear() + 2);
+
     if (data_arrivo_prevista !== undefined && data_arrivo_prevista !== null && data_arrivo_prevista !== "") {
       if (typeof data_arrivo_prevista !== "string" || !DATE_RE.test(data_arrivo_prevista)) return bad("Data arrivo non valida");
+      const d = new Date(data_arrivo_prevista);
+      if (isNaN(d.getTime()) || d < TODAY || d > MAX_DATE) return bad("Data arrivo fuori intervallo consentito");
     }
 
     // Declarations (block 7) — required on public form too
@@ -142,20 +181,33 @@ Deno.serve(async (req) => {
       firmate_il: new Date().toISOString(),
     };
 
-    if (data_nascita !== undefined && data_nascita !== null && data_nascita !== "") {
-      if (typeof data_nascita !== "string" || !DATE_RE.test(data_nascita)) return bad("Data di nascita non valida");
+    // Data di nascita: obbligatoria, ≥ 1900-01-01 e ≤ oggi - 16 anni.
+    if (typeof data_nascita !== "string" || !DATE_RE.test(data_nascita)) return bad("Data di nascita non valida");
+    const dobDate = new Date(data_nascita);
+    if (isNaN(dobDate.getTime())) return bad("Data di nascita non valida");
+    const MIN_DOB = new Date("1900-01-01T00:00:00Z");
+    const MAX_DOB = new Date(TODAY);
+    MAX_DOB.setUTCFullYear(MAX_DOB.getUTCFullYear() - 16);
+    if (dobDate < MIN_DOB || dobDate > MAX_DOB) return bad("Data di nascita fuori intervallo consentito");
+
+    // Periodo permanenza: entrambe obbligatorie, entro 2 anni, fine > inizio.
+    if (typeof periodo_inizio !== "string" || !DATE_RE.test(periodo_inizio)) return bad("Periodo inizio non valido");
+    if (typeof periodo_fine !== "string" || !DATE_RE.test(periodo_fine)) return bad("Periodo fine non valido");
+    const dInizio = new Date(periodo_inizio);
+    const dFine = new Date(periodo_fine);
+    if (isNaN(dInizio.getTime()) || isNaN(dFine.getTime())) return bad("Periodo non valido");
+    if (dInizio < TODAY || dInizio > MAX_DATE) return bad("Data di inizio fuori intervallo consentito");
+    if (dFine < TODAY || dFine > MAX_DATE) return bad("Data di fine fuori intervallo consentito");
+    if (dFine <= dInizio) return bad("La data di fine deve essere successiva alla data di inizio");
+
+    // Struttura preferita: obbligatoria.
+    if (typeof struttura_preferita_id !== "string" || !UUID_RE.test(struttura_preferita_id)) {
+      return bad("Struttura preferita obbligatoria");
     }
-    if (periodo_inizio !== undefined && periodo_inizio !== null && periodo_inizio !== "") {
-      if (typeof periodo_inizio !== "string" || !DATE_RE.test(periodo_inizio)) return bad("Periodo inizio non valido");
-    }
-    if (periodo_fine !== undefined && periodo_fine !== null && periodo_fine !== "") {
-      if (typeof periodo_fine !== "string" || !DATE_RE.test(periodo_fine)) return bad("Periodo fine non valido");
-    }
-    if (struttura_preferita_id) {
-      if (typeof struttura_preferita_id !== "string" || !UUID_RE.test(struttura_preferita_id)) {
-        return bad("Struttura non valida");
-      }
-    }
+
+    // Anno accademico: derivato da periodo_inizio. Settembre incluso → anno corrente/prossimo.
+    const _startYear = dInizio.getUTCMonth() >= 8 ? dInizio.getUTCFullYear() : dInizio.getUTCFullYear() - 1;
+    const vAnnoAccComputed = `${_startYear}/${_startYear + 1}`;
 
     // Validate documenti shape and path
     const docsIn: Array<{ tipo: string; nome_file: string; url: string }> = [];
@@ -221,10 +273,10 @@ Deno.serve(async (req) => {
       .insert({
         studente_id: studenteId,
         stato: "da_valutare",
-        struttura_preferita_id: struttura_preferita_id || null,
+        struttura_preferita_id: struttura_preferita_id,
         tipo_camera_preferito: vTipoCamera,
-        periodo_inizio: periodo_inizio || null,
-        periodo_fine: periodo_fine || null,
+        periodo_inizio: periodo_inizio,
+        periodo_fine: periodo_fine,
         anno_accademico: vAnnoAccComputed,
         messaggio: vMessaggio,
         universita_snapshot: vUniversita,
