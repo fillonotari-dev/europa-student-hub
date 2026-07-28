@@ -537,7 +537,6 @@ export default function StudentePage() {
           {!edit || !form ? (
             <InfoPersonaliRead
               studente={studente}
-              docIdentita={docIdentita}
               docIdN={c?.documento_identita_n}
             />
           ) : (
@@ -548,23 +547,14 @@ export default function StudentePage() {
           )}
         </section>
 
-        {docAltri.length > 0 && (
+        {documentiOrdinati.length > 0 && (
           <section className="bg-card border border-border/50 rounded-lg p-5">
-            <h2 className="text-sm font-semibold mb-4">Altri documenti</h2>
+            <h2 className="text-sm font-semibold mb-4">Documenti</h2>
             <div className="space-y-4">
-              {Object.entries(
-                docAltri.reduce((acc: Record<string, any[]>, d: any) => {
-                  (acc[d.tipo] ||= []).push(d);
-                  return acc;
-                }, {}),
-              ).map(([tipo, docs]) => (
+              {Object.entries(documentiPerTipo).map(([tipo, docs]) => (
                 <div key={tipo} className="space-y-2">
                   <p className="text-[12px] text-muted-foreground">
-                    {tipo === 'certificato_iscrizione'
-                      ? 'Certificato di iscrizione'
-                      : tipo === 'documento_aggiuntivo'
-                      ? 'Documento aggiuntivo'
-                      : tipo}
+                    {TIPO_DOC_LABELS[tipo] || tipo}
                   </p>
                   {(docs as any[]).map((d) => <DocumentoRow key={d.id} doc={d} />)}
                 </div>
