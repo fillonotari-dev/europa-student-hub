@@ -89,12 +89,34 @@ export default function StudentePage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('assegnazioni')
-        .select('id, posto, data_inizio, data_fine, stato, camere(numero, strutture(nome))')
+        .select('id, candidatura_id, camera_id, posto, data_inizio, data_fine, stato, camere(numero, strutture(nome))')
         .eq('studente_id', studenteId)
         .order('data_inizio', { ascending: false });
       return data ?? [];
     },
   });
+
+  // Decoro le candidature con i campi dell'assegnazione attiva corrispondente,
+  // per rendere `trasferisci` / `concludi_soggiorno` disponibili nelle azioni.
+  const candidatureDecorated = useMemo(() => {
+    if (!candidature) return candidature;
+    const attivaByCand = new Map<string, any>();
+    for (const a of assegnazioni ?? []) {
+      if (a.stato === 'attiva' && a.candidatura_id) attivaByCand.set(a.candidatura_id, a);
+    }
+    return candidature.map((c: any) => {
+      const a = attivaByCand.get(c.id);
+      if (!a) return c;
+      return {
+        ...c,
+        assegnazione_id: a.id,
+        camera_id_corrente: a.camera_id,
+        camera_numero_corrente: a.camere?.numero ?? null,
+        struttura_nome_corrente: a.camere?.strutture?.nome ?? null,
+        data_fine_corrente: a.data_fine ?? null,
+      };
+    });
+  }, [candidature, assegnazioni]);
 
   const { data: studentiHaAssegnazioneAttiva } = useQuery({
     queryKey: ['candidature-con-assegnazione-attiva'],
@@ -200,7 +222,7 @@ export default function StudentePage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {candidature!.map((c: any) => (
+              {candidatureDecorated!.map((c: any) => (
                 <CandidaturaDetail
                   key={c.id}
                   candidatura={c}
