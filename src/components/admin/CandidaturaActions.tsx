@@ -1,5 +1,9 @@
 import { Button } from '@/components/ui/button';
-import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuTrigger,
+  DropdownMenuItem, DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import { ChevronDown } from 'lucide-react';
 import { RowActions } from '@/components/admin/RowActions';
 import { useCandidaturaActionsCtx } from '@/hooks/useCandidaturaActions';
 import { getAvailableActions, type CandidaturaLike } from '@/lib/candidaturaActions';
