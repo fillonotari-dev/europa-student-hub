@@ -649,169 +649,159 @@ export default function StudentePage() {
 
 // -------------------- Componenti locali --------------------
 
-function Block({ title, children, wide, right }: {
+function isEmpty(v: any): boolean {
+  if (v === null || v === undefined) return true;
+  if (typeof v === 'string') return v.trim() === '';
+  return false;
+}
+
+function DataCard({ title, items, footer }: {
   title: string;
-  children: React.ReactNode;
-  wide?: boolean;
-  right?: React.ReactNode;
+  items: Array<[string, any]>;
+  footer?: React.ReactNode;
 }) {
+  const filtered = items.filter(([, v]) => !isEmpty(v));
   return (
-    <section className={cn('bg-card border border-border/50 rounded-lg p-4', wide && 'md:col-span-2')}>
-      <header className="flex items-center justify-between gap-2 mb-3">
-        <h2 className="text-sm font-semibold">{title}</h2>
-        {right}
-      </header>
-      {children}
-    </section>
-  );
-}
-
-function FieldGrid({ children, single }: { children: React.ReactNode; single?: boolean }) {
-  return (
-    <div className={cn('grid gap-x-6 gap-y-3', single ? 'grid-cols-1' : 'sm:grid-cols-2')}>
-      {children}
-    </div>
-  );
-}
-
-function ReadField({ label, value }: { label: string; value: any }) {
-  const v = value === 0 || value === false ? String(value) : (value || '—');
-  return (
-    <div className="min-w-0">
-      <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="text-[13px] font-medium break-words">{v}</p>
-    </div>
-  );
-}
-
-function SoggiornoBlock({ attive, concluse, compagniPerAssegnazione }: {
-  attive: any[]; concluse: any[]; compagniPerAssegnazione: Map<string, any[]>;
-}) {
-  const sorted = [...attive].sort((a, b) => (a.data_inizio || '').localeCompare(b.data_inizio || ''));
-  return (
-    <section className="bg-card border border-border/50 rounded-lg p-4 md:col-span-2">
-      <header className="flex items-center gap-2 mb-3">
-        <BedDouble className="w-4 h-4 text-muted-foreground" />
-        <h2 className="text-sm font-semibold">Soggiorno</h2>
-      </header>
-
-      {sorted.length > 0 ? (
-        <div className="space-y-3">
-          {sorted.map((a: any) => {
-            const stato = statoTemporale(a.data_inizio, a.data_fine ?? null);
-            const compagni = compagniPerAssegnazione.get(a.id) ?? [];
-            return (
-              <div key={a.id} className="rounded-md border border-border/50 p-3">
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div className="min-w-0">
-                    <p className="text-[13px]">
-                      <span className="text-muted-foreground">{a.camere?.strutture?.nome ?? '—'} · </span>
-                      Cam. <strong>{a.camere?.numero ?? '—'}</strong>
-                      <span className="text-muted-foreground"> · posto {a.posto}</span>
-                    </p>
-                    <p className="text-[12px] text-muted-foreground mt-0.5">
-                      Dal {fmtIt(a.data_inizio)} al {a.data_fine ? fmtIt(a.data_fine) : '—'}
-                    </p>
-                  </div>
-                  <span className={cn(
-                    'text-[11px] uppercase tracking-wider px-2 py-0.5 rounded',
-                    stato === 'in_corso' ? 'bg-success/10 text-success' : 'bg-accent/20 text-foreground',
-                  )}>
-                    {stato === 'in_corso' ? 'In corso' : 'Non ancora iniziato'}
-                  </span>
-                </div>
-                {compagni.length > 0 && (
-                  <p className="text-[12px] text-muted-foreground mt-2">
-                    Compagno di stanza:{' '}
-                    {compagni.map((cp, i) => (
-                      <span key={cp.id}>
-                        {i > 0 && ', '}
-                        {cp.studenti ? (
-                          <Link
-                            to={`/admin/studenti/${cp.studenti.id}?from=residenti`}
-                            className="text-primary hover:underline"
-                          >
-                            {cp.studenti.cognome} {cp.studenti.nome}
-                          </Link>
-                        ) : '—'}
-                      </span>
-                    ))}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-        </div>
+    <section className="bg-card border border-border/50 rounded-lg p-5">
+      <h2 className="text-sm font-semibold mb-4">{title}</h2>
+      {filtered.length === 0 && !footer ? (
+        <p className="text-[13px] text-muted-foreground">Non ancora compilato</p>
       ) : (
-        <div className="text-[13px] text-muted-foreground flex items-center gap-2">
-          <DoorOpen className="w-4 h-4" /> Nessun soggiorno attivo
+        <div className="space-y-4">
+          {filtered.map(([label, value]) => (
+            <div key={label} className="min-w-0">
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+              <div className="text-sm mt-0.5 break-words whitespace-pre-wrap">{value}</div>
+            </div>
+          ))}
         </div>
       )}
-
-      {concluse.length > 0 && (
-        <div className="mt-4 border-t border-border/40 pt-3">
-          <p className="text-[12px] font-medium text-muted-foreground mb-2">Soggiorni conclusi</p>
-          <ul className="space-y-1.5">
-            {concluse.map((a: any) => (
-              <li key={a.id} className="text-[12px] text-muted-foreground flex flex-wrap items-center gap-x-2">
-                <span>Cam. <strong>{a.camere?.numero ?? '—'}</strong></span>
-                <span>· {a.camere?.strutture?.nome ?? '—'}</span>
-                <span>· dal {fmtIt(a.data_inizio)} al {a.data_fine ? fmtIt(a.data_fine) : '—'}</span>
-                {a.motivo_chiusura && <span>· {a.motivo_chiusura}</span>}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {footer}
     </section>
+  );
+}
+
+function InfoPersonaliRead({ studente, docIdentita, docIdN }: {
+  studente: any; docIdentita: any[]; docIdN: string | null | undefined;
+}) {
+  const items: Array<[string, any, boolean?]> = [
+    ['Email', studente.email],
+    ['Telefono', studente.telefono],
+    ['Data di nascita', fmtIt(studente.data_nascita)],
+    ['Cittadinanza', studente.nazionalita],
+    ['Codice fiscale', studente.cf_non_disponibile ? 'Non disponibile' : studente.codice_fiscale],
+    ['N. documento identità', docIdN],
+    ['Residenza', nomeIndirizzoCompatto(studente), true /* wide */],
+  ];
+  const filtered = items.filter(([, v]) => !isEmpty(v));
+  if (filtered.length === 0 && docIdentita.length === 0) {
+    return <p className="text-[13px] text-muted-foreground">Non ancora compilato</p>;
+  }
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-5">
+      {filtered.map(([label, value, wide]) => (
+        <div key={label} className={cn('min-w-0', wide && 'md:col-span-3')}>
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+          <div className="text-sm mt-0.5 break-words">{value}</div>
+        </div>
+      ))}
+      {docIdentita.length > 0 && (
+        <div className="md:col-span-3 space-y-2 pt-1">
+          <p className="text-[12px] text-muted-foreground">Allegati documento identità</p>
+          {docIdentita.map((d: any) => <DocumentoRow key={d.id} doc={d} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NoteAdmin({ candidaturaId, initial, studenteId }: {
+  candidaturaId: string | null; initial: string; studenteId: string;
+}) {
+  const qc = useQueryClient();
+  const [saved, setSaved] = useState(false);
+  if (!candidaturaId) {
+    return <p className="text-[13px] text-muted-foreground">Nessuna candidatura di riferimento.</p>;
+  }
+  return (
+    <div className="space-y-2">
+      <Textarea
+        defaultValue={initial}
+        placeholder="Note interne su questa persona…"
+        className="min-h-[120px]"
+        onBlur={async (e) => {
+          const val = e.target.value;
+          if (val === (initial || '')) return;
+          const { error } = await supabase.from('candidature').update({ note_admin: val }).eq('id', candidaturaId);
+          if (error) {
+            toast.error('Nota non salvata');
+          } else {
+            await qc.invalidateQueries({ queryKey: ['studente-candidature', studenteId] });
+            await qc.invalidateQueries({ queryKey: ['candidature'] });
+            setSaved(true);
+            setTimeout(() => setSaved(false), 1800);
+          }
+        }}
+      />
+      {saved && <p className="text-[11px] text-success">Salvato</p>}
+    </div>
   );
 }
 
 function Cronologia({ log }: { log: any[] }) {
+  const [showAll, setShowAll] = useState(false);
   if (!log || log.length === 0) {
     return <p className="text-[13px] text-muted-foreground">Nessun cambio di stato registrato</p>;
   }
+  const visible = showAll ? log : log.slice(-5);
   return (
-    <ol className="relative border-l border-border/60 pl-4 space-y-3">
-      {log.map((l: any) => {
-        const isTransition = !!l.stato_precedente && l.stato_precedente !== l.stato_nuovo;
-        const isEvent = !isTransition;
-        const hasNote = !!(l.note && String(l.note).trim());
-        const Icon = isTransition ? ArrowRight : MessageSquare;
-        return (
-          <li key={l.id} className="relative">
-            <span className={cn(
-              'absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-background',
-              isTransition ? 'bg-primary/60' : 'bg-accent',
-            )} />
-            <div className="text-[13px] flex items-start gap-2">
-              <Icon className={cn('w-3.5 h-3.5 mt-0.5 shrink-0', isTransition ? 'text-primary' : 'text-accent-foreground/70')} />
-              <div className="min-w-0">
-                {isTransition ? (
-                  <span>
-                    Stato passato da <strong>{formatStatoCandidatura(l.stato_precedente)}</strong>{' '}
-                    a <strong>{formatStatoCandidatura(l.stato_nuovo)}</strong>
-                  </span>
-                ) : (
-                  <span>
-                    Evento su <strong>{formatStatoCandidatura(l.stato_nuovo)}</strong>
-                  </span>
-                )}
-                {hasNote && (
-                  <div className={cn(
-                    'mt-1 whitespace-pre-wrap',
-                    isEvent ? 'text-[13px]' : 'text-[12px] text-muted-foreground',
-                  )}>{l.note}</div>
-                )}
-                <div className="text-[11px] text-muted-foreground mt-0.5">
-                  {new Date(l.created_at).toLocaleString('it-IT')}
+    <div>
+      <ol className="relative border-l border-border/60 pl-4 space-y-3">
+        {visible.map((l: any) => {
+          const isTransition = !!l.stato_precedente && l.stato_precedente !== l.stato_nuovo;
+          const hasNote = !!(l.note && String(l.note).trim());
+          const Icon = isTransition ? ArrowRight : MessageSquare;
+          return (
+            <li key={l.id} className="relative">
+              <span className={cn(
+                'absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-background',
+                isTransition ? 'bg-primary/60' : 'bg-accent',
+              )} />
+              <div className="text-[13px] flex items-start gap-2">
+                <Icon className={cn('w-3.5 h-3.5 mt-0.5 shrink-0', isTransition ? 'text-primary' : 'text-accent-foreground/70')} />
+                <div className="min-w-0">
+                  {isTransition ? (
+                    <span>
+                      Stato passato da <strong>{formatStatoCandidatura(l.stato_precedente)}</strong>{' '}
+                      a <strong>{formatStatoCandidatura(l.stato_nuovo)}</strong>
+                    </span>
+                  ) : (
+                    <span className="whitespace-pre-wrap">
+                      {hasNote ? l.note : 'Evento registrato'}
+                    </span>
+                  )}
+                  {isTransition && hasNote && (
+                    <div className="mt-1 text-[12px] text-muted-foreground whitespace-pre-wrap">{l.note}</div>
+                  )}
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    {new Date(l.created_at).toLocaleString('it-IT')}
+                  </div>
                 </div>
               </div>
-            </div>
-          </li>
-        );
-      })}
-    </ol>
+            </li>
+          );
+        })}
+      </ol>
+      {log.length > 5 && (
+        <button
+          type="button"
+          onClick={() => setShowAll(v => !v)}
+          className="mt-3 text-[12px] text-primary hover:underline"
+        >
+          {showAll ? 'Mostra solo le ultime 5' : `Mostra tutto (${log.length})`}
+        </button>
+      )}
+    </div>
   );
 }
 
