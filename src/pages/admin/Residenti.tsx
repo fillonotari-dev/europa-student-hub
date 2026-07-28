@@ -62,6 +62,7 @@ export default function Residenti() {
   const [transferTarget, setTransferTarget] = useState<any>(null);
   const [transferCameraId, setTransferCameraId] = useState<string>('');
   const [transferData, setTransferData] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [transferFine, setTransferFine] = useState<string>('');
   const [endTarget, setEndTarget] = useState<any>(null);
   const [endData, setEndData] = useState<string>(new Date().toISOString().split('T')[0]);
   const [endNote, setEndNote] = useState('');
