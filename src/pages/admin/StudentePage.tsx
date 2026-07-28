@@ -245,10 +245,7 @@ export default function StudentePage() {
     if (na !== nb) return na - nb;
     return String(a.created_at ?? '').localeCompare(String(b.created_at ?? ''));
   });
-  const documentiPerTipo = documentiOrdinati.reduce((acc: Record<string, any[]>, d: any) => {
-    (acc[d.tipo] ||= []).push(d);
-    return acc;
-  }, {});
+
 
   // Compagno di stanza — UNA sola query, sovrapposizione calcolata in JS.
   const attive = useMemo(
@@ -550,15 +547,8 @@ export default function StudentePage() {
         {documentiOrdinati.length > 0 && (
           <section className="bg-card border border-border/50 rounded-lg p-5">
             <h2 className="text-sm font-semibold mb-4">Documenti</h2>
-            <div className="space-y-4">
-              {Object.entries(documentiPerTipo).map(([tipo, docs]) => (
-                <div key={tipo} className="space-y-2">
-                  <p className="text-[12px] text-muted-foreground">
-                    {TIPO_DOC_LABELS[tipo] || tipo}
-                  </p>
-                  {(docs as any[]).map((d) => <DocumentoRow key={d.id} doc={d} />)}
-                </div>
-              ))}
+            <div className="space-y-2">
+              {documentiOrdinati.map((d: any) => <DocumentoRow key={d.id} doc={d} />)}
             </div>
           </section>
         )}
