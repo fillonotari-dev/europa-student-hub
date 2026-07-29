@@ -4,7 +4,7 @@
 // di configurazione non deve mai impedire l'invio di un'email.
 
 export const CONTATTI_DEFAULT = {
-  contatto_email: 'info@studentatoeuropa.it',
+  contatto_email: '',
   contatto_telefono: '',
   contatto_whatsapp: '',
   contatto_orari: '',
@@ -37,10 +37,13 @@ export async function getContatti(supabase: any): Promise<Contatti> {
     }
     const row = data ?? {}
     return {
-      contatto_email: normStr((row as any).contatto_email) || CONTATTI_DEFAULT.contatto_email,
-      contatto_telefono: normStr((row as any).contatto_telefono) || CONTATTI_DEFAULT.contatto_telefono,
-      contatto_whatsapp: normStr((row as any).contatto_whatsapp) || CONTATTI_DEFAULT.contatto_whatsapp,
-      contatto_orari: normStr((row as any).contatto_orari) || CONTATTI_DEFAULT.contatto_orari,
+      // Recapiti verso il candidato: mai inventare valori. Se in Impostazioni
+      // il campo è vuoto, il template lo nasconde (ContattiBlock).
+      contatto_email: normStr((row as any).contatto_email),
+      contatto_telefono: normStr((row as any).contatto_telefono),
+      contatto_whatsapp: normStr((row as any).contatto_whatsapp),
+      contatto_orari: normStr((row as any).contatto_orari),
+      // Notifiche interne: fallback per non perderle se il campo è vuoto.
       notifica_email: normStr((row as any).notifica_email) || CONTATTI_DEFAULT.notifica_email,
     }
   } catch (e) {
