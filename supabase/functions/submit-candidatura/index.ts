@@ -215,9 +215,13 @@ Deno.serve(async (req) => {
     if (dFine < TODAY || dFine > MAX_DATE) return bad("Data di fine fuori intervallo consentito");
     if (dFine <= dInizio) return bad("La data di fine deve essere successiva alla data di inizio");
 
-    // Struttura preferita: obbligatoria.
-    if (typeof struttura_preferita_id !== "string" || !UUID_RE.test(struttura_preferita_id)) {
-      return bad("Struttura preferita obbligatoria");
+    // Struttura preferita: opzionale ("Nessuna preferenza").
+    let vStrutturaId: string | null = null;
+    if (struttura_preferita_id !== undefined && struttura_preferita_id !== null && struttura_preferita_id !== "") {
+      if (typeof struttura_preferita_id !== "string" || !UUID_RE.test(struttura_preferita_id)) {
+        return bad("Struttura preferita non valida");
+      }
+      vStrutturaId = struttura_preferita_id;
     }
 
     // Anno accademico: derivato da periodo_inizio. Settembre incluso → anno corrente/prossimo.
@@ -295,7 +299,7 @@ Deno.serve(async (req) => {
       .insert({
         studente_id: studenteId,
         stato: "da_valutare",
-        struttura_preferita_id: struttura_preferita_id,
+        struttura_preferita_id: vStrutturaId,
         tipo_camera_preferito: vTipoCamera,
         periodo_inizio: periodo_inizio,
         periodo_fine: periodo_fine,

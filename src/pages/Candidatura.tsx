@@ -163,7 +163,8 @@ export default function Candidatura() {
 
   // Reset tipo camera se non più disponibile per la struttura selezionata
   const setStruttura = (value: string) => {
-    setForm(f => ({ ...f, struttura_preferita_id: value, tipo_camera_preferito: '' }));
+    const normalized = value === '__nessuna' ? '' : value;
+    setForm(f => ({ ...f, struttura_preferita_id: normalized, tipo_camera_preferito: '' }));
   };
 
   const setUniversita = (value: string) =>
@@ -176,7 +177,7 @@ export default function Candidatura() {
         'indirizzo_via', 'indirizzo_civico', 'indirizzo_cap', 'indirizzo_comune', 'indirizzo_provincia', 'indirizzo_nazione',
       ],
       stepAcademic: ['universita', 'corso_di_studi', 'periodo_inizio', 'periodo_fine'],
-      stepPreferences: ['struttura_preferita_id'],
+      stepPreferences: [],
       stepDocuments: ['_documenti'],
       stepDichiarazioni: ['_dichiarazioni'],
     };
@@ -249,10 +250,6 @@ export default function Candidatura() {
         toast({ title: t(lang, 'form.periodoFineBeforeInizio'), variant: 'destructive' });
         return false;
       }
-    }
-    if (stepKey === 'stepPreferences' && !form.struttura_preferita_id) {
-      toast({ title: t(lang, 'form.strutturaRichiesta'), variant: 'destructive' });
-      return false;
     }
     return true;
   };
@@ -351,6 +348,8 @@ export default function Candidatura() {
       const { data, error } = await supabase.functions.invoke('submit-candidatura', {
         body: {
           ...form,
+          struttura_preferita_id: form.struttura_preferita_id && form.struttura_preferita_id !== '__nessuna' ? form.struttura_preferita_id : null,
+          tipo_camera_preferito: form.tipo_camera_preferito && form.tipo_camera_preferito !== '__nessuna' ? form.tipo_camera_preferito : null,
           temp_id: tempId,
           documenti: uploadedDocs,
           lingua: lang,
@@ -637,10 +636,11 @@ export default function Candidatura() {
             {stepKey === 'stepPreferences' && (
               <div className="space-y-4">
                 <div>
-                  <Label>{t(lang, 'form.strutturaPreferita')}<span className="text-destructive ml-0.5">*</span></Label>
-                  <Select value={form.struttura_preferita_id} onValueChange={setStruttura}>
+                  <Label>{t(lang, 'form.strutturaPreferita')}</Label>
+                  <Select value={form.struttura_preferita_id || '__nessuna'} onValueChange={setStruttura}>
                     <SelectTrigger><SelectValue placeholder={t(lang, 'form.nessuna')} /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="__nessuna">{t(lang, 'form.nessuna')}</SelectItem>
                       {strutture?.map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -657,9 +657,10 @@ export default function Candidatura() {
                 </div>
                 <div>
                   <Label>{t(lang, 'form.tipoCameraPreferito')}</Label>
-                  <Select value={form.tipo_camera_preferito} onValueChange={v => set('tipo_camera_preferito', v)}>
+                  <Select value={form.tipo_camera_preferito || '__nessuna'} onValueChange={v => set('tipo_camera_preferito', v === '__nessuna' ? '' : v)}>
                     <SelectTrigger><SelectValue placeholder={t(lang, 'form.nessuna')} /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="__nessuna">{t(lang, 'form.nessuna')}</SelectItem>
                       {(tipiCameraDisponibili ?? []).includes('singola') && (
                         <SelectItem value="singola">{t(lang, 'form.singola')}</SelectItem>
                       )}
