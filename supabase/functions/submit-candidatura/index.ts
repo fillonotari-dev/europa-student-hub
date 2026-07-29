@@ -364,23 +364,11 @@ Deno.serve(async (req) => {
 
       // Notifica interna alla Direzione. Non blocca il flusso in caso di errore.
       try {
-        let sedePreferita: string | null = null;
-        const { data: sede } = await supabase
-          .from('strutture')
-          .select('nome')
-          .eq('id', struttura_preferita_id)
-          .maybeSingle();
-        if (sede?.nome) sedePreferita = sede.nome;
         const resAdmin = await enqueueTransactional({
           component: CandidaturaNuovaAdminEmail,
           props: {
             nome: vNome,
             cognome: vCognome,
-            sedePreferita,
-            tipoCamera: vTipoCamera ?? null,
-            periodoInizio: periodo_inizio,
-            periodoFine: periodo_fine,
-            dataInvioIso: new Date().toISOString(),
             studenteId,
           },
           subject: `Nuova candidatura — ${vNome} ${vCognome}`,

@@ -6,29 +6,15 @@ import { Body, Button, Container, Head, Heading, Html, Preview, Text } from 'npm
 interface Props {
   nome: string
   cognome: string
-  sedePreferita?: string | null
-  tipoCamera?: string | null
-  periodoInizio: string
-  periodoFine: string
-  dataInvioIso: string
   studenteId: string
   appBaseUrl?: string
 }
 
-function fmt(iso?: string): string {
-  if (!iso) return '—'
-  try {
-    return new Date(iso).toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })
-  } catch { return '—' }
-}
-
 export const CandidaturaNuovaAdminEmail = ({
-  nome, cognome, sedePreferita, tipoCamera, periodoInizio, periodoFine, dataInvioIso, studenteId,
+  nome, cognome, studenteId,
   appBaseUrl = 'https://app.studentatoeuropa.it',
 }: Props) => {
   const url = `${appBaseUrl}/admin/studenti/${studenteId}`
-  const sede = (sedePreferita && sedePreferita.trim()) || 'nessuna preferenza'
-  const camera = (tipoCamera && tipoCamera.trim()) || '—'
   return (
     <Html lang="it" dir="ltr">
       <Head />
@@ -37,11 +23,7 @@ export const CandidaturaNuovaAdminEmail = ({
         <Container style={container}>
           <Heading style={h1}>Nuova candidatura</Heading>
           <Text style={text}>È arrivata una nuova candidatura da valutare.</Text>
-          <Text style={row}><strong>Nome e cognome:</strong> {nome} {cognome}</Text>
-          <Text style={row}><strong>Sede preferita:</strong> {sede}</Text>
-          <Text style={row}><strong>Tipo camera:</strong> {camera}</Text>
-          <Text style={row}><strong>Periodo richiesto:</strong> {fmt(periodoInizio)} → {fmt(periodoFine)}</Text>
-          <Text style={row}><strong>Data di invio:</strong> {fmt(dataInvioIso)}</Text>
+          <Text style={row}><strong>Nome:</strong> {nome} {cognome}</Text>
           <Button style={button} href={url}>Apri scheda nel gestionale</Button>
         </Container>
       </Body>

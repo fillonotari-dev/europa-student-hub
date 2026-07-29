@@ -1,7 +1,9 @@
 import * as React from 'npm:react@18.3.1'
 import { renderAsync } from 'npm:@react-email/components@0.0.22'
+import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { TEMPLATES } from '../_shared/transactional-email-templates/registry.ts'
+import { getContatti } from '../_shared/contatti.ts'
 
 // Renders all registered templates with their previewData.
 // Gated by LOVABLE_API_KEY — only the Go API calls this.
@@ -33,6 +35,20 @@ Deno.serve(async (req) => {
   }
 
   const templateNames = Object.keys(TEMPLATES)
+
+  // Anteprima allineata alle Impostazioni reali: leggiamo contatti dal DB e
+  // sovrascriviamo il segnaposto CONTATTI_PREVIEW dei template candidato.
+  let realContatti: Record<string, string> | null = null
+  try {
+    const admin = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    )
+    realContatti = await getContatti(admin)
+  } catch (err) {
+    console.error('preview-transactional-email: getContatti failed', err)
+  }
+
   const results: Array<{
     templateName: string
     displayName: string
@@ -57,13 +73,18 @@ Deno.serve(async (req) => {
       continue
     }
 
+    const previewData =
+      realContatti && 'contatti' in entry.previewData
+        ? { ...entry.previewData, contatti: realContatti }
+        : entry.previewData
+
     try {
       const html = await renderAsync(
-        React.createElement(entry.component, entry.previewData)
+        React.createElement(entry.component, previewData)
       )
       const resolvedSubject =
         typeof entry.subject === 'function'
-          ? entry.subject(entry.previewData)
+          ? entry.subject(previewData)
           : entry.subject
 
       results.push({
