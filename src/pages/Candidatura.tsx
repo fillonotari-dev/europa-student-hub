@@ -174,7 +174,8 @@ export default function Candidatura() {
     const requiredByKey: Record<string, string[]> = {
       stepPersonal: [
         'nome', 'cognome', 'email', 'telefono', 'data_nascita', 'nazionalita',
-        'indirizzo_via', 'indirizzo_civico', 'indirizzo_cap', 'indirizzo_comune', 'indirizzo_provincia', 'indirizzo_nazione',
+        'indirizzo_via', 'indirizzo_civico', 'indirizzo_cap', 'indirizzo_comune', 'indirizzo_nazione',
+        ...(form.indirizzo_nazione === 'IT' ? ['indirizzo_provincia'] : []),
       ],
       stepAcademic: ['universita', 'corso_di_studi', 'periodo_inizio', 'periodo_fine'],
       stepPreferences: [],

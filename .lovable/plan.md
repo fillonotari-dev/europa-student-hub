@@ -1,32 +1,21 @@
-## Obiettivo
-Permettere "Nessuna preferenza" sia per struttura che per tipo camera nel form pubblico di candidatura, allineando frontend e server.
+## Problema
+Nel form pubblico di candidatura (`src/pages/Candidatura.tsx`), quando l'utente seleziona una nazione di residenza diversa da Italia:
+- il campo Provincia viene svuotato e disabilitato (comportamento corretto);
+- ma resta nell'elenco dei campi obbligatori di `validateStep`, quindi il form blocca il "Continua" senza mostrare un errore utile.
 
-## 1. `src/pages/Candidatura.tsx`
-- Rimuovere `struttura_preferita_id` dall'elenco dei campi obbligatori in `requiredByKey` per `stepPreferences`.
-- Aggiungere un `SelectItem` esplicito "Nessuna preferenza" (chiave i18n `nessuna`) sia nel menu **Struttura** sia nel menu **Tipo camera**.
-- Usare il valore sentinella `__nessuna` (Radix Select non accetta `value=""`).
-- Nel handler dell'invio (o al momento di costruire il payload), tradurre `__nessuna` → `null` per entrambi i campi prima di chiamare l'edge function.
-- Verificare che lo stato iniziale/reset dei campi resti compatibile (il valore sentinella deve poter essere selezionato senza rompere la validazione degli altri step).
+Il server è già coerente: `submit-candidatura` richiede la provincia solo se `nazione === 'IT'`.
 
-## 2. `supabase/functions/submit-candidatura/index.ts`
-Sostituire il blocco:
-```ts
-if (typeof struttura_preferita_id !== "string" || !UUID_RE.test(struttura_preferita_id)) {
-  return bad("Struttura preferita obbligatoria");
-}
-```
-con una validazione opzionale:
-- Se `struttura_preferita_id` è `undefined`, `null` o stringa vuota → salvare `null`.
-- Se presente → deve essere una stringa che passa `UUID_RE`, altrimenti `bad("Struttura preferita non valida")`.
-- Passare il valore normalizzato (uuid o `null`) nell'`insert` su `candidature`.
+## Fix
+`src/pages/Candidatura.tsx`, funzione `validateStep` (righe ~173-185):
 
-Nessuna migration necessaria: `candidature.struttura_preferita_id` è già nullable.
+Rendere `indirizzo_provincia` condizionalmente obbligatorio invece di sempre obbligatorio. Costruire l'array `stepPersonal` in modo dinamico:
 
-## 3. Deploy & verifica
-- Deploy della edge function `submit-candidatura`.
-- Test manuale: invio candidatura senza selezionare struttura né tipo camera → deve essere accettata e salvata con entrambi i campi a `null`.
-- Test controllo: invio con struttura selezionata → continua a funzionare.
+- Includere `indirizzo_provincia` solo quando `form.indirizzo_nazione === 'IT'`.
+- Tutti gli altri campi restano invariati.
 
-## Note tecniche
-- Le chiavi i18n `nessuna` esistono già in IT/EN, non servono aggiunte a `src/i18n/translations.ts`.
-- La conversione sentinella→null va fatta in un solo punto (submit handler) per evitare divergenze.
+Nessuna altra modifica: la UI già disabilita il campo e lo resetta al cambio nazione (righe 580-591), e il server già accetta provincia nulla per nazioni non-IT.
+
+## Verifica
+- Selezionare una nazione diversa da IT nel blocco residenza → il tasto "Continua" deve procedere senza errore "campo obbligatorio".
+- Selezionare Italia → provincia torna richiesta (asterisco + blocco avanzamento se vuota).
+- Invio finale di una candidatura con nazione estera → accettato dal server, salvato con `indirizzo_provincia = null`.
