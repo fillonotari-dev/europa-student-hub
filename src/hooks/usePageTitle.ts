@@ -17,6 +17,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/admin/residenti': 'Residenti',
   '/admin/camere': 'Camere',
   '/admin/strutture': 'Strutture',
+  '/admin/impostazioni': 'Impostazioni',
 };
 
 type Ctx = {

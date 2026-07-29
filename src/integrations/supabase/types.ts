@@ -475,6 +475,36 @@ export type Database = {
         }
         Relationships: []
       }
+      impostazioni: {
+        Row: {
+          contatto_email: string | null
+          contatto_orari: string | null
+          contatto_telefono: string | null
+          contatto_whatsapp: string | null
+          id: number
+          notifica_email: string | null
+          updated_at: string
+        }
+        Insert: {
+          contatto_email?: string | null
+          contatto_orari?: string | null
+          contatto_telefono?: string | null
+          contatto_whatsapp?: string | null
+          id?: number
+          notifica_email?: string | null
+          updated_at?: string
+        }
+        Update: {
+          contatto_email?: string | null
+          contatto_orari?: string | null
+          contatto_telefono?: string | null
+          contatto_whatsapp?: string | null
+          id?: number
+          notifica_email?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       log_stato_candidature: {
         Row: {
           cambiato_da: string | null
