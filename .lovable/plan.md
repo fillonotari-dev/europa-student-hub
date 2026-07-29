@@ -1,60 +1,52 @@
-## Obiettivo
+## Diagnosi
 
-Portare le email applicative del progetto sul sistema standard di Lovable ("app emails") così che i template compaiano e siano ispezionabili in **Cloud → Emails → App emails**, senza cambiare comportamento funzionale.
+Nel DB `public.impostazioni` c'è:
+- `contatto_email` = `studentatoeuropa@gmail.com`
+- `contatto_telefono` = **vuoto**
+- `contatto_whatsapp` = **vuoto**
+- `contatto_orari` = `Lun-Ven, dalle 9:00 alle 18:00`
+- `notifica_email` = `studentatoeuropa@gmail.com`
 
-## Perché oggi non le vede
+Ci sono però due punti dove appaiono valori "inventati":
 
-Il pannello "App emails" elenca solo i template registrati nel registry standard `supabase/functions/_shared/transactional-email-templates/registry.ts` e inviati via `send-transactional-email`. I nostri template stanno in `_shared/email-templates/` e vengono inviati con `enqueueTransactional` custom → non compaiono.
+### Causa 1 — Anteprime nel pannello Cloud → Emails
+`registry.ts` passa a ogni template un oggetto `CONTATTI_PREVIEW` hardcoded con `info@studentatoeuropa.it`, `+39 059 000 0000`, `+39 340 000 0000`. Serviva solo a mostrare il blocco contatti nell'anteprima, ma è fuorviante: sembra che quei valori vengano davvero inviati.
 
-## Cosa faccio
+### Causa 2 — Fallback per-campo in `getContatti`
+`_shared/contatti.ts` sostituisce ogni campo vuoto con `CONTATTI_DEFAULT`. Oggi:
+- `contatto_email` default = `info@studentatoeuropa.it` → se un domani l'admin svuota il campo, le email al candidato riportano un indirizzo non più usato.
+- `contatto_telefono` / `contatto_whatsapp` default = `''` → oggi va bene, ma la logica per-campo è ambigua (mescola default reali e "placeholder"). Meglio essere espliciti: mai inventare telefono/whatsapp/orari.
 
-### 1. Scaffold del sistema standard
-Chiamo `email_domain--scaffold_transactional_email`. Crea:
-- `supabase/functions/send-transactional-email/` (funzione di invio ufficiale, integrata col pannello)
-- `supabase/functions/handle-email-unsubscribe/`
-- `supabase/functions/handle-email-suppression/`
-- `supabase/functions/_shared/transactional-email-templates/registry.ts`
-- template di esempio (che rimuovo subito)
+Le email reali ora dovrebbero mostrare `studentatoeuropa@gmail.com` e nessun telefono. Il "info@" e i telefoni placeholder che l'utente vede vengono dal pannello anteprima.
 
-### 2. Migrazione dei nostri 6 template candidato/admin
-Sposto e adatto sotto `_shared/transactional-email-templates/`:
-- `candidatura-ricevuta`
-- `candidatura-link-completamento`
-- `candidatura-esito-approvata`
-- `candidatura-esito-rifiutata`
-- `candidatura-nuova-admin`
-- `candidatura-completata-admin`
+## Intervento
 
-Ogni file esporta l'oggetto `template` con `component`, `subject`, `displayName`, `previewData` come richiesto dal registry. Il blocco contatti condiviso resta un helper.
+### 1. `supabase/functions/_shared/transactional-email-templates/registry.ts`
+- Rimuovere la costante `CONTATTI_PREVIEW` con dati inventati.
+- Sostituirla con `CONTATTI_PREVIEW_EMPTY = {}` (o omettere del tutto `contatti` dai `previewData`), così l'anteprima nel pannello mostra esattamente quello che vede il candidato reale quando telefono/whatsapp non sono configurati.
+- In alternativa (opzione più ricca ma più invasiva): far renderizzare `preview-transactional-email` dopo aver letto la vera riga `impostazioni`, iniettando `contatti` reali nei `previewData`. Preferisco l'opzione minimale (previewData vuoti) — coerente, semplice, zero query extra.
 
-Registrati tutti in `registry.ts` con nomi kebab-case.
+### 2. `supabase/functions/_shared/contatti.ts`
+- `CONTATTI_DEFAULT.contatto_email` → `''` (non inventare più `info@…`). Il template già gestisce `email` vuoto (nasconde la riga; il footer di `candidatura-ricevuta` ha già il fallback "contatta la Direzione").
+- `CONTATTI_DEFAULT.notifica_email` resta `studentatoeuropa@gmail.com` (serve per non perdere le notifiche interne se qualcuno svuota il campo).
+- Cambiare la logica in `getContatti`: telefono/whatsapp/orari/contatto_email → passano attraverso `normStr` senza fallback (stringa vuota se vuoti). Solo `notifica_email` mantiene il fallback al default.
 
-### 3. Sostituzione del canale di invio
-Refactor di:
-- `supabase/functions/submit-candidatura/index.ts`
-- `supabase/functions/complete-candidatura/index.ts`
-- `supabase/functions/send-esito-email/index.ts`
-- `supabase/functions/generate-completion-link/index.ts`
+### 3. Deploy
+Dopo l'edit: deploy delle Edge Functions impattate (che importano il modulo condiviso e il registry):
+- `submit-candidatura`
+- `complete-candidatura`
+- `send-esito-email`
+- `generate-completion-link`
+- `send-transactional-email`
+- `preview-transactional-email`
 
-Sostituisco le chiamate a `enqueueTransactional(...)` con `supabase.functions.invoke('send-transactional-email', { body: { templateName, recipientEmail, idempotencyKey, templateData } })`. Stessi payload logici, stessi trigger, stesse `idempotencyKey` già in uso.
+## Verifica
 
-Il vecchio helper `_shared/enqueue-transactional.ts` resta solo se ancora usato dai template Auth; altrimenti lo rimuovo.
+1. Aprire Cloud → Emails → App emails → aprire l'anteprima di `candidatura-ricevuta`: il blocco "Contatti" deve mostrare **solo** i campi valorizzati (`Email: studentatoeuropa@gmail.com`, `Orari: Lun-Ven…`) e **nessuna** riga telefono/WhatsApp.
+2. Inviare una candidatura di test: l'email al candidato deve mostrare gli stessi valori del pannello Impostazioni.
+3. Compilare telefono in Impostazioni e ripetere: il nuovo campo compare in email e in anteprima.
 
-### 4. Cosa NON tocco
-- Auth email hook (`auth-email-hook` + template signup/recovery/…): restano dove sono, non vanno nel registry app.
-- Coda `auth_emails` e `process-email-queue`: continuano a servire l'auth.
-- Tabella `impostazioni`, `getContatti`, blocco contatti nei template: invariati.
-- UI admin, form pubblico, DB schema: invariati.
+## Fuori scope
 
-### 5. Deploy e verifica
-Deploy di: `send-transactional-email`, `handle-email-unsubscribe`, `handle-email-suppression`, `submit-candidatura`, `complete-candidatura`, `send-esito-email`, `generate-completion-link`.
-
-Verifica: aprire Cloud → Emails → App emails e confermare che i 6 template appaiano con nome/oggetto/preview.
-
-## Rischi e nota
-
-- L'infrastruttura di coda pgmq è già presente (`setup_email_infra` fatto in passato), quindi lo scaffold non ricrea nulla di distruttivo.
-- `send-transactional-email` verifica `suppressed_emails` prima di inviare: identico comportamento a oggi.
-- Cambio contenuto in un solo turno; se qualcosa fallisse in produzione, rollback = ripristinare le vecchie chiamate `enqueueTransactional` (i file restano in git history).
-
-Confermi e procedo?
+- Non tocco pagina `/admin/impostazioni`, template `.tsx` dei singoli messaggi, coda email, o notifiche admin.
+- Non introduco nuove tabelle o migrazioni.
