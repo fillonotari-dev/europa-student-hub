@@ -23,13 +23,10 @@ export interface TemplateEntry {
 
 const SITE = 'Studentato Europa'
 
-const CONTATTI_PREVIEW = {
-  contatto_email: 'info@studentatoeuropa.it',
-  contatto_telefono: '+39 059 000 0000',
-  contatto_whatsapp: '+39 340 000 0000',
-  contatto_orari: 'Lun–Ven 9:00–18:00',
-  notifica_email: 'studentatoeuropa@gmail.com',
-}
+// Nessun contatto placeholder: l'anteprima nel pannello deve mostrare esattamente
+// quello che vede il candidato quando telefono/WhatsApp non sono configurati in
+// Impostazioni. I recapiti reali arrivano a runtime via getContatti().
+const CONTATTI_PREVIEW = {}
 
 export const TEMPLATES: Record<string, TemplateEntry> = {
   'candidatura-ricevuta': {
