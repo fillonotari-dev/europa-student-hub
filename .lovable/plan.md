@@ -1,52 +1,41 @@
-## Diagnosi
+## Cosa cambia
 
-Nel DB `public.impostazioni` c'è:
-- `contatto_email` = `studentatoeuropa@gmail.com`
-- `contatto_telefono` = **vuoto**
-- `contatto_whatsapp` = **vuoto**
-- `contatto_orari` = `Lun-Ven, dalle 9:00 alle 18:00`
-- `notifica_email` = `studentatoeuropa@gmail.com`
+### 1. Template admin: solo nome + pulsante
+File: `supabase/functions/_shared/email-templates/candidatura-nuova-admin.tsx`, `candidatura-completata-admin.tsx`
 
-Ci sono però due punti dove appaiono valori "inventati":
+Riduco entrambi a:
+- Frase di apertura ("È arrivata una nuova candidatura." / "Una candidatura è stata completata ed è pronta per la decisione.")
+- Riga "Nome: {nome} {cognome}"
+- Pulsante "Apri scheda nel gestionale"
 
-### Causa 1 — Anteprime nel pannello Cloud → Emails
-`registry.ts` passa a ogni template un oggetto `CONTATTI_PREVIEW` hardcoded con `info@studentatoeuropa.it`, `+39 059 000 0000`, `+39 340 000 0000`. Serviva solo a mostrare il blocco contatti nell'anteprima, ma è fuorviante: sembra che quei valori vengano davvero inviati.
+Rimuovo: sede preferita, tipo camera, periodo richiesto, data. Aggiorno `previewData` nel registry di conseguenza (solo `nome`, `cognome`, `studenteId`). Le props inutili nei chiamanti (`submit-candidatura`, `complete-candidatura`) restano innocue ma le pulisco per non sporcare il payload.
 
-### Causa 2 — Fallback per-campo in `getContatti`
-`_shared/contatti.ts` sostituisce ogni campo vuoto con `CONTATTI_DEFAULT`. Oggi:
-- `contatto_email` default = `info@studentatoeuropa.it` → se un domani l'admin svuota il campo, le email al candidato riportano un indirizzo non più usato.
-- `contatto_telefono` / `contatto_whatsapp` default = `''` → oggi va bene, ma la logica per-campo è ambigua (mescola default reali e "placeholder"). Meglio essere espliciti: mai inventare telefono/whatsapp/orari.
+### 2. Esito approvata senza nota
+File: `supabase/functions/_shared/email-templates/candidatura-esito-approvata.tsx`
 
-Le email reali ora dovrebbero mostrare `studentatoeuropa@gmail.com` e nessun telefono. Il "info@" e i telefoni placeholder che l'utente vede vengono dal pannello anteprima.
+Rimuovo il blocco `notaAdmin` (titolo + testo + `Hr`), rimuovo la prop dalla firma e la voce `notaTitle` in `COPY`. Il footer generico resta.
 
-## Intervento
+File: `supabase/functions/send-esito-email/index.ts`
 
-### 1. `supabase/functions/_shared/transactional-email-templates/registry.ts`
-- Rimuovere la costante `CONTATTI_PREVIEW` con dati inventati.
-- Sostituirla con `CONTATTI_PREVIEW_EMPTY = {}` (o omettere del tutto `contatti` dai `previewData`), così l'anteprima nel pannello mostra esattamente quello che vede il candidato reale quando telefono/whatsapp non sono configurati.
-- In alternativa (opzione più ricca ma più invasiva): far renderizzare `preview-transactional-email` dopo aver letto la vera riga `impostazioni`, iniettando `contatti` reali nei `previewData`. Preferisco l'opzione minimale (previewData vuoti) — coerente, semplice, zero query extra.
+Non passo più `notaAdmin` al template. La UI admin può continuare a raccogliere la nota per uso interno (log/storico); non entra nella mail. Aggiorno anche `previewData` nel registry rimuovendo `notaAdmin`.
 
-### 2. `supabase/functions/_shared/contatti.ts`
-- `CONTATTI_DEFAULT.contatto_email` → `''` (non inventare più `info@…`). Il template già gestisce `email` vuoto (nasconde la riga; il footer di `candidatura-ricevuta` ha già il fallback "contatta la Direzione").
-- `CONTATTI_DEFAULT.notifica_email` resta `studentatoeuropa@gmail.com` (serve per non perdere le notifiche interne se qualcuno svuota il campo).
-- Cambiare la logica in `getContatti`: telefono/whatsapp/orari/contatto_email → passano attraverso `normStr` senza fallback (stringa vuota se vuoti). Solo `notifica_email` mantiene il fallback al default.
+### 3. Contatti che non compaiono nelle mail al candidato
+Causa: l'ultima modifica ha svuotato `CONTATTI_PREVIEW` nel registry (`{}`), quindi nel pannello **Cloud → Emails → App emails** l'anteprima mostra template senza recapiti. A runtime `getContatti` legge correttamente `impostazioni` (verificato: email + orari valorizzati) e `ContattiBlock` mostra solo i campi presenti — quindi le mail reali attualmente mostrano email + orari. Il problema segnalato è l'anteprima nel pannello.
 
-### 3. Deploy
-Dopo l'edit: deploy delle Edge Functions impattate (che importano il modulo condiviso e il registry):
-- `submit-candidatura`
-- `complete-candidatura`
-- `send-esito-email`
-- `generate-completion-link`
-- `send-transactional-email`
-- `preview-transactional-email`
+Fix: rendo dinamica l'anteprima.
 
-## Verifica
+File: `supabase/functions/preview-transactional-email/index.ts`
 
-1. Aprire Cloud → Emails → App emails → aprire l'anteprima di `candidatura-ricevuta`: il blocco "Contatti" deve mostrare **solo** i campi valorizzati (`Email: studentatoeuropa@gmail.com`, `Orari: Lun-Ven…`) e **nessuna** riga telefono/WhatsApp.
-2. Inviare una candidatura di test: l'email al candidato deve mostrare gli stessi valori del pannello Impostazioni.
-3. Compilare telefono in Impostazioni e ripetere: il nuovo campo compare in email e in anteprima.
+Prima di iterare i template, leggo `impostazioni` con il service role e costruisco un `contatti` reale. Per ogni template che ha `contatti` nel proprio `previewData` (rilevabile via chiave presente), sostituisco quel campo con i contatti reali. Così l'anteprima nel pannello riflette esattamente ciò che riceve il candidato con le Impostazioni attuali (email + orari), senza inventare telefono/WhatsApp.
 
-## Fuori scope
+File: `supabase/functions/_shared/transactional-email-templates/registry.ts`
 
-- Non tocco pagina `/admin/impostazioni`, template `.tsx` dei singoli messaggi, coda email, o notifiche admin.
-- Non introduco nuove tabelle o migrazioni.
+Aggiorno `previewData` dei template candidato lasciando `contatti: {}` come segnaposto (per far scattare l'override nel preview endpoint) e rimuovo campi ora non usati (`notaAdmin`, campi extra admin).
+
+### Deploy
+Al termine, deploy di: `send-transactional-email`, `preview-transactional-email`, `send-esito-email`, `submit-candidatura`, `complete-candidatura`.
+
+## Note tecniche
+- I template admin non usano `ContattiBlock`, quindi nessun impatto sui contatti nel loro caso.
+- La nota della Direzione resta salvata nella tabella `log_stato_candidature` (o equivalente flusso attuale) — cambia solo la mail.
+- Nessuna migrazione DB necessaria.
