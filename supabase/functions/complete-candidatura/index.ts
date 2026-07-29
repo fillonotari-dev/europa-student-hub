@@ -211,15 +211,6 @@ Deno.serve(async (req) => {
         .select('nome, cognome')
         .eq('id', cand.studente_id)
         .maybeSingle();
-      let sedePreferita: string | null = null;
-      if ((cand as any).struttura_preferita_id) {
-        const { data: sede } = await supabase
-          .from('strutture')
-          .select('nome')
-          .eq('id', (cand as any).struttura_preferita_id)
-          .maybeSingle();
-        if (sede?.nome) sedePreferita = sede.nome;
-      }
       const nome = (stud as any)?.nome ?? '';
       const cognome = (stud as any)?.cognome ?? '';
       const resAdmin = await enqueueTransactional({
@@ -227,11 +218,6 @@ Deno.serve(async (req) => {
         props: {
           nome,
           cognome,
-          sedePreferita,
-          tipoCamera: (cand as any).tipo_camera_preferito ?? null,
-          periodoInizio: (cand as any).periodo_inizio,
-          periodoFine: (cand as any).periodo_fine,
-          dataInvioIso: new Date().toISOString(),
           studenteId: cand.studente_id,
         },
         subject: `Candidatura completata — ${nome} ${cognome}`.trim(),
