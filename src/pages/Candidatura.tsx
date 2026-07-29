@@ -163,7 +163,8 @@ export default function Candidatura() {
 
   // Reset tipo camera se non più disponibile per la struttura selezionata
   const setStruttura = (value: string) => {
-    setForm(f => ({ ...f, struttura_preferita_id: value, tipo_camera_preferito: '' }));
+    const normalized = value === '__nessuna' ? '' : value;
+    setForm(f => ({ ...f, struttura_preferita_id: normalized, tipo_camera_preferito: '' }));
   };
 
   const setUniversita = (value: string) =>
