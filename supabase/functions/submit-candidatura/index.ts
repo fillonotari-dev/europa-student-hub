@@ -1,6 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { enqueueTransactional, SITE_NAME } from "../_shared/enqueue-transactional.ts";
 import { CandidaturaRicevutaEmail } from "../_shared/email-templates/candidatura-ricevuta.tsx";
+import { CandidaturaNuovaAdminEmail } from "../_shared/email-templates/candidatura-nuova-admin.tsx";
+import { getContatti } from "../_shared/contatti.ts";
 import { DOCUMENTO_TIPI_SET, extractTipoFromPath } from "../_shared/documenti-tipi.ts";
 import { moveDocumentToFinal } from "../_shared/move-documenti.ts";
 import { validateCodiceFiscale } from "../_shared/codice-fiscale.ts";
@@ -347,17 +349,48 @@ Deno.serve(async (req) => {
 
     // Fire-and-log conferma ricezione email. Never rollback the application on email failure.
     try {
+      const contatti = await getContatti(supabase);
       const subject = vLingua === 'en'
         ? `We received your application - ${SITE_NAME}`
         : `Abbiamo ricevuto la tua candidatura - ${SITE_NAME}`;
       const res = await enqueueTransactional({
         component: CandidaturaRicevutaEmail,
-        props: { lang: vLingua, nome: vNome, siteName: SITE_NAME },
+        props: { lang: vLingua, nome: vNome, siteName: SITE_NAME, contatti },
         subject,
         to: vEmail,
         label: 'candidatura-ricevuta',
       });
       if (!res.ok) console.error('submit-candidatura: enqueue conferma failed', res.error);
+
+      // Notifica interna alla Direzione. Non blocca il flusso in caso di errore.
+      try {
+        let sedePreferita: string | null = null;
+        const { data: sede } = await supabase
+          .from('strutture')
+          .select('nome')
+          .eq('id', struttura_preferita_id)
+          .maybeSingle();
+        if (sede?.nome) sedePreferita = sede.nome;
+        const resAdmin = await enqueueTransactional({
+          component: CandidaturaNuovaAdminEmail,
+          props: {
+            nome: vNome,
+            cognome: vCognome,
+            sedePreferita,
+            tipoCamera: vTipoCamera ?? null,
+            periodoInizio: periodo_inizio,
+            periodoFine: periodo_fine,
+            dataInvioIso: new Date().toISOString(),
+            studenteId,
+          },
+          subject: `Nuova candidatura — ${vNome} ${vCognome}`,
+          to: contatti.notifica_email,
+          label: 'candidatura-nuova-admin',
+        });
+        if (!resAdmin.ok) console.error('submit-candidatura: enqueue notifica admin failed', resAdmin.error);
+      } catch (e) {
+        console.error('submit-candidatura: enqueue notifica admin exception', e);
+      }
     } catch (e) {
       console.error('submit-candidatura: enqueue conferma exception', e);
     }

@@ -2,6 +2,8 @@
 
 import * as React from 'npm:react@18.3.1'
 import { Body, Button, Container, Head, Heading, Html, Preview, Text } from 'npm:@react-email/components@0.0.22'
+import { ContattiBlock } from './_contatti-block.tsx'
+import type { Contatti } from '../contatti.ts'
 
 interface Props {
   lang: 'it' | 'en'
@@ -9,6 +11,7 @@ interface Props {
   siteName: string
   completionUrl: string
   scadeIlIso?: string
+  contatti?: Partial<Contatti>
 }
 
 function formatDate(iso: string | undefined, lang: 'it' | 'en'): string {
@@ -41,7 +44,7 @@ const COPY = {
   },
 } as const
 
-export const CandidaturaLinkCompletamentoEmail = ({ lang, nome, siteName, completionUrl, scadeIlIso }: Props) => {
+export const CandidaturaLinkCompletamentoEmail = ({ lang, nome, siteName, completionUrl, scadeIlIso, contatti }: Props) => {
   const c = COPY[lang] ?? COPY.it
   const scad = formatDate(scadeIlIso, lang)
   return (
@@ -55,6 +58,7 @@ export const CandidaturaLinkCompletamentoEmail = ({ lang, nome, siteName, comple
           <Text style={text}>{c.p1(siteName)}</Text>
           <Button style={button} href={completionUrl}>{c.cta}</Button>
           {scad ? <Text style={{ ...text, marginTop: '20px' }}>{c.expiry(scad)}</Text> : null}
+          <ContattiBlock lang={lang} contatti={contatti} />
           <Text style={footer}>{c.footer}</Text>
         </Container>
       </Body>

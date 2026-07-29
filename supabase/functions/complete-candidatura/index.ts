@@ -1,6 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { DOCUMENTO_TIPI_SET, extractTipoFromPath } from "../_shared/documenti-tipi.ts";
 import { moveDocumentToFinal } from "../_shared/move-documenti.ts";
+import { enqueueTransactional } from "../_shared/enqueue-transactional.ts";
+import { CandidaturaCompletataAdminEmail } from "../_shared/email-templates/candidatura-completata-admin.tsx";
+import { getContatti } from "../_shared/contatti.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -63,7 +66,7 @@ Deno.serve(async (req) => {
 
     const { data: cand, error: candErr } = await supabase
       .from("candidature")
-      .select("id, token_scade_il, completata_il, studente_id, stato")
+      .select("id, token_scade_il, completata_il, studente_id, stato, struttura_preferita_id, tipo_camera_preferito, periodo_inizio, periodo_fine")
       .eq("completamento_token_hash", hash)
       .maybeSingle();
     if (candErr) throw candErr;
@@ -199,6 +202,46 @@ Deno.serve(async (req) => {
     });
 
     await supabase.rpc("consume_candidatura_sessione", { p_temp_id: tempId });
+
+    // Notifica interna alla Direzione. Try/catch: mai bloccare la candidatura.
+    try {
+      const contatti = await getContatti(supabase);
+      const { data: stud } = await supabase
+        .from('studenti')
+        .select('nome, cognome')
+        .eq('id', cand.studente_id)
+        .maybeSingle();
+      let sedePreferita: string | null = null;
+      if ((cand as any).struttura_preferita_id) {
+        const { data: sede } = await supabase
+          .from('strutture')
+          .select('nome')
+          .eq('id', (cand as any).struttura_preferita_id)
+          .maybeSingle();
+        if (sede?.nome) sedePreferita = sede.nome;
+      }
+      const nome = (stud as any)?.nome ?? '';
+      const cognome = (stud as any)?.cognome ?? '';
+      const resAdmin = await enqueueTransactional({
+        component: CandidaturaCompletataAdminEmail,
+        props: {
+          nome,
+          cognome,
+          sedePreferita,
+          tipoCamera: (cand as any).tipo_camera_preferito ?? null,
+          periodoInizio: (cand as any).periodo_inizio,
+          periodoFine: (cand as any).periodo_fine,
+          dataInvioIso: new Date().toISOString(),
+          studenteId: cand.studente_id,
+        },
+        subject: `Candidatura completata — ${nome} ${cognome}`.trim(),
+        to: contatti.notifica_email,
+        label: 'candidatura-completata-admin',
+      });
+      if (!resAdmin.ok) console.error('complete-candidatura: enqueue notifica admin failed', resAdmin.error);
+    } catch (e) {
+      console.error('complete-candidatura: enqueue notifica admin exception', e);
+    }
 
     return json({ success: true });
   } catch (e) {

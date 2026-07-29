@@ -16,6 +16,7 @@ import Residenti from "./pages/admin/Residenti";
 import Camere from "./pages/admin/Camere";
 import Strutture from "./pages/admin/Strutture";
 import StudentePage from "./pages/admin/StudentePage";
+import Impostazioni from "./pages/admin/Impostazioni";
 import { Navigate } from "react-router-dom";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,7 @@ const App = () => (
             <Route path="studenti/:id" element={<StudentePage />} />
             <Route path="camere" element={<Camere />} />
             <Route path="strutture" element={<Strutture />} />
+            <Route path="impostazioni" element={<Impostazioni />} />
             {/* Storico rimosso: gli archiviati vivono nelle liste principali via filtro. */}
             <Route path="storico" element={<Navigate to="/admin/candidature?stadio=archiviato" replace />} />
             <Route path="storico/*" element={<Navigate to="/admin/candidature?stadio=archiviato" replace />} />

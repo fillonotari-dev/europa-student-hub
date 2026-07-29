@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { enqueueTransactional, SITE_NAME } from "../_shared/enqueue-transactional.ts";
 import { CandidaturaLinkCompletamentoEmail } from "../_shared/email-templates/candidatura-link-completamento.tsx";
+import { getContatti } from "../_shared/contatti.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -113,9 +114,10 @@ Deno.serve(async (req) => {
         ? `Complete your application - ${SITE_NAME}`
         : `Completa la tua candidatura - ${SITE_NAME}`;
       try {
+        const contatti = await getContatti(admin);
         const res = await enqueueTransactional({
           component: CandidaturaLinkCompletamentoEmail,
-          props: { lang, nome: studente?.nome, siteName: SITE_NAME, completionUrl, scadeIlIso: scadenza },
+          props: { lang, nome: studente?.nome, siteName: SITE_NAME, completionUrl, scadeIlIso: scadenza, contatti },
           subject,
           to: recipient,
           label: 'candidatura-link-completamento',

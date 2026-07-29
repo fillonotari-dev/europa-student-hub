@@ -2,12 +2,15 @@
 
 import * as React from 'npm:react@18.3.1'
 import { Body, Container, Head, Heading, Hr, Html, Preview, Text } from 'npm:@react-email/components@0.0.22'
+import { ContattiBlock } from './_contatti-block.tsx'
+import type { Contatti } from '../contatti.ts'
 
 interface Props {
   lang: 'it' | 'en'
   nome?: string
   siteName: string
   notaAdmin?: string
+  contatti?: Partial<Contatti>
 }
 
 const COPY = {
@@ -31,7 +34,7 @@ const COPY = {
   },
 } as const
 
-export const CandidaturaEsitoApprovataEmail = ({ lang, nome, siteName, notaAdmin }: Props) => {
+export const CandidaturaEsitoApprovataEmail = ({ lang, nome, siteName, notaAdmin, contatti }: Props) => {
   const c = COPY[lang] ?? COPY.it
   return (
     <Html lang={lang} dir="ltr">
@@ -50,6 +53,7 @@ export const CandidaturaEsitoApprovataEmail = ({ lang, nome, siteName, notaAdmin
               <Text style={notaText}>{notaAdmin}</Text>
             </>
           ) : null}
+          <ContattiBlock lang={lang} contatti={contatti} />
           <Text style={footer}>{c.footer}</Text>
         </Container>
       </Body>

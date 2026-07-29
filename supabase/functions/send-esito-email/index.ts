@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { enqueueTransactional, SITE_NAME } from "../_shared/enqueue-transactional.ts";
 import { CandidaturaEsitoApprovataEmail } from "../_shared/email-templates/candidatura-esito-approvata.tsx";
 import { CandidaturaEsitoRifiutataEmail } from "../_shared/email-templates/candidatura-esito-rifiutata.tsx";
+import { getContatti } from "../_shared/contatti.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -85,9 +86,10 @@ Deno.serve(async (req) => {
       ? (lang === "en" ? `Your application has been approved - ${SITE_NAME}` : `Candidatura approvata - ${SITE_NAME}`)
       : (lang === "en" ? `Update about your application - ${SITE_NAME}` : `Esito della candidatura - ${SITE_NAME}`);
 
+    const contatti = await getContatti(admin);
     const res = await enqueueTransactional({
       component: Component,
-      props: { lang, nome: nomeStudente, siteName: SITE_NAME, notaAdmin: nota ?? undefined },
+      props: { lang, nome: nomeStudente, siteName: SITE_NAME, notaAdmin: nota ?? undefined, contatti },
       subject,
       to: recipient,
       label: accolta ? "candidatura-esito-approvata" : "candidatura-esito-rifiutata",
