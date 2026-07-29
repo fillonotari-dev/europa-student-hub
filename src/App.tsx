@@ -9,6 +9,7 @@ import Candidatura from "./pages/Candidatura";
 import CandidaturaCompleta from "./pages/CandidaturaCompleta";
 import Login from "./pages/Login";
 import ResetPassword from "./pages/ResetPassword";
+import Unsubscribe from "./pages/Unsubscribe";
 import AdminLayout from "./pages/admin/AdminLayout";
 import Dashboard from "./pages/admin/Dashboard";
 import Candidature from "./pages/admin/Candidature";
@@ -33,6 +34,7 @@ const App = () => (
           <Route path="/candidatura/completa/:token" element={<CandidaturaCompleta />} />
           <Route path="/login" element={<Login />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/unsubscribe" element={<Unsubscribe />} />
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="candidature" element={<Candidature />} />
