@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
     const contatti = await getContatti(admin);
     const res = await enqueueTransactional({
       component: Component,
-      props: { lang, nome: nomeStudente, siteName: SITE_NAME, notaAdmin: nota ?? undefined, contatti },
+      props: { lang, nome: nomeStudente, siteName: SITE_NAME, contatti },
       subject,
       to: recipient,
       label: accolta ? "candidatura-esito-approvata" : "candidatura-esito-rifiutata",
