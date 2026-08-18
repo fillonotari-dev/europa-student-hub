@@ -243,7 +243,67 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
         email_recapito: a.email_recapito ?? '',
       }));
     }
+
+    // Tipo camera del contratto sostituito: serve solo a proporre il prezzo.
+    if (c.assegnazione_id) {
+      (async () => {
+        const { data } = await supabase
+          .from('assegnazioni')
+          .select('camere(tipo)')
+          .eq('id', c.assegnazione_id)
+          .maybeSingle();
+        const t = (data as any)?.camere?.tipo;
+        if (t) {
+          setTipoCamera(t);
+          setOrigine({ strutturaId: c.struttura_id ?? '', tipoCamera: t });
+        }
+      })();
+    } else {
+      setOrigine({ strutturaId: c.struttura_id ?? '', tipoCamera: '' });
+    }
   }, [open, sostituisce]);
+
+  // Ricerca del listino valido oggi: dipende solo dalla coppia sede + tipo camera,
+  // non dall'esistenza di un'assegnazione.
+  useEffect(() => {
+    if (!open) return;
+    if (!strutturaId || !tipoCamera) {
+      setListino(null);
+      setListinoCercato(false);
+      return;
+    }
+    let annullato = false;
+    (async () => {
+      const { data } = await supabase
+        .from('listini')
+        .select('importo_mensile, valido_dal')
+        .eq('struttura_id', strutturaId)
+        .eq('tipo_camera', tipoCamera)
+        .lte('valido_dal', oggi())
+        .or(`valido_al.is.null,valido_al.gte.${oggi()}`)
+        .order('valido_dal', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (annullato) return;
+      setListinoCercato(true);
+      if (data?.importo_mensile != null) {
+        const trovato = { importo: Number(data.importo_mensile), valido_dal: data.valido_dal as string };
+        setListino(trovato);
+        // In sostituzione il prezzo si applica solo su richiesta esplicita:
+        // il canone precompilato può essere un importo negoziato.
+        if (!sostituisce) {
+          const proposta = String(trovato.importo);
+          setCanone(prev => (prev === '' || prev === ultimoProposto ? proposta : prev));
+          setUltimoProposto(proposta);
+        }
+      } else {
+        setListino(null);
+      }
+    })();
+    return () => { annullato = true; };
+    // ultimoProposto volutamente fuori: serve solo come riferimento al momento dell'applicazione.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, strutturaId, tipoCamera, sostituisce]);
 
   // Proposta del codice destinatario al cambio nazione (solo se non compilato a mano).
   const proposto = ana.indirizzo_nazione === 'IT' ? '0000000' : 'XXXXXXX';
@@ -268,7 +328,9 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
     setDataFineVecchio('');
     setStrutturaId(''); setAssegnazioneId(null);
     setDataInizio(''); setDataFine(''); setGiornoScadenza('1');
-    setCanone(''); setCanoneNote(''); setAliquota('10'); setListinoMancante(false); setNote('');
+    setTipoCamera('');
+    setCanone(''); setCanoneNote(''); setAliquota('10'); setNote('');
+    setListino(null); setListinoCercato(false); setUltimoProposto(null); setOrigine(null);
     setGarante({ nome: '', relazione: '', telefono: '', email: '' });
     setDepositoRichiesto(true); setDepositoImporto(''); setDepositoEsenzione('');
     setModalita('studente'); setAnagraficaEsistenteId(null);
