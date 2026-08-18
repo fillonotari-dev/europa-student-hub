@@ -15,6 +15,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/admin': 'Home',
   '/admin/candidature': 'Candidature',
   '/admin/residenti': 'Residenti',
+  '/admin/contratti': 'Contratti',
   '/admin/camere': 'Camere',
   '/admin/strutture': 'Strutture',
   '/admin/impostazioni': 'Impostazioni',
