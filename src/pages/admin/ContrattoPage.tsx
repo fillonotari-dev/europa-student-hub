@@ -7,6 +7,8 @@ import { usePageTitle, usePageBack } from '@/hooks/usePageTitle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ContrattoDialog } from '@/components/admin/contratti/ContrattoDialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -19,6 +21,14 @@ import { Check, FileUp, FileText, Pencil, Trash2, X } from 'lucide-react';
 
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
 const oggiPrimoDelMese = () => `${new Date().toISOString().slice(0, 7)}-01`;
+const todayIso = () => new Date().toISOString().slice(0, 10);
+const primoDelMeseDi = (iso: string) => (iso ? `${iso.slice(0, 7)}-01` : '');
+
+export const MOTIVI_CHIUSURA_CONTRATTO: { value: string; label: string }[] = [
+  { value: 'fine_naturale', label: 'Fine naturale (contratto giunto a scadenza)' },
+  { value: 'partenza_anticipata', label: 'Partenza anticipata' },
+  { value: 'risoluzione', label: 'Risoluzione' },
+];
 
 const Riga = ({ k, v }: { k: string; v: any }) =>
   v == null || v === '' ? null : (
@@ -43,6 +53,11 @@ export default function ContrattoPage() {
   const [rigaEdit, setRigaEdit] = useState<string | null>(null);
   const [bozzaRiga, setBozzaRiga] = useState<{ imponibile: string; scadenza: string; note: string }>({ imponibile: '', scadenza: '', note: '' });
   const [busy, setBusy] = useState(false);
+  const [chiudiOpen, setChiudiOpen] = useState(false);
+  const [chiudiData, setChiudiData] = useState(todayIso());
+  const [chiudiMotivo, setChiudiMotivo] = useState('');
+  const [bozzaOpen, setBozzaOpen] = useState(false);
+  const [sostituisciOpen, setSostituisciOpen] = useState(false);
 
   const { data: contratto, isLoading } = useQuery({
     queryKey: ['contratti', id],
@@ -90,9 +105,78 @@ export default function ContrattoPage() {
     [canoni],
   );
 
+  const daAnnullare = useMemo(
+    () => (canoni ?? []).filter((c: any) => c.stato === 'da_fatturare' && c.competenza > primoDelMeseDi(chiudiData)),
+    [canoni, chiudiData],
+  );
+
+  const depositoIncassato = !!contratto?.deposito_stato && contratto.deposito_stato !== 'atteso';
+  const puoTornareInBozza = intoccabili.length === 0 && !depositoIncassato;
+
+  const { data: successore } = useQuery({
+    queryKey: ['contratti', 'successore', id],
+    enabled: !!id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('contratti').select('id, data_inizio, data_fine, stato')
+        .eq('contratto_precedente_id', id!).maybeSingle();
+      return data;
+    },
+  });
+
+  const { data: precedente } = useQuery({
+    queryKey: ['contratti', 'precedente', contratto?.contratto_precedente_id],
+    enabled: !!contratto?.contratto_precedente_id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('contratti').select('id, data_inizio, data_fine, stato')
+        .eq('id', contratto!.contratto_precedente_id!).maybeSingle();
+      return data;
+    },
+  });
+
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['contratti'] });
     qc.invalidateQueries({ queryKey: ['canoni', id] });
+  };
+
+  const chiudi = async () => {
+    if (!contratto) return;
+    if (!chiudiMotivo) {
+      toast({ title: 'Motivo mancante', description: 'Seleziona il motivo di chiusura.', variant: 'destructive' });
+      return;
+    }
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.rpc('chiudi_contratto', {
+        p_contratto_id: contratto.id,
+        p_data_fine: chiudiData,
+        p_motivo: chiudiMotivo,
+      });
+      if (error) throw error;
+      toast({
+        title: 'Contratto chiuso',
+        description: (data ?? 0) > 0 ? `Annullate ${data} mensilità successive al mese di chiusura.` : undefined,
+      });
+      setChiudiOpen(false);
+      refresh();
+    } catch (e: any) {
+      toast({ title: 'Errore', description: e?.message ?? 'Chiusura non riuscita', variant: 'destructive' });
+    } finally { setBusy(false); }
+  };
+
+  const tornaInBozza = async () => {
+    if (!contratto) return;
+    setBusy(true);
+    try {
+      const { error } = await supabase.rpc('riporta_contratto_in_bozza', { p_contratto_id: contratto.id });
+      if (error) throw error;
+      toast({ title: 'Contratto riportato in bozza', description: 'Le mensilità sono state cancellate.' });
+      setBozzaOpen(false);
+      refresh();
+    } catch (e: any) {
+      toast({ title: 'Errore', description: e?.message ?? 'Operazione non riuscita', variant: 'destructive' });
+    } finally { setBusy(false); }
   };
 
   const attiva = async () => {
@@ -271,7 +355,47 @@ export default function ContrattoPage() {
             <Button onClick={() => setConfermaAttiva(true)} disabled={busy}>Attiva contratto</Button>
           </div>
         )}
+        {contratto.stato === 'attivo' && (
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {puoTornareInBozza && (
+              <Button variant="outline" disabled={busy} onClick={() => setBozzaOpen(true)}>
+                <Undo2 className="w-4 h-4 mr-2" />Riporta in bozza
+              </Button>
+            )}
+            <Button variant="outline" disabled={busy} onClick={() => setSostituisciOpen(true)}>
+              <Repeat className="w-4 h-4 mr-2" />Sostituisci contratto
+            </Button>
+            <Button disabled={busy}
+              onClick={() => { setChiudiData(todayIso()); setChiudiMotivo(''); setChiudiOpen(true); }}>
+              Chiudi contratto
+            </Button>
+          </div>
+        )}
       </div>
+
+      {contratto.stato === 'attivo' && !puoTornareInBozza && (
+        <p className="text-xs text-muted-foreground -mt-3">
+          Il contratto ha già prodotto documenti fiscali{depositoIncassato ? ' o movimenti sul deposito' : ''}:
+          non può più essere riportato in bozza, può solo essere chiuso.
+        </p>
+      )}
+
+      {(precedente || successore) && (
+        <div className="flex flex-col gap-1 text-sm">
+          {precedente && (
+            <button className="text-primary hover:underline text-left w-fit"
+              onClick={() => navigate(`/admin/contratti/${precedente.id}`)}>
+              Sostituisce il contratto del {fmtIt(precedente.data_inizio)} → {fmtIt(precedente.data_fine)}
+            </button>
+          )}
+          {successore && (
+            <button className="text-primary hover:underline text-left w-fit"
+              onClick={() => navigate(`/admin/contratti/${successore.id}`)}>
+              Sostituito dal contratto del {fmtIt(successore.data_inizio)} → {fmtIt(successore.data_fine)}
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <section className="bg-card border border-border/50 rounded-lg p-5 space-y-2">
