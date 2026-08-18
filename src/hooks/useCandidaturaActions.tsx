@@ -25,6 +25,17 @@ type Ctx = {
 
 const CandidaturaActionsContext = createContext<Ctx | null>(null);
 
+/**
+ * Motivo di chiusura del contratto suggerito dal motivo di chiusura del soggiorno.
+ * 'trasferimento' non compare: il contratto sopravvive al cambio di camera.
+ */
+const MOTIVO_CONTRATTO_DA_ASSEGNAZIONE: Record<string, string> = {
+  fine_naturale: 'fine_naturale',
+  partenza_anticipata: 'partenza_anticipata',
+  mai_arrivato: 'partenza_anticipata',
+  allontanato: 'risoluzione',
+};
+
 export function useCandidaturaActionsCtx(): Ctx {
   const ctx = useContext(CandidaturaActionsContext);
   if (!ctx) throw new Error('CandidaturaActionsContext non montato: istanzia useCandidaturaActions() a livello di pagina.');
