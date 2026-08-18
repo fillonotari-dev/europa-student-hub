@@ -109,6 +109,29 @@ Al candidato approvato viene poi assegnato un posto in una camera specifica. Nas
 
 **Perché i dati accademici sono anche in snapshot su `candidature`:** i campi `universita_snapshot`, `corso_snapshot`, `anno_corso_snapshot` congelano la situazione al momento della candidatura. Se lo studente cambia corso, la candidatura resta leggibile com'era.
 
+### Tabelle contratti, scadenzario e fatturazione
+
+| Tabella | Contenuto |
+|---|---|
+| `anagrafiche_fatturazione` | L'intestatario del documento fiscale: di norma lo studente, ma può essere un soggetto terzo (società sportiva, azienda, genitore con partita IVA). `tipo` fra `persona_fisica` (richiede nome e cognome) e `soggetto_giuridico` (richiede denominazione), dati fiscali, indirizzo completo (`indirizzo_nazione` default `IT`), `codice_destinatario` vincolato a 7 caratteri `[A-Z0-9]`, PEC, email di recapito, `studente_id` opzionale, `fic_entity_id` per il collegamento futuro a Fatture in Cloud. Indice **unico parziale** su `studente_id` quando valorizzato: un solo record per studente, mentre le anagrafiche intestate a terzi (con `studente_id` nullo) restano libere |
+| `contratti` | Il contratto di ospitalità: `studente_id`, `struttura_id` e `anagrafica_fatturazione_id` obbligatori, `assegnazione_id` opzionale (per caricare contratti firmati fuori dal sistema), `tipo` (`breve` / `lunga`), periodo, `canone_mensile` con `canone_note`, `aliquota_iva` (default 10.00), dati garante tutti nullable, `stato` fra `bozza`, `attivo`, `scaduto`, `risolto`, `rinnovato`, `contratto_precedente_id` per i rinnovi, `file_firmato_path`. Include l'intero ciclo del **deposito cauzionale** (`deposito_richiesto`, `deposito_importo`, `deposito_motivo_esenzione`, `deposito_stato`, `deposito_data_incasso`, `deposito_modalita`, `deposito_importo_restituito`, `deposito_motivo_trattenuta`) |
+| `canoni` | Lo scadenzario: una riga per mensilità, `competenza` vincolata al primo giorno del mese, `imponibile`, `aliquota_iva`, `totale` come colonna **generata** dal database, `scadenza`, `stato` fra `da_fatturare`, `fatturato`, `incassato`, `annullato`. Unica per (`contratto_id`, `competenza`), cancellazione a cascata dal contratto |
+| `listini` | Tariffe per (`struttura_id`, `tipo_camera`) con periodo di validità. Servono **solo a proporre** il canone alla creazione del contratto: il prezzo che vale è quello scritto sul contratto. Vincolo `EXCLUDE USING gist` che vieta periodi sovrapposti per la stessa coppia sede/tipo camera, perché due listini contemporanei renderebbero ambiguo il valore proposto |
+
+**Il deposito sta su `contratti`, non in una tabella dedicata:** il rapporto è uno-a-uno rigido e un importo duplicato in due tabelle prima o poi diverge. Un unico CHECK garantisce la coerenza: se `deposito_richiesto` è vero servono importo maggiore di zero e stato valorizzato senza motivo di esenzione; se è falso, importo e stato restano nulli ed è obbligatorio il motivo di esenzione.
+
+**`canoni.imponibile` e `canoni.aliquota_iva` sono uno snapshot deliberato** dei corrispondenti campi del contratto al momento della generazione della mensilità, non una denormalizzazione da correggere. Se il canone del contratto cambia, le mensilità già generate devono restare quelle che erano. È lo stesso principio dei campi `*_snapshot` su `candidature`.
+
+**Vincoli e regole di dominio nel database** (§5: le regole stanno nel database, non nel frontend):
+
+- `contratti_durata_max_chk`: `data_fine <= data_inizio + 12 mesi - 1 giorno`. È il limite legale del contratto di ospitalità studentesca e vive nello schema, non solo nell'interfaccia.
+- **a. Canoni non riscrivibili** (`canoni_protect_fatturati`, trigger `BEFORE UPDATE OR DELETE`): una riga in stato `fatturato` o `incassato` non può essere cancellata né modificata. Le uniche eccezioni sono la transizione `fatturato` → `incassato` e l'aggiornamento di `note` (più `updated_at`). Qualsiasi variazione di importo, aliquota, competenza, scadenza o contratto viene rifiutata: una mensilità fatturata corrisponde a un documento fiscale emesso. Con stato `da_fatturare` o `annullato` nessuna restrizione.
+- **b. Contratti cancellabili solo in bozza** (`contratti_protect_delete`, trigger `BEFORE DELETE`): il rifiuto scatta se lo stato non è `bozza`. Il `CASCADE` sui canoni è comodo per scartare una bozza, pericoloso su un contratto reale; per chiudere un contratto vero si usa uno stato di chiusura (`risolto`, `scaduto`).
+
+Entrambe le funzioni trigger sono `SECURITY INVOKER` con `SET search_path TO 'public'`, come tutte le altre funzioni trigger del progetto: la regola 4 del §12 riguarda le funzioni RPC invocabili dal client, non i trigger.
+
+Le quattro tabelle hanno RLS attiva con un'unica policy `FOR ALL TO authenticated` su `has_role(auth.uid(), 'admin')`. Nessun accesso `anon`.
+
 ### Viste e funzioni di lettura
 
 - **Vista `v_studenti_stadio`**: per ogni studente riassume lo **stadio corrente** — `da_valutare`, `in_attesa_studente`, `da_decidere`, `in_attesa_posto`, `assegnato` (candidatura accolta con un posto pre-arrivo), `in_casa` (soggiorno in corso), `archiviato` — insieme alla struttura di riferimento. È la sorgente unica dello stadio persona: non ricomporlo per pagina. Per gli studenti in stadio `archiviato` la colonna `struttura_id` ricade sulla **struttura preferita dichiarata in candidatura** e non sulla sede dell'ultima camera occupata (vedi §13, scelta esplicita).
