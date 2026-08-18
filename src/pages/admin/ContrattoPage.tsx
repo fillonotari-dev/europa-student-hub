@@ -264,7 +264,12 @@ export default function ContrattoPage() {
           </div>
         </div>
         {contratto.stato === 'bozza' && (
-          <Button onClick={() => setConfermaAttiva(true)} disabled={busy}>Attiva contratto</Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" disabled={busy} onClick={() => setConfermaElimina(true)}>
+              <Trash2 className="w-4 h-4 mr-2" />Elimina contratto
+            </Button>
+            <Button onClick={() => setConfermaAttiva(true)} disabled={busy}>Attiva contratto</Button>
+          </div>
         )}
       </div>
 
@@ -293,7 +298,32 @@ export default function ContrattoPage() {
             )}
           </div>
           <Riga k="Aliquota IVA" v={`${contratto.aliquota_iva}%`} />
-          <Riga k="Giorno di scadenza" v={contratto.giorno_scadenza} />
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground min-w-[170px]">Giorno di scadenza</span>
+            {contratto.stato === 'bozza' && editGiorno ? (
+              <>
+                <Input className="h-8 w-20" type="number" min={1} max={28} value={nuovoGiorno}
+                  onChange={e => setNuovoGiorno(e.target.value)} />
+                <Button size="icon" variant="ghost" className="h-8 w-8" disabled={busy} onClick={salvaGiorno}>
+                  <Check className="w-4 h-4" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditGiorno(false)}><X className="w-4 h-4" /></Button>
+              </>
+            ) : (
+              <>
+                <span>{contratto.giorno_scadenza}</span>
+                {contratto.stato === 'bozza' && (
+                  <Button size="icon" variant="ghost" className="h-7 w-7"
+                    onClick={() => { setNuovoGiorno(String(contratto.giorno_scadenza)); setEditGiorno(true); }}>
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+          {contratto.stato !== 'bozza' && (
+            <p className="text-xs text-muted-foreground">Il giorno di scadenza è modificabile solo finché il contratto è in bozza.</p>
+          )}
           <Riga k="Nota sul canone" v={contratto.canone_note} />
           <Riga k="Note" v={contratto.note} />
         </section>
