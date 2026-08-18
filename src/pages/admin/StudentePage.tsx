@@ -228,6 +228,21 @@ export default function StudentePage() {
       return data ?? [];
     },
   });
+
+  // Contratti della persona: la scheda deve mostrare anche il lato economico.
+  const { data: contratti } = useQuery({
+    queryKey: ['studente-contratti', studenteId],
+    enabled: !!studenteId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('contratti')
+        .select('id, stato, data_inizio, data_fine, canone_mensile, strutture(nome)')
+        .eq('studente_id', studenteId)
+        .order('data_inizio', { ascending: false });
+      return data ?? [];
+    },
+  });
+  const contrattoAttivo = (contratti ?? []).some((k: any) => k.stato === 'attivo');
   const TIPO_DOC_LABELS: Record<string, string> = {
     documento_identita: 'Documento di identità',
     certificato_iscrizione: 'Certificato di iscrizione',
