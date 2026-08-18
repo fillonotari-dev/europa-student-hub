@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
 
     const { data: cand, error } = await supabase
       .from("candidature")
-      .select("id, token_scade_il, completata_il, studente_id, studenti(nome, cognome)")
+      .select("id, token_scade_il, completata_il, studente_id, studenti(nome, cognome, email, email_fattura, codice_fiscale, cf_non_disponibile)")
       .eq("completamento_token_hash", hash)
       .maybeSingle();
     if (error) throw error;
@@ -56,6 +56,8 @@ Deno.serve(async (req) => {
       candidatura_id: cand.id,
       nome: stud?.nome ?? "",
       cognome: stud?.cognome ?? "",
+      richiedi_codice_fiscale: !stud?.codice_fiscale && stud?.cf_non_disponibile !== true,
+      email_fattura_attuale: stud?.email_fattura ?? stud?.email ?? "",
     });
   } catch (e) {
     console.error("get-completion-form error:", e);
