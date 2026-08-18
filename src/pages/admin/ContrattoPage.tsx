@@ -485,6 +485,25 @@ export default function ContrattoPage() {
       </AlertDialog>
 
       {/* Conferma ricalcolo mensilità */}
+      <AlertDialog open={confermaElimina} onOpenChange={setConfermaElimina}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare la bozza di contratto?</AlertDialogTitle>
+            <AlertDialogDescription>
+              L'operazione non è reversibile. {contratto.file_firmato_path
+                ? 'Verrà eliminato prima il PDF allegato e poi il contratto. '
+                : ''}
+              I dati di fatturazione dello studente restano disponibili per altri contratti.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Annulla</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => { e.preventDefault(); elimina(); }} disabled={busy}>Elimina</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={confermaRicalcolo} onOpenChange={setConfermaRicalcolo}>
         <AlertDialogContent>
           <AlertDialogHeader>
