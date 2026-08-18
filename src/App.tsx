@@ -15,6 +15,8 @@ import Dashboard from "./pages/admin/Dashboard";
 import Candidature from "./pages/admin/Candidature";
 import Residenti from "./pages/admin/Residenti";
 import Camere from "./pages/admin/Camere";
+import Contratti from "./pages/admin/Contratti";
+import ContrattoPage from "./pages/admin/ContrattoPage";
 import Strutture from "./pages/admin/Strutture";
 import StudentePage from "./pages/admin/StudentePage";
 import Impostazioni from "./pages/admin/Impostazioni";
@@ -39,6 +41,8 @@ const App = () => (
             <Route index element={<Dashboard />} />
             <Route path="candidature" element={<Candidature />} />
             <Route path="residenti" element={<Residenti />} />
+            <Route path="contratti" element={<Contratti />} />
+            <Route path="contratti/:id" element={<ContrattoPage />} />
             <Route path="studenti/:id" element={<StudentePage />} />
             <Route path="camere" element={<Camere />} />
             <Route path="strutture" element={<Strutture />} />

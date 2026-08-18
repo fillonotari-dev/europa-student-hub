@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { usePageTitle, usePageBack } from '@/hooks/usePageTitle';
@@ -7,6 +7,7 @@ import { useCandidaturaActions, CandidaturaActionsContext } from '@/hooks/useCan
 import { CandidaturaActions } from '@/components/admin/CandidaturaActions';
 import { CandidaturaDetail } from '@/components/admin/candidatura/CandidaturaDetail';
 import { DocumentoRow } from '@/components/admin/candidatura/DocumentoRow';
+import { ContrattoDialog } from '@/components/admin/contratti/ContrattoDialog';
 import { formatStatoCandidatura, formatStadio, STADIO_COLORS } from '@/lib/statoCandidatura';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -81,6 +82,8 @@ export default function StudentePage() {
   const [searchParams] = useSearchParams();
   const from = searchParams.get('from');
   const qc = useQueryClient();
+  const navigateTo = useNavigate();
+  const [openContratto, setOpenContratto] = useState(false);
 
   const backTo = useMemo(() => {
     const base = from === 'residenti' ? '/admin/residenti' : '/admin/candidature';
@@ -473,12 +476,24 @@ export default function StudentePage() {
               )}>{formatStadio(stadio)}</span>
             )}
           </div>
-          {candRifDecorata && (
-            <div className="shrink-0">
+          <div className="shrink-0 flex items-center gap-2">
+            {(stadio === 'assegnato' || stadio === 'in_casa') && (
+              <Button variant="outline" size="sm" onClick={() => setOpenContratto(true)}>
+                Crea contratto
+              </Button>
+            )}
+            {candRifDecorata && (
               <CandidaturaActions.PrimaryWithMenu candidatura={candRifDecorata as any} />
-            </div>
-          )}
+            )}
+          </div>
         </div>
+
+        <ContrattoDialog
+          open={openContratto}
+          onOpenChange={setOpenContratto}
+          studenteId={studenteId}
+          onCreated={(id) => navigateTo(`/admin/contratti/${id}`)}
+        />
 
         {/* --- 2. Soggiorno (banda, non card) --- */}
         {attive.length > 0 && (
