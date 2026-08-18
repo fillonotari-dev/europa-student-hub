@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -212,8 +212,13 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
   }, [open, studenteId, sostituisce]);
 
   // Precompilazione dal contratto da sostituire.
+  // Una volta sola per apertura: un refetch del contratto non deve sovrascrivere
+  // le modifiche già fatte dall'operatore.
+  const prefilledPer = useRef<string | null>(null);
   useEffect(() => {
-    if (!open || !sostituisce) return;
+    if (!open || !sostituisce) { if (!open) prefilledPer.current = null; return; }
+    if (prefilledPer.current === sostituisce.id) return;
+    prefilledPer.current = sostituisce.id;
     const c = sostituisce;
     const fine = oggi();
     setStudenteId(c.studente_id);
