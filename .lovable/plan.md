@@ -28,7 +28,12 @@ Verificato: oggi `file_size_limit` e `allowed_mime_types` di `contratti` sono en
 Due funzioni Postgres, entrambe SECURITY INVOKER (le policy del chiamante continuano ad applicarsi) e `SET search_path TO 'public'`:
 
 - `attiva_contratto(p_contratto_id uuid, p_righe jsonb) RETURNS integer` — eccezione se il contratto non esiste o non è in `bozza`, inserimento delle righe e passaggio ad `attivo` nella stessa transazione, ritorna il numero di mensilità create.
-- `aggiorna_canone_contratto(p_contratto_id uuid, p_canone numeric) RETURNS integer` — eccezione se il contratto non esiste, aggiorna `canone_mensile` e porta a `p_canone` l'imponibile dei soli canoni `da_fatturare` con competenza dal mese corrente in poi, ritorna quante mensilità ha toccato.
+- `aggiorna_canone_contratto(p_contratto_id uuid, p_canone numeric) RETURNS integer` — eccezione se il contratto non esiste o se `p_canone` è nullo o negativo (messaggio esplicito, non l'errore del vincolo), aggiorna `canone_mensile` e porta a `p_canone` l'imponibile dei soli canoni `da_fatturare` con competenza dal mese corrente in poi, ritorna quante mensilità ha toccato.
+
+`attiva_contratto` non si fida del contenuto che riceve dal client:
+
+- dal jsonb legge soltanto competenza, imponibile, aliquota IVA e scadenza; il contratto di ogni riga è sempre `p_contratto_id` e lo stato è sempre `da_fatturare`, qualunque cosa contenga il payload. Senza questo, una chiamata malformata potrebbe scrivere mensilità sul contratto sbagliato o farle nascere già `fatturato`, stato che il trigger di protezione rende poi immodificabile per sempre.
+- eccezione, con messaggio in italiano che spiega cosa è successo, se per quel contratto esistono già mensilità: è il caso di una bozza rimasta con righe scritte da un tentativo fallito prima di questa correzione, che altrimenti supererebbe la guardia sullo stato e finirebbe su un errore grezzo di vincolo unico.
 
 `ContrattoPage.tsx` chiama entrambe via `rpc()` al posto delle due scritture separate. La generazione delle righe resta in `src/lib/scadenzario.ts`: nessuna duplicazione in SQL.
 
