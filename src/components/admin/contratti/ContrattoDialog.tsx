@@ -24,6 +24,10 @@ type Modalita = 'studente' | 'terzo';
 
 const oggi = () => new Date().toISOString().slice(0, 10);
 
+const F = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div><Label className="text-xs text-muted-foreground">{label}</Label>{children}</div>
+);
+
 export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso, onCreated }: Props) {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -323,9 +327,6 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
     }
   };
 
-  const F = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div><Label className="text-xs text-muted-foreground">{label}</Label>{children}</div>
-  );
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset(); }}>
