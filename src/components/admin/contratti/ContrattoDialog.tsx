@@ -184,7 +184,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
           indirizzo_provincia: studente.indirizzo_provincia ?? '',
           indirizzo_nazione: studente.indirizzo_nazione ?? 'IT',
           codice_destinatario: (studente.indirizzo_nazione ?? 'IT') === 'IT' ? '0000000' : 'XXXXXXX',
-          email_recapito: studente.email ?? '',
+          email_recapito: (studente as any).email_fattura || studente.email || '',
         }));
       }
     })();

@@ -18,6 +18,7 @@ import { StepDots } from '@/components/candidatura/StepDots';
 import { MAX_UPLOAD_BYTES, ACCEPTED_UPLOAD_MIME } from '@/lib/uploads';
 import { PRIVACY_POLICY_URL } from '@/lib/privacy';
 import { resizeImageIfNeeded, IMAGE_DECODE_FAILED } from '@/lib/imageResize';
+import { validateCodiceFiscale } from '@shared/codice-fiscale';
 
 const ALL_STEPS = ['stepLifestyle', 'stepGarante', 'stepDocAggiuntivi', 'stepDichiarazioni'] as const;
 const ACCEPTED_TYPES: readonly string[] = ACCEPTED_UPLOAD_MIME;
@@ -25,7 +26,7 @@ const MAX_SIZE = MAX_UPLOAD_BYTES;
 
 type TokenState =
   | { status: 'loading' }
-  | { status: 'valid'; nome: string; cognome: string; candidaturaId: string }
+  | { status: 'valid'; nome: string; cognome: string; candidaturaId: string; richiediCf: boolean }
   | { status: 'invalid'; reason: 'not_found' | 'expired' | 'already_completed' | 'error' };
 
 export default function CandidaturaCompleta() {
@@ -38,6 +39,8 @@ export default function CandidaturaCompleta() {
   const { toast } = useToast();
 
   const [form, setForm] = useState({
+    email_fattura: '',
+    codice_fiscale: '',
     lingue_parlate: '',
     orari: '',
     personalita: '',
@@ -82,7 +85,11 @@ export default function CandidaturaCompleta() {
           nome: data.nome,
           cognome: data.cognome,
           candidaturaId: data.candidatura_id,
+          richiediCf: !!data.richiedi_codice_fiscale,
         });
+        if (data.email_fattura_attuale) {
+          setForm(f => ({ ...f, email_fattura: data.email_fattura_attuale }));
+        }
       } catch {
         if (!cancelled) setTokenState({ status: 'invalid', reason: 'error' });
       }
@@ -95,6 +102,18 @@ export default function CandidaturaCompleta() {
 
   const validateStep = (): boolean => {
     if (stepKey === 'stepLifestyle') {
+      const richiediCf = tokenState.status === 'valid' && tokenState.richiediCf;
+      if (!form.email_fattura.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email_fattura.trim())) {
+        toast({ title: t(lang, 'form.invalidEmail'), variant: 'destructive' });
+        return false;
+      }
+      if (richiediCf) {
+        const cf = validateCodiceFiscale(form.codice_fiscale);
+        if (!cf.ok) {
+          toast({ title: t(lang, 'form.invalidCf'), variant: 'destructive' });
+          return false;
+        }
+      }
       if (!form.lingue_parlate.trim() || !form.orari || !form.personalita || !form.ordine_pulizia || !form.presentazione.trim()) {
         toast({ title: t(lang, 'form.required'), variant: 'destructive' });
         return false;
@@ -309,6 +328,21 @@ export default function CandidaturaCompleta() {
           <motion.div key={step} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
             {stepKey === 'stepLifestyle' && (
               <div className="space-y-4">
+                <div className="space-y-4 rounded-lg border p-4">
+                  <p className="text-[13px] font-medium">{t(lang, 'form.datiFattura')}</p>
+                  <div>
+                    <Label>{t(lang, 'form.emailFattura')}<span className="text-destructive ml-0.5">*</span></Label>
+                    <Input type="email" value={form.email_fattura} onChange={e => set('email_fattura', e.target.value)} className="mt-1.5" maxLength={255} />
+                    <p className="text-[12px] text-muted-foreground mt-1">{t(lang, 'form.emailFatturaHelp')}</p>
+                  </div>
+                  {tokenState.status === 'valid' && tokenState.richiediCf && (
+                    <div>
+                      <Label>{t(lang, 'form.codiceFiscale')}<span className="text-destructive ml-0.5">*</span></Label>
+                      <Input value={form.codice_fiscale} onChange={e => set('codice_fiscale', e.target.value.toUpperCase())} className="mt-1.5" maxLength={16} />
+                      <p className="text-[12px] text-muted-foreground mt-1">{t(lang, 'form.codiceFiscaleFatturaHelp')}</p>
+                    </div>
+                  )}
+                </div>
                 <div>
                   <Label>{t(lang, 'form.lingueParlate')}<span className="text-destructive ml-0.5">*</span></Label>
                   <Input value={form.lingue_parlate} onChange={e => set('lingue_parlate', e.target.value)} className="mt-1.5" maxLength={300} />
