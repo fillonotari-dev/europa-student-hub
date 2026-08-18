@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { AlertTriangle } from 'lucide-react';
+import { ListiniSection } from '@/components/admin/impostazioni/ListiniSection';
 
 const PHONE_RE = /^[+\d][\d\s().\-]{4,30}$/;
 
@@ -90,7 +91,7 @@ export default function Impostazioni() {
   if (loading) return <p className="text-muted-foreground">Caricamento...</p>;
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-3xl">
       <Card>
         <CardContent className="pt-6 space-y-5">
           <div className="space-y-1.5">
@@ -166,6 +167,7 @@ export default function Impostazioni() {
           </div>
         </CardContent>
       </Card>
+      <ListiniSection />
     </div>
   );
 }
