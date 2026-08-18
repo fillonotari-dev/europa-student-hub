@@ -43,6 +43,14 @@ Anagrafica di fatturazione, due strade:
 
 Codice destinatario proposto e modificabile: `0000000` se nazione `IT`, `XXXXXXX` altrimenti.
 
+**Pattuizione del deposito** (obbligatoria nel modulo: `deposito_richiesto` ha default `true` e il vincolo `contratti_deposito_coerenza_chk` respingerebbe l'insert senza importo e stato):
+
+- `deposito_richiesto`: interruttore, predefinito attivo
+- se attivo: `deposito_importo` obbligatorio e maggiore di zero, `deposito_stato` impostato dal sistema a `atteso` senza chiederlo all'operatore, `deposito_motivo_esenzione` resta nullo
+- se disattivato: `deposito_motivo_esenzione` obbligatorio (testo libero), importo e stato restano nulli
+
+Il deposito non richiesto è un caso reale: per le locazioni garantite da una società sportiva non si chiede né deposito né garante, e serve traccia scritta del motivo. Restano fuori perimetro i campi del ciclo di vita del deposito (data incasso, modalità, importo restituito, motivo trattenuta) e ogni transizione di `deposito_stato` oltre ad `atteso`.
+
 Codice fiscale, partita IVA, codice destinatario ed email di recapito **non** sono obbligatori: al loro posto un avviso non bloccante che elenca i dati fiscali mancanti e avverte che serviranno alla fattura. Serve per casi reali già in produzione (studente senza codice fiscale italiano).
 
 Il contratto nasce in stato `bozza`.
