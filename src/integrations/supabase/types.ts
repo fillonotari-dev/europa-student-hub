@@ -487,12 +487,12 @@ export type Database = {
           garante_nome: string | null
           garante_relazione: string | null
           garante_telefono: string | null
+          giorno_scadenza: number
           id: string
           note: string | null
           stato: string
           struttura_id: string
           studente_id: string
-          tipo: string
           updated_at: string
         }
         Insert: {
@@ -518,12 +518,12 @@ export type Database = {
           garante_nome?: string | null
           garante_relazione?: string | null
           garante_telefono?: string | null
+          giorno_scadenza?: number
           id?: string
           note?: string | null
           stato?: string
           struttura_id: string
           studente_id: string
-          tipo: string
           updated_at?: string
         }
         Update: {
@@ -549,12 +549,12 @@ export type Database = {
           garante_nome?: string | null
           garante_relazione?: string | null
           garante_telefono?: string | null
+          giorno_scadenza?: number
           id?: string
           note?: string | null
           stato?: string
           struttura_id?: string
           studente_id?: string
-          tipo?: string
           updated_at?: string
         }
         Relationships: [
