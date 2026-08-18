@@ -266,6 +266,18 @@ L'area `/admin` è organizzata attorno a `AdminLayout`, che fornisce:
 
 Le pagine sotto `/admin` **non** stampano più un proprio titolo o sottotitolo: iniziano direttamente dalla toolbar filtri o dal contenuto. Il titolo mostrato in top bar è risolto in ordine da un override esplicito (`usePageTitle(label)` per rotte con parametri variabili, es. `"Rossi Mario"` sulla pagina persona) oppure da una mappa statica `rotta → label` per le rotte fisse.
 
+### Contratti
+
+`/admin/contratti` elenca i contratti — studente (link alla scheda persona), struttura, periodo, canone, stato, deposito (importo o "non richiesto"), presenza del PDF firmato — con filtro stato, filtro sede, ricerca per nome e paginazione, tutti nei query param.
+
+Il contratto si crea da due punti: "Crea contratto" nella scheda persona per gli stadi `assegnato` e `in_casa`, e "Nuovo contratto" nella lista per i casi manuali. Il modulo precompila studente, assegnazione attiva o futura, struttura, date, canone dal listino valido oggi (se manca, campo vuoto con testo di aiuto, senza blocco), aliquota 10.00 e dati garante dalla candidatura più recente; tutto resta modificabile e il garante resta facoltativo. L'anagrafica di fatturazione si intesta allo studente (riusando quella esistente, che l'indice unico parziale rende unica) oppure a un altro soggetto con `studente_id` nullo. Il codice destinatario è proposto a `0000000` per l'Italia e `XXXXXXX` per l'estero. Codice fiscale, partita IVA, codice destinatario ed email di recapito **non bloccano** la creazione: esiste già in produzione uno studente senza codice fiscale italiano, e un avviso non bloccante elenca ciò che mancherà al momento della fattura. Il contratto nasce in `bozza`.
+
+L'azione **"Attiva contratto"** porta a `attivo` e solo in quel momento genera i canoni, dopo un'anteprima delle mensilità (mese, importo, scadenza, totale complessivo) da confermare. Una bozza resta liberamente modificabile e cancellabile.
+
+Se il canone cambia su un contratto già attivo, l'interfaccia mostra quante mensilità verranno ricalcolate — solo `da_fatturare` con competenza corrente o futura — e quante restano intoccate perché già `fatturato` o `incassato`, e chiede conferma: il rifiuto del trigger `canoni_protect_fatturati` è la rete di sicurezza, non la logica applicativa.
+
+`/admin/contratti/:id` mostra contratto, intestazione fattura, garante, deposito **in sola lettura** e lo scadenzario, con modifica in riga di imponibile, scadenza e note per le sole righe `da_fatturare`. Da qui si carica, si sostituisce e si apre (signed URL) il **PDF firmato**, salvato nel bucket `contratti`.
+
 ### Pagina persona
 
 La finestra modale di dettaglio candidatura è sostituita da una pagina dedicata: `/admin/studenti/:id` (`src/pages/admin/StudentePage.tsx`). Contiene, nell'ordine:
