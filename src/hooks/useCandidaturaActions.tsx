@@ -954,6 +954,64 @@ export function useCandidaturaActions(options: Options = {}) {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Proposta di chiusura del contratto collegato */}
+      <AlertDialog open={!!contrattoProposta} onOpenChange={open => { if (!open) setContrattoProposta(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Chiudere anche il contratto?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-[13px]">
+                {contrattoProposta && contrattoProposta.data <= contrattoProposta.contratto.data_inizio ? (
+                  <>
+                    <p>
+                      Il contratto collegato comincia il{' '}
+                      {new Date(contrattoProposta.contratto.data_inizio + 'T00:00:00').toLocaleDateString('it-IT')}:
+                      non puo' chiudersi prima di cominciare.
+                    </p>
+                    <p>
+                      La strada corretta e' "Riporta in bozza" nella scheda del contratto, seguita
+                      dall'eliminazione della bozza.
+                    </p>
+                    <a className="text-primary underline" href={`/admin/contratti/${contrattoProposta.contratto.id}`}>
+                      Apri la scheda del contratto
+                    </a>
+                  </>
+                ) : (
+                  <>
+                    <p>Il soggiorno e' concluso, ma il contratto collegato e' ancora attivo e continuerebbe a produrre mensilita'.</p>
+                    <p>
+                      Chiusura proposta al{' '}
+                      {contrattoProposta && new Date(contrattoProposta.data + 'T00:00:00').toLocaleDateString('it-IT')}
+                      {' '}con motivo <strong>{contrattoProposta ? MOTIVO_CONTRATTO_DA_ASSEGNAZIONE[contrattoProposta.motivoAssegnazione]?.replace(/_/g, ' ') : ''}</strong>.
+                      Le mensilita' da fatturare successive al mese di chiusura verranno annullate; quelle gia' fatturate restano.
+                    </p>
+                    <p>Puoi anche non farlo: il contratto resta attivo e lo chiuderai dalla sua scheda.</p>
+                  </>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{contrattoProposta && contrattoProposta.data <= contrattoProposta.contratto.data_inizio ? 'Chiudi' : 'Non ora'}</AlertDialogCancel>
+            {contrattoProposta && contrattoProposta.data > contrattoProposta.contratto.data_inizio && (
+              <AlertDialogAction
+                disabled={chiudiContratto.isPending}
+                onClick={(e) => {
+                  e.preventDefault();
+                  const motivo = MOTIVO_CONTRATTO_DA_ASSEGNAZIONE[contrattoProposta.motivoAssegnazione];
+                  if (!motivo) { setContrattoProposta(null); return; }
+                  chiudiContratto.mutate({
+                    contratto_id: contrattoProposta.contratto.id,
+                    data: contrattoProposta.data,
+                    motivo,
+                  });
+                }}
+              >Chiudi contratto</AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Assegna / Rinnova / Nuovo soggiorno (unificato) */}
       <Dialog open={!!assignMode} onOpenChange={open => { if (!open && !assegnaSoggiorno.isPending) closeAssign(); }}>
         <DialogContent className="max-w-2xl">
