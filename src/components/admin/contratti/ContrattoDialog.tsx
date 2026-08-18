@@ -50,6 +50,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
   const [studenteId, setStudenteId] = useState<string>(studenteFisso ?? '');
   const [dataFineVecchio, setDataFineVecchio] = useState('');
   const [strutturaId, setStrutturaId] = useState('');
+  const [tipoCamera, setTipoCamera] = useState<string>('');
   const [assegnazioneId, setAssegnazioneId] = useState<string | null>(null);
   const [dataInizio, setDataInizio] = useState('');
   const [dataFine, setDataFine] = useState('');
@@ -57,7 +58,10 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
   const [canone, setCanone] = useState('');
   const [canoneNote, setCanoneNote] = useState('');
   const [aliquota, setAliquota] = useState('10');
-  const [listinoMancante, setListinoMancante] = useState(false);
+  const [listino, setListino] = useState<{ importo: number; valido_dal: string } | null>(null);
+  const [listinoCercato, setListinoCercato] = useState(false);
+  const [ultimoProposto, setUltimoProposto] = useState<string | null>(null);
+  const [origine, setOrigine] = useState<{ strutturaId: string; tipoCamera: string } | null>(null);
   const [note, setNote] = useState('');
 
   const [garante, setGarante] = useState({ nome: '', relazione: '', telefono: '', email: '' });
