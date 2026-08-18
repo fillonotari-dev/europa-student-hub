@@ -2,7 +2,9 @@
 
 Il punto 1 del messaggio è arrivato troncato: assumo che chieda la revoca dei permessi pubblici sulle funzioni RPC dei contratti. Lo tratto come punto 0 qui sotto; correggimi se intendevi altro.
 
-## 0. Permessi sulle funzioni esistenti (assunzione)
+## 0. Permessi sulle funzioni esistenti
+Scritto come migration anche se la revoca è già stata applicata a mano sul database: oggi non esiste in nessun file del repository e andrebbe persa a un reset o su un ambiente nuovo. Una revoca su un privilegio già revocato è un no-op.
+
 Per `attiva_contratto`, `aggiorna_canone_contratto`, `chiudi_contratto`, `riporta_contratto_in_bozza`: `REVOKE ALL ... FROM PUBLIC`, `REVOKE EXECUTE ... FROM anon`, `GRANT EXECUTE ... TO authenticated`. Nessuna modifica al corpo delle funzioni.
 
 ## 1. Proposta del listino indipendente dall'assegnazione (ContrattoDialog.tsx)
@@ -13,7 +15,7 @@ Per `attiva_contratto`, `aggiorna_canone_contratto`, `chiudi_contratto`, `riport
   - coppia incompleta: "Seleziona struttura e tipo camera per vedere il canone di listino."
   - ricerca eseguita senza risultato: "Nessun listino valido oggi per questa sede e tipo camera: inserisci l'importo a mano."
   - listino applicato: importo, sede, tipo camera e data di decorrenza.
-- In modalità sostituzione il canone del vecchio contratto resta quello precompilato e non viene sovrascritto dal listino (è un valore "digitato").
+- In modalità sostituzione la ricerca del listino viene comunque eseguita e il risultato mostrato, ma non applicato: il canone del contratto precedente può essere un prezzo negoziato e sovrascriverlo in silenzio lo farebbe sparire. Sotto al campo compare il prezzo di listino corrente con un pulsante "Usa il prezzo di listino (350 €)" che lo applica solo su richiesta esplicita; il valore precompilato resta finché l'operatore non clicca. Se struttura o tipo camera vengono cambiati rispetto al contratto sostituito, il pulsante viene reso più evidente: è il segnale che le condizioni sono cambiate.
 
 ## 2. Funzione imposta_listino
 `imposta_listino(p_struttura_id uuid, p_tipo_camera text, p_importo numeric, p_valido_dal date) RETURNS uuid`, `SECURITY INVOKER`, `SET search_path TO 'public'`, `REVOKE ALL FROM PUBLIC`, `REVOKE EXECUTE FROM anon`, `GRANT EXECUTE TO authenticated`.
@@ -22,8 +24,9 @@ Esiste perché il vincolo EXCLUDE `listini_no_overlap` rifiuta due listini valid
 
 In un'unica transazione:
 - errore se `p_tipo_camera` non è 'singola' o 'doppia', o se `p_importo` è nullo o negativo;
-- errore se esiste già un listino per quella coppia con `valido_dal >= p_valido_dal`;
+- errore se esiste già un listino per quella coppia con `valido_dal >= p_valido_dal` (chiuderlo a una data anteriore alla sua stessa decorrenza violerebbe `listini_validita_chk`);
 - chiude il listino aperto per quella coppia con `valido_al = p_valido_dal - 1`;
+- dopo la chiusura, verifica con la stessa espressione del vincolo che nessun listino della coppia si sovrapponga a `daterange(p_valido_dal, NULL, '[]')` — copre anche il caso di un listino già chiuso che contiene la nuova decorrenza — e in tal caso solleva un'eccezione in italiano che spiega che esiste già un prezzo per quel periodo, indicando le date di quello in conflitto, invece di lasciare uscire l'errore grezzo del vincolo EXCLUDE;
 - inserisce il nuovo listino con `valido_al` NULL;
 - restituisce l'id del nuovo listino.
 
