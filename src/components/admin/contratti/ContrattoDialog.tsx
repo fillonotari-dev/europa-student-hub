@@ -328,14 +328,6 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
   const condizioniCambiate =
     !!sostituisce && !!origine && (origine.strutturaId !== strutturaId || origine.tipoCamera !== tipoCamera);
 
-  const _unusedFiscali = useMemo(() => {
-    const m: string[] = [];
-    if (!ana.codice_fiscale && !ana.partita_iva) m.push('codice fiscale o partita IVA');
-    if (!ana.codice_destinatario) m.push('codice destinatario');
-    if (!ana.email_recapito && !ana.pec) m.push('email di recapito o PEC');
-    return m;
-  }, [ana]);
-
   const reset = () => {
     setStudenteId(studenteFisso ?? '');
     setDataFineVecchio('');
