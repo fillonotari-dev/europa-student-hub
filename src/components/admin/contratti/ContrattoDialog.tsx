@@ -526,14 +526,53 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
               <F label="Data fine *">
                 <Input type="date" className="mt-1.5" value={dataFine} onChange={e => setDataFine(e.target.value)} />
               </F>
+              <F label="Tipo camera (per il prezzo di listino)">
+                <Select value={tipoCamera} onValueChange={setTipoCamera}>
+                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="Seleziona…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="singola">Singola</SelectItem>
+                    <SelectItem value="doppia">Doppia</SelectItem>
+                  </SelectContent>
+                </Select>
+              </F>
               <F label="Canone mensile (€) *">
                 <Input type="number" min="0" step="0.01" className="mt-1.5" value={canone}
                   onChange={e => setCanone(e.target.value)} />
-                {listinoMancante && (
+                {!strutturaId || !tipoCamera ? (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Seleziona struttura e tipo camera per vedere il canone di listino.
+                  </p>
+                ) : listinoCercato && !listino ? (
                   <p className="text-xs text-muted-foreground mt-1">
                     Nessun listino valido oggi per questa sede e tipo camera: inserisci l'importo a mano.
                   </p>
-                )}
+                ) : listino ? (
+                  <div className="mt-1 space-y-1">
+                    <p className="text-xs text-muted-foreground">
+                      Listino: {listino.importo.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })} — {nomeStruttura} · camera {tipoCamera} · dal {new Date(`${listino.valido_dal}T00:00:00`).toLocaleDateString('it-IT')}
+                    </p>
+                    {sostituisce && String(listino.importo) !== canone && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={condizioniCambiate ? 'default' : 'outline'}
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          const v = String(listino.importo);
+                          setCanone(v);
+                          setUltimoProposto(v);
+                        }}
+                      >
+                        Usa il prezzo di listino ({listino.importo.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })})
+                      </Button>
+                    )}
+                    {sostituisce && condizioniCambiate && (
+                      <p className="text-xs text-amber-600">
+                        Sede o tipo camera sono cambiati rispetto al contratto sostituito: il prezzo precedente probabilmente non vale più.
+                      </p>
+                    )}
+                  </div>
+                ) : null}
               </F>
               <F label="Aliquota IVA (%)">
                 <Input type="number" min="0" step="0.01" className="mt-1.5" value={aliquota}
