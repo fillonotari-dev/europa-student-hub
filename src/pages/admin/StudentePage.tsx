@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { usePageTitle, usePageBack } from '@/hooks/usePageTitle';
@@ -7,6 +7,7 @@ import { useCandidaturaActions, CandidaturaActionsContext } from '@/hooks/useCan
 import { CandidaturaActions } from '@/components/admin/CandidaturaActions';
 import { CandidaturaDetail } from '@/components/admin/candidatura/CandidaturaDetail';
 import { DocumentoRow } from '@/components/admin/candidatura/DocumentoRow';
+import { ContrattoDialog } from '@/components/admin/contratti/ContrattoDialog';
 import { formatStatoCandidatura, formatStadio, STADIO_COLORS } from '@/lib/statoCandidatura';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
