@@ -81,6 +81,8 @@ export default function StudentePage() {
   const [searchParams] = useSearchParams();
   const from = searchParams.get('from');
   const qc = useQueryClient();
+  const navigateTo = useNavigate();
+  const [openContratto, setOpenContratto] = useState(false);
 
   const backTo = useMemo(() => {
     const base = from === 'residenti' ? '/admin/residenti' : '/admin/candidature';
@@ -473,12 +475,24 @@ export default function StudentePage() {
               )}>{formatStadio(stadio)}</span>
             )}
           </div>
-          {candRifDecorata && (
-            <div className="shrink-0">
+          <div className="shrink-0 flex items-center gap-2">
+            {(stadio === 'assegnato' || stadio === 'in_casa') && (
+              <Button variant="outline" size="sm" onClick={() => setOpenContratto(true)}>
+                Crea contratto
+              </Button>
+            )}
+            {candRifDecorata && (
               <CandidaturaActions.PrimaryWithMenu candidatura={candRifDecorata as any} />
-            </div>
-          )}
+            )}
+          </div>
         </div>
+
+        <ContrattoDialog
+          open={openContratto}
+          onOpenChange={setOpenContratto}
+          studenteId={studenteId}
+          onCreated={(id) => navigateTo(`/admin/contratti/${id}`)}
+        />
 
         {/* --- 2. Soggiorno (banda, non card) --- */}
         {attive.length > 0 && (
