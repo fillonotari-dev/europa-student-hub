@@ -25,7 +25,7 @@ const MAX_SIZE = MAX_UPLOAD_BYTES;
 
 type TokenState =
   | { status: 'loading' }
-  | { status: 'valid'; nome: string; cognome: string; candidaturaId: string }
+  | { status: 'valid'; nome: string; cognome: string; candidaturaId: string; richiediCf: boolean }
   | { status: 'invalid'; reason: 'not_found' | 'expired' | 'already_completed' | 'error' };
 
 export default function CandidaturaCompleta() {
@@ -38,6 +38,8 @@ export default function CandidaturaCompleta() {
   const { toast } = useToast();
 
   const [form, setForm] = useState({
+    email_fattura: '',
+    codice_fiscale: '',
     lingue_parlate: '',
     orari: '',
     personalita: '',
@@ -82,7 +84,11 @@ export default function CandidaturaCompleta() {
           nome: data.nome,
           cognome: data.cognome,
           candidaturaId: data.candidatura_id,
+          richiediCf: !!data.richiedi_codice_fiscale,
         });
+        if (data.email_fattura_attuale) {
+          setForm(f => ({ ...f, email_fattura: data.email_fattura_attuale }));
+        }
       } catch {
         if (!cancelled) setTokenState({ status: 'invalid', reason: 'error' });
       }
