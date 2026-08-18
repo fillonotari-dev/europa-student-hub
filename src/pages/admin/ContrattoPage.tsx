@@ -12,9 +12,10 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { generaScadenzario, totaleRiga } from '@/lib/scadenzario';
+import { eliminaContrattoBozza } from '@/lib/contrattoDelete';
 import { fmtEuro, fmtIt, STATO_CONTRATTO_COLORS } from './Contratti';
 import { cn } from '@/lib/utils';
-import { Check, FileUp, FileText, Pencil, X } from 'lucide-react';
+import { Check, FileUp, FileText, Pencil, Trash2, X } from 'lucide-react';
 
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
 const oggiPrimoDelMese = () => `${new Date().toISOString().slice(0, 7)}-01`;
@@ -31,6 +32,9 @@ export default function ContrattoPage() {
   const [editCanone, setEditCanone] = useState(false);
   const [nuovoCanone, setNuovoCanone] = useState('');
   const [confermaRicalcolo, setConfermaRicalcolo] = useState(false);
+  const [confermaElimina, setConfermaElimina] = useState(false);
+  const [editGiorno, setEditGiorno] = useState(false);
+  const [nuovoGiorno, setNuovoGiorno] = useState('');
   const [rigaEdit, setRigaEdit] = useState<string | null>(null);
   const [bozzaRiga, setBozzaRiga] = useState<{ imponibile: string; scadenza: string; note: string }>({ imponibile: '', scadenza: '', note: '' });
   const [busy, setBusy] = useState(false);
@@ -91,18 +95,18 @@ export default function ContrattoPage() {
     setBusy(true);
     try {
       const righe = anteprima.map(r => ({
-        contratto_id: contratto.id,
         competenza: r.competenza,
         imponibile: r.imponibile,
         aliquota_iva: r.aliquota_iva,
         scadenza: r.scadenza,
-        stato: r.stato,
       }));
-      const { error: e1 } = await supabase.from('canoni').insert(righe);
-      if (e1) throw e1;
-      const { error: e2 } = await supabase.from('contratti').update({ stato: 'attivo' }).eq('id', contratto.id);
-      if (e2) throw e2;
-      toast({ title: 'Contratto attivo', description: `Generate ${righe.length} mensilità.` });
+      // Attivazione atomica: inserimento mensilità e cambio stato nella stessa transazione.
+      const { data, error } = await supabase.rpc('attiva_contratto', {
+        p_contratto_id: contratto.id,
+        p_righe: righe as any,
+      });
+      if (error) throw error;
+      toast({ title: 'Contratto attivo', description: `Generate ${data ?? righe.length} mensilità.` });
       setConfermaAttiva(false);
       refresh();
     } catch (e: any) {
@@ -113,19 +117,22 @@ export default function ContrattoPage() {
   const salvaCanone = async () => {
     if (!contratto) return;
     const val = Number(nuovoCanone);
-    if (!val || val <= 0) { toast({ title: 'Importo non valido', variant: 'destructive' }); return; }
+    if (nuovoCanone.trim() === '' || !Number.isFinite(val) || val <= 0) {
+      toast({ title: 'Importo non valido', description: 'Inserisci un canone numerico maggiore di zero.', variant: 'destructive' });
+      return;
+    }
     setBusy(true);
     try {
-      const { error } = await supabase.from('contratti').update({ canone_mensile: val }).eq('id', contratto.id);
+      // Canone e mensilità future aggiornati nella stessa transazione.
+      const { data, error } = await supabase.rpc('aggiorna_canone_contratto', {
+        p_contratto_id: contratto.id,
+        p_canone: val,
+      });
       if (error) throw error;
-      if (contratto.stato === 'attivo' && daRicalcolare.length > 0) {
-        const { error: e2 } = await supabase
-          .from('canoni')
-          .update({ imponibile: val })
-          .in('id', daRicalcolare.map((c: any) => c.id));
-        if (e2) throw e2;
-      }
-      toast({ title: 'Canone aggiornato' });
+      toast({
+        title: 'Canone aggiornato',
+        description: (data ?? 0) > 0 ? `Ricalcolate ${data} mensilità da fatturare.` : undefined,
+      });
       setEditCanone(false); setConfermaRicalcolo(false);
       refresh();
     } catch (e: any) {
@@ -133,13 +140,54 @@ export default function ContrattoPage() {
     } finally { setBusy(false); }
   };
 
+  const salvaGiorno = async () => {
+    if (!contratto) return;
+    const g = Number(nuovoGiorno);
+    if (nuovoGiorno.trim() === '' || !Number.isInteger(g) || g < 1 || g > 28) {
+      toast({ title: 'Giorno non valido', description: 'Indica un numero intero da 1 a 28.', variant: 'destructive' });
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error } = await supabase.from('contratti').update({ giorno_scadenza: g }).eq('id', contratto.id);
+      if (error) throw error;
+      setEditGiorno(false);
+      refresh();
+    } catch (e: any) {
+      toast({ title: 'Errore', description: e?.message ?? 'Modifica non riuscita', variant: 'destructive' });
+    } finally { setBusy(false); }
+  };
+
+  const elimina = async () => {
+    if (!contratto) return;
+    setBusy(true);
+    try {
+      await eliminaContrattoBozza(contratto as any);
+      toast({ title: 'Contratto eliminato' });
+      setConfermaElimina(false);
+      qc.invalidateQueries({ queryKey: ['contratti'] });
+      navigate('/admin/contratti');
+    } catch (e: any) {
+      toast({ title: 'Errore', description: e?.message ?? 'Eliminazione non riuscita', variant: 'destructive' });
+    } finally { setBusy(false); }
+  };
+
   const salvaRiga = async (riga: any) => {
+    const imp = Number(bozzaRiga.imponibile);
+    if (bozzaRiga.imponibile.trim() === '' || !Number.isFinite(imp) || imp < 0) {
+      toast({ title: 'Imponibile non valido', description: 'Inserisci un importo numerico maggiore o uguale a zero.', variant: 'destructive' });
+      return;
+    }
+    if (!bozzaRiga.scadenza.trim() || Number.isNaN(new Date(`${bozzaRiga.scadenza}T00:00:00`).getTime())) {
+      toast({ title: 'Scadenza non valida', description: 'Indica una data di scadenza valida.', variant: 'destructive' });
+      return;
+    }
     setBusy(true);
     try {
       const { error } = await supabase
         .from('canoni')
         .update({
-          imponibile: Number(bozzaRiga.imponibile),
+          imponibile: imp,
           scadenza: bozzaRiga.scadenza,
           note: bozzaRiga.note.trim() === '' ? null : bozzaRiga.note.trim(),
         })
@@ -216,7 +264,12 @@ export default function ContrattoPage() {
           </div>
         </div>
         {contratto.stato === 'bozza' && (
-          <Button onClick={() => setConfermaAttiva(true)} disabled={busy}>Attiva contratto</Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" disabled={busy} onClick={() => setConfermaElimina(true)}>
+              <Trash2 className="w-4 h-4 mr-2" />Elimina contratto
+            </Button>
+            <Button onClick={() => setConfermaAttiva(true)} disabled={busy}>Attiva contratto</Button>
+          </div>
         )}
       </div>
 
@@ -245,7 +298,32 @@ export default function ContrattoPage() {
             )}
           </div>
           <Riga k="Aliquota IVA" v={`${contratto.aliquota_iva}%`} />
-          <Riga k="Giorno di scadenza" v={contratto.giorno_scadenza} />
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground min-w-[170px]">Giorno di scadenza</span>
+            {contratto.stato === 'bozza' && editGiorno ? (
+              <>
+                <Input className="h-8 w-20" type="number" min={1} max={28} value={nuovoGiorno}
+                  onChange={e => setNuovoGiorno(e.target.value)} />
+                <Button size="icon" variant="ghost" className="h-8 w-8" disabled={busy} onClick={salvaGiorno}>
+                  <Check className="w-4 h-4" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditGiorno(false)}><X className="w-4 h-4" /></Button>
+              </>
+            ) : (
+              <>
+                <span>{contratto.giorno_scadenza}</span>
+                {contratto.stato === 'bozza' && (
+                  <Button size="icon" variant="ghost" className="h-7 w-7"
+                    onClick={() => { setNuovoGiorno(String(contratto.giorno_scadenza)); setEditGiorno(true); }}>
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+          {contratto.stato !== 'bozza' && (
+            <p className="text-xs text-muted-foreground">Il giorno di scadenza è modificabile solo finché il contratto è in bozza.</p>
+          )}
           <Riga k="Nota sul canone" v={contratto.canone_note} />
           <Riga k="Note" v={contratto.note} />
         </section>
@@ -407,6 +485,25 @@ export default function ContrattoPage() {
       </AlertDialog>
 
       {/* Conferma ricalcolo mensilità */}
+      <AlertDialog open={confermaElimina} onOpenChange={setConfermaElimina}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare la bozza di contratto?</AlertDialogTitle>
+            <AlertDialogDescription>
+              L'operazione non è reversibile. {contratto.file_firmato_path
+                ? 'Verrà eliminato prima il PDF allegato e poi il contratto. '
+                : ''}
+              I dati di fatturazione dello studente restano disponibili per altri contratti.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Annulla</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => { e.preventDefault(); elimina(); }} disabled={busy}>Elimina</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={confermaRicalcolo} onOpenChange={setConfermaRicalcolo}>
         <AlertDialogContent>
           <AlertDialogHeader>

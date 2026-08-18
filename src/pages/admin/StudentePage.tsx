@@ -228,6 +228,21 @@ export default function StudentePage() {
       return data ?? [];
     },
   });
+
+  // Contratti della persona: la scheda deve mostrare anche il lato economico.
+  const { data: contratti } = useQuery({
+    queryKey: ['studente-contratti', studenteId],
+    enabled: !!studenteId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('contratti')
+        .select('id, stato, data_inizio, data_fine, canone_mensile, strutture(nome)')
+        .eq('studente_id', studenteId)
+        .order('data_inizio', { ascending: false });
+      return data ?? [];
+    },
+  });
+  const contrattoAttivo = (contratti ?? []).some((k: any) => k.stato === 'attivo');
   const TIPO_DOC_LABELS: Record<string, string> = {
     documento_identita: 'Documento di identità',
     certificato_iscrizione: 'Certificato di iscrizione',
@@ -478,7 +493,7 @@ export default function StudentePage() {
           </div>
           <div className="shrink-0 flex items-center gap-2">
             {(stadio === 'assegnato' || stadio === 'in_casa') && (
-              <Button variant="outline" size="sm" onClick={() => setOpenContratto(true)}>
+              <Button variant={contrattoAttivo ? 'ghost' : 'outline'} size="sm" onClick={() => setOpenContratto(true)}>
                 Crea contratto
               </Button>
             )}
@@ -565,6 +580,29 @@ export default function StudentePage() {
             <div className="space-y-2">
               {documentiOrdinati.map((d: any) => <DocumentoRow key={d.id} doc={d} />)}
             </div>
+          </section>
+        )}
+
+        {(contratti ?? []).length > 0 && (
+          <section className="bg-card border border-border/50 rounded-lg p-5">
+            <h2 className="text-sm font-semibold mb-3">Contratti</h2>
+            <ul className="divide-y divide-border/50">
+              {(contratti ?? []).map((k: any) => (
+                <li key={k.id} className="py-2 flex items-center justify-between gap-3 text-[13px]">
+                  <span className="min-w-0 truncate">
+                    {[
+                      k.strutture?.nome,
+                      `${fmtIt(k.data_inizio)} → ${fmtIt(k.data_fine)}`,
+                      `${Number(k.canone_mensile).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}/mese`,
+                    ].filter(Boolean).join(' · ')}
+                  </span>
+                  <span className="flex items-center gap-3 shrink-0">
+                    <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{k.stato}</span>
+                    <Link to={`/admin/contratti/${k.id}`} className="text-primary hover:underline">Apri</Link>
+                  </span>
+                </li>
+              ))}
+            </ul>
           </section>
         )}
 
