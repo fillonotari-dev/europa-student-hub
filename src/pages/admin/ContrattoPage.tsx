@@ -20,6 +20,11 @@ import { Check, FileUp, FileText, Pencil, Trash2, X } from 'lucide-react';
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
 const oggiPrimoDelMese = () => `${new Date().toISOString().slice(0, 7)}-01`;
 
+const Riga = ({ k, v }: { k: string; v: any }) =>
+  v == null || v === '' ? null : (
+    <div className="flex gap-2 text-sm"><span className="text-muted-foreground min-w-[170px]">{k}</span><span>{v}</span></div>
+  );
+
 export default function ContrattoPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -241,11 +246,6 @@ export default function ContrattoPage() {
     );
   }
 
-  const ana: any = contratto.anagrafiche_fatturazione;
-  const Riga = ({ k, v }: { k: string; v: any }) =>
-    v == null || v === '' ? null : (
-      <div className="flex gap-2 text-sm"><span className="text-muted-foreground min-w-[170px]">{k}</span><span>{v}</span></div>
-    );
 
   return (
     <div className="space-y-6">
