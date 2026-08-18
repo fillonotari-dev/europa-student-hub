@@ -18,22 +18,37 @@ type Props = {
   onOpenChange: (v: boolean) => void;
   studenteId?: string | null;
   onCreated?: (contrattoId: string) => void;
+  /**
+   * Sostituzione di un contratto attivo (cambio in corso d'opera o rinnovo annuale).
+   * L'ordine è vincolante: prima si crea il nuovo contratto in bozza con
+   * contratto_precedente_id, poi si chiude il vecchio. Se l'operatore abbandona il
+   * dialogo non succede nulla e non resta un contratto "rinnovato" senza successore.
+   */
+  sostituisce?: any | null;
 };
 
 type Modalita = 'studente' | 'terzo';
 
 const oggi = () => new Date().toISOString().slice(0, 10);
 
+const giornoDopo = (iso: string) => {
+  if (!iso) return '';
+  const d = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Date(d.getTime() + 86400000).toISOString().slice(0, 10);
+};
+
 const F = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div><Label className="text-xs text-muted-foreground">{label}</Label>{children}</div>
 );
 
-export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso, onCreated }: Props) {
+export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso, onCreated, sostituisce }: Props) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [saving, setSaving] = useState(false);
 
   const [studenteId, setStudenteId] = useState<string>(studenteFisso ?? '');
+  const [dataFineVecchio, setDataFineVecchio] = useState('');
   const [strutturaId, setStrutturaId] = useState('');
   const [assegnazioneId, setAssegnazioneId] = useState<string | null>(null);
   const [dataInizio, setDataInizio] = useState('');
@@ -85,7 +100,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
 
   // Precompilazione a partire dallo studente scelto.
   useEffect(() => {
-    if (!open || !studenteId) return;
+    if (!open || !studenteId || sostituisce) return;
     let annullato = false;
 
     (async () => {
@@ -194,7 +209,55 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
     })();
 
     return () => { annullato = true; };
-  }, [open, studenteId]);
+  }, [open, studenteId, sostituisce]);
+
+  // Precompilazione dal contratto da sostituire.
+  useEffect(() => {
+    if (!open || !sostituisce) return;
+    const c = sostituisce;
+    const fine = oggi();
+    setStudenteId(c.studente_id);
+    setStrutturaId(c.struttura_id ?? '');
+    setAssegnazioneId(c.assegnazione_id ?? null);
+    setDataFineVecchio(fine);
+    setDataInizio(giornoDopo(fine));
+    setDataFine(c.data_fine ?? '');
+    setGiornoScadenza(String(c.giorno_scadenza ?? 1));
+    setCanone(c.canone_mensile != null ? String(c.canone_mensile) : '');
+    setCanoneNote(c.canone_note ?? '');
+    setAliquota(c.aliquota_iva != null ? String(c.aliquota_iva) : '10');
+    setNote(c.note ?? '');
+    setGarante({
+      nome: c.garante_nome ?? '', relazione: c.garante_relazione ?? '',
+      telefono: c.garante_telefono ?? '', email: c.garante_email ?? '',
+    });
+    setDepositoRichiesto(!!c.deposito_richiesto);
+    setDepositoImporto(c.deposito_importo != null ? String(c.deposito_importo) : '');
+    setDepositoEsenzione(c.deposito_motivo_esenzione ?? '');
+    const a = c.anagrafiche_fatturazione;
+    if (a) {
+      setAnagraficaEsistenteId(a.id);
+      setModalita(a.studente_id ? 'studente' : 'terzo');
+      setAna(prev => ({
+        ...prev,
+        tipo: a.tipo ?? 'persona_fisica',
+        denominazione: a.denominazione ?? '',
+        nome: a.nome ?? '',
+        cognome: a.cognome ?? '',
+        codice_fiscale: a.codice_fiscale ?? '',
+        partita_iva: a.partita_iva ?? '',
+        indirizzo_via: a.indirizzo_via ?? '',
+        indirizzo_civico: a.indirizzo_civico ?? '',
+        indirizzo_cap: a.indirizzo_cap ?? '',
+        indirizzo_comune: a.indirizzo_comune ?? '',
+        indirizzo_provincia: a.indirizzo_provincia ?? '',
+        indirizzo_nazione: a.indirizzo_nazione ?? 'IT',
+        codice_destinatario: a.codice_destinatario ?? '',
+        pec: a.pec ?? '',
+        email_recapito: a.email_recapito ?? '',
+      }));
+    }
+  }, [open, sostituisce]);
 
   // Proposta del codice destinatario al cambio nazione (solo se non compilato a mano).
   const proposto = ana.indirizzo_nazione === 'IT' ? '0000000' : 'XXXXXXX';
@@ -216,6 +279,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
 
   const reset = () => {
     setStudenteId(studenteFisso ?? '');
+    setDataFineVecchio('');
     setStrutturaId(''); setAssegnazioneId(null);
     setDataInizio(''); setDataFine(''); setGiornoScadenza('1');
     setCanone(''); setCanoneNote(''); setAliquota('10'); setListinoMancante(false); setNote('');
@@ -227,6 +291,11 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
   const errore = (): string | null => {
     if (!studenteId) return 'Seleziona lo studente.';
     if (!strutturaId) return 'Seleziona la struttura.';
+    if (sostituisce) {
+      if (!dataFineVecchio) return 'Indica la data di fine del contratto in corso.';
+      if (dataFineVecchio <= sostituisce.data_inizio)
+        return 'La data di fine del contratto in corso deve essere successiva alla sua data di inizio.';
+    }
     if (!dataInizio || !dataFine) return 'Indica le date di inizio e fine.';
     if (dataFine <= dataInizio) return 'La data di fine deve essere successiva a quella di inizio.';
     if (!canone || Number(canone) <= 0) return 'Indica un canone mensile maggiore di zero.';
@@ -270,7 +339,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
       };
 
       let anagraficaId: string;
-      if (modalita === 'studente' && anagraficaEsistenteId) {
+      if (anagraficaEsistenteId && (modalita === 'studente' || !!sostituisce)) {
         const { error } = await supabase
           .from('anagrafiche_fatturazione')
           .update(payloadAna)
@@ -310,13 +379,41 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
           deposito_motivo_esenzione: depositoRichiesto ? null : depositoEsenzione.trim(),
           note: nz(note),
           stato: 'bozza',
+          contratto_precedente_id: sostituisce ? sostituisce.id : null,
         })
         .select('id')
         .single();
       if (errC) throw errC;
 
+      // Prima creare, poi chiudere: se la chiusura fallisce il nuovo contratto
+      // resta una bozza eliminabile e la situazione è recuperabile.
+      if (sostituisce) {
+        const { error: errChiusura } = await supabase.rpc('chiudi_contratto', {
+          p_contratto_id: sostituisce.id,
+          p_data_fine: dataFineVecchio,
+          p_motivo: 'sostituzione',
+        });
+        if (errChiusura) {
+          qc.invalidateQueries({ queryKey: ['contratti'] });
+          onOpenChange(false);
+          reset();
+          onCreated?.(contratto.id);
+          toast({
+            title: 'Nuovo contratto creato, vecchio contratto non chiuso',
+            description: `${errChiusura.message} — chiudi il contratto precedente dalla sua scheda, oppure elimina questa bozza.`,
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+
       qc.invalidateQueries({ queryKey: ['contratti'] });
-      toast({ title: 'Contratto creato', description: 'Il contratto è in bozza: verifica i dati e poi attivalo.' });
+      toast({
+        title: sostituisce ? 'Contratto sostituito' : 'Contratto creato',
+        description: sostituisce
+          ? 'Il contratto precedente è stato chiuso. Il nuovo è in bozza: verifica i dati e poi attivalo.'
+          : 'Il contratto è in bozza: verifica i dati e poi attivalo.',
+      });
       onOpenChange(false);
       reset();
       onCreated?.(contratto.id);
@@ -332,16 +429,28 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset(); }}>
       <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nuovo contratto</DialogTitle>
+          <DialogTitle>{sostituisce ? 'Sostituisci contratto' : 'Nuovo contratto'}</DialogTitle>
           <DialogDescription>
-            I campi sono precompilati dove possibile. Il contratto nasce in bozza e resta modificabile
-            finché non viene attivato.
+            {sostituisce
+              ? 'Il nuovo contratto nasce in bozza dai dati di quello in corso. Alla conferma viene creato il nuovo contratto e solo dopo il precedente viene chiuso come sostituito.'
+              : 'I campi sono precompilati dove possibile. Il contratto nasce in bozza e resta modificabile finché non viene attivato.'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
           <section className="space-y-3">
             <h3 className="text-sm font-semibold">Contratto</h3>
+            {sostituisce && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <F label="Data di fine del contratto in corso *">
+                  <Input type="date" className="mt-1.5" value={dataFineVecchio}
+                    onChange={e => {
+                      setDataFineVecchio(e.target.value);
+                      setDataInizio(giornoDopo(e.target.value));
+                    }} />
+                </F>
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {!studenteFisso && (
                 <F label="Studente *">
@@ -496,7 +605,9 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Annulla</Button>
-          <Button onClick={handleSubmit} disabled={saving}>{saving ? 'Creazione…' : 'Crea contratto'}</Button>
+          <Button onClick={handleSubmit} disabled={saving}>
+            {saving ? 'Creazione…' : (sostituisce ? 'Crea e sostituisci' : 'Crea contratto')}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
