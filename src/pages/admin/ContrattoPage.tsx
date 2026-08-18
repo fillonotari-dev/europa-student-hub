@@ -17,7 +17,7 @@ import { generaScadenzario, totaleRiga } from '@/lib/scadenzario';
 import { eliminaContrattoBozza } from '@/lib/contrattoDelete';
 import { fmtEuro, fmtIt, STATO_CONTRATTO_COLORS } from './Contratti';
 import { cn } from '@/lib/utils';
-import { Check, FileUp, FileText, Pencil, Trash2, X } from 'lucide-react';
+import { Check, FileUp, FileText, Pencil, Repeat, Trash2, Undo2, X } from 'lucide-react';
 
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
 const oggiPrimoDelMese = () => `${new Date().toISOString().slice(0, 7)}-01`;
@@ -345,6 +345,11 @@ export default function ContrattoPage() {
             <span className="text-sm text-muted-foreground">
               {contratto.strutture?.nome} · {fmtIt(contratto.data_inizio)} → {fmtIt(contratto.data_fine)}
             </span>
+            {contratto.motivo_chiusura && (
+              <span className="text-sm text-muted-foreground">
+                · chiuso per {String(contratto.motivo_chiusura).replace(/_/g, ' ')}
+              </span>
+            )}
           </div>
         </div>
         {contratto.stato === 'bozza' && (
@@ -654,6 +659,66 @@ export default function ContrattoPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={chiudiOpen} onOpenChange={(o) => { if (!o) setChiudiOpen(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Chiudere il contratto?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Data di fine effettiva</Label>
+                  <Input type="date" className="mt-1.5" value={chiudiData} onChange={e => setChiudiData(e.target.value)} />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Motivo</Label>
+                  <Select value={chiudiMotivo} onValueChange={setChiudiMotivo}>
+                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="Seleziona…" /></SelectTrigger>
+                    <SelectContent>
+                      {MOTIVI_CHIUSURA_CONTRATTO.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p>La data di fine del contratto verrà riscritta con quella indicata.</p>
+                <p>Verranno annullate {daAnnullare.length} mensilità da fatturare successive al mese di chiusura. Il mese di chiusura resta dovuto per intero.</p>
+                {intoccabili.length > 0 && (
+                  <p>Restano intoccate {intoccabili.length} mensilità già fatturate o incassate: corrispondono a documenti fiscali emessi.</p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); chiudi(); }} disabled={busy}>Chiudi contratto</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bozzaOpen} onOpenChange={(o) => { if (!o) setBozzaOpen(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Riportare il contratto in bozza?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>Il contratto torna in bozza e <strong>tutte le {(canoni ?? []).length} mensilità verranno cancellate</strong>.</p>
+                <p>Serve al contratto attivato per errore, che non ha prodotto alcun fatto economico: non resterà traccia di un rapporto mai esistito.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Annulla</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => { e.preventDefault(); tornaInBozza(); }} disabled={busy}>Riporta in bozza</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <ContrattoDialog
+        open={sostituisciOpen}
+        onOpenChange={setSostituisciOpen}
+        sostituisce={contratto}
+        onCreated={(nuovoId) => navigate(`/admin/contratti/${nuovoId}`)}
+      />
     </div>
   );
 }
