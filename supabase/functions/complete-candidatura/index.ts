@@ -5,6 +5,7 @@ import { enqueueTransactional } from "../_shared/enqueue-transactional.ts";
 import { CandidaturaCompletataAdminEmail } from "../_shared/email-templates/candidatura-completata-admin.tsx";
 import { getContatti } from "../_shared/contatti.ts";
 import { statoDopoCompletamento } from "../_shared/stato-candidatura.ts";
+import { validateCodiceFiscale } from "../_shared/codice-fiscale.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -67,7 +68,7 @@ Deno.serve(async (req) => {
 
     const { data: cand, error: candErr } = await supabase
       .from("candidature")
-      .select("id, token_scade_il, completata_il, studente_id, stato, struttura_preferita_id, tipo_camera_preferito, periodo_inizio, periodo_fine")
+      .select("id, token_scade_il, completata_il, studente_id, stato, struttura_preferita_id, tipo_camera_preferito, periodo_inizio, periodo_fine, studenti(codice_fiscale, cf_non_disponibile)")
       .eq("completamento_token_hash", hash)
       .maybeSingle();
     if (candErr) throw candErr;
@@ -97,6 +98,24 @@ Deno.serve(async (req) => {
       return json({ error: "Email garante non valida" }, 400);
     }
     const fumatore = typeof body.fumatore === "boolean" ? body.fumatore : null;
+
+    // Dati fiscali (fattura)
+    const email_fattura = optStr(body.email_fattura, 255);
+    if (email_fattura === undefined || !email_fattura || !EMAIL_RE.test(email_fattura)) {
+      return json({ error: "Email per la fattura non valida" }, 400);
+    }
+    const stud0 = (cand as any).studenti;
+    const richiedeCf = !stud0?.codice_fiscale && stud0?.cf_non_disponibile !== true;
+    let codiceFiscaleNorm: string | null = null;
+    if (richiedeCf) {
+      const cfIn = optStr(body.codice_fiscale, 20);
+      if (cfIn === undefined || !cfIn) {
+        return json({ error: "Codice fiscale obbligatorio" }, 400);
+      }
+      const cfCheck = validateCodiceFiscale(cfIn);
+      if (!cfCheck.ok) return json({ error: "Codice fiscale non valido" }, 400);
+      codiceFiscaleNorm = cfCheck.normalized;
+    }
 
     // Required: garante_nome, garante_relazione, garante_telefono
     if (!garante_nome || !garante_relazione || !garante_telefono) {
@@ -157,6 +176,17 @@ Deno.serve(async (req) => {
     };
 
     const nuovoStato = statoDopoCompletamento(cand.stato as string);
+
+    const studPatch: Record<string, unknown> = { email_fattura };
+    if (codiceFiscaleNorm) studPatch.codice_fiscale = codiceFiscaleNorm;
+    const { error: studErr } = await supabase
+      .from("studenti")
+      .update(studPatch)
+      .eq("id", cand.studente_id);
+    if (studErr) {
+      console.error("complete-candidatura: update studente failed", studErr);
+      throw studErr;
+    }
 
     const { error: updErr } = await supabase
       .from("candidature")
