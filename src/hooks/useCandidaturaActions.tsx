@@ -25,6 +25,17 @@ type Ctx = {
 
 const CandidaturaActionsContext = createContext<Ctx | null>(null);
 
+/**
+ * Motivo di chiusura del contratto suggerito dal motivo di chiusura del soggiorno.
+ * 'trasferimento' non compare: il contratto sopravvive al cambio di camera.
+ */
+const MOTIVO_CONTRATTO_DA_ASSEGNAZIONE: Record<string, string> = {
+  fine_naturale: 'fine_naturale',
+  partenza_anticipata: 'partenza_anticipata',
+  mai_arrivato: 'partenza_anticipata',
+  allontanato: 'risoluzione',
+};
+
 export function useCandidaturaActionsCtx(): Ctx {
   const ctx = useContext(CandidaturaActionsContext);
   if (!ctx) throw new Error('CandidaturaActionsContext non montato: istanzia useCandidaturaActions() a livello di pagina.');
@@ -199,11 +210,42 @@ export function useCandidaturaActions(options: Options = {}) {
         .update({ stato: 'conclusa', data_fine: v.data, note: v.note || null, motivo_chiusura: v.motivo })
         .eq('id', v.assegnazione_id);
       if (error) throw error;
+      // Il contratto collegato non si accorge della conclusione: se ce n'è uno
+      // attivo lo proponiamo (non lo imponiamo) in chiusura.
+      if (v.motivo === 'trasferimento') return null;
+      const { data: contratto } = await supabase
+        .from('contratti')
+        .select('id, data_inizio, data_fine, stato')
+        .eq('assegnazione_id', v.assegnazione_id)
+        .eq('stato', 'attivo')
+        .maybeSingle();
+      if (!contratto) return null;
+      return { contratto, data: v.data, motivoAssegnazione: v.motivo };
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
       invalidateAll();
       toast({ title: 'Soggiorno concluso' });
       setEndTarget(null); setEndNote(''); setEndMotivo('');
+      if (res) setContrattoProposta(res as any);
+    },
+    onError: (e: any) => toast({ title: 'Errore', description: e?.message, variant: 'destructive' }),
+  });
+
+  const chiudiContratto = useMutation({
+    mutationFn: async (v: { contratto_id: string; data: string; motivo: string }) => {
+      const { data, error } = await supabase.rpc('chiudi_contratto', {
+        p_contratto_id: v.contratto_id, p_data_fine: v.data, p_motivo: v.motivo,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (annullate) => {
+      queryClient.invalidateQueries({ queryKey: ['contratti'] });
+      toast({
+        title: 'Contratto chiuso',
+        description: (annullate ?? 0) > 0 ? `Annullate ${annullate} mensilità successive al mese di chiusura.` : undefined,
+      });
+      setContrattoProposta(null);
     },
     onError: (e: any) => toast({ title: 'Errore', description: e?.message, variant: 'destructive' }),
   });
@@ -381,6 +423,9 @@ export function useCandidaturaActions(options: Options = {}) {
   // ---- Stato dialog ------------------------------------------------------
 
   const [deleteTarget, setDeleteTarget] = useState<CandidaturaLike | null>(null);
+  const [contrattoProposta, setContrattoProposta] = useState<
+    { contratto: { id: string; data_inizio: string; data_fine: string }; data: string; motivoAssegnazione: string } | null
+  >(null);
   const [statoConfirm, setStatoConfirm] = useState<{ c: CandidaturaLike; nextStato: string } | null>(null);
   const [regenConfirm, setRegenConfirm] = useState<CandidaturaLike | null>(null);
   const [linkTarget, setLinkTarget] = useState<CandidaturaLike | null>(null);
@@ -916,6 +961,64 @@ export function useCandidaturaActions(options: Options = {}) {
                 assegnazione_id: endTarget.assegnazione_id, data: endData, note: endNote, motivo: endMotivo,
               })}
             >Conferma</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Proposta di chiusura del contratto collegato */}
+      <AlertDialog open={!!contrattoProposta} onOpenChange={open => { if (!open) setContrattoProposta(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Chiudere anche il contratto?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-[13px]">
+                {contrattoProposta && contrattoProposta.data <= contrattoProposta.contratto.data_inizio ? (
+                  <>
+                    <p>
+                      Il contratto collegato comincia il{' '}
+                      {new Date(contrattoProposta.contratto.data_inizio + 'T00:00:00').toLocaleDateString('it-IT')}:
+                      non puo' chiudersi prima di cominciare.
+                    </p>
+                    <p>
+                      La strada corretta e' "Riporta in bozza" nella scheda del contratto, seguita
+                      dall'eliminazione della bozza.
+                    </p>
+                    <a className="text-primary underline" href={`/admin/contratti/${contrattoProposta.contratto.id}`}>
+                      Apri la scheda del contratto
+                    </a>
+                  </>
+                ) : (
+                  <>
+                    <p>Il soggiorno e' concluso, ma il contratto collegato e' ancora attivo e continuerebbe a produrre mensilita'.</p>
+                    <p>
+                      Chiusura proposta al{' '}
+                      {contrattoProposta && new Date(contrattoProposta.data + 'T00:00:00').toLocaleDateString('it-IT')}
+                      {' '}con motivo <strong>{contrattoProposta ? MOTIVO_CONTRATTO_DA_ASSEGNAZIONE[contrattoProposta.motivoAssegnazione]?.replace(/_/g, ' ') : ''}</strong>.
+                      Le mensilita' da fatturare successive al mese di chiusura verranno annullate; quelle gia' fatturate restano.
+                    </p>
+                    <p>Puoi anche non farlo: il contratto resta attivo e lo chiuderai dalla sua scheda.</p>
+                  </>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{contrattoProposta && contrattoProposta.data <= contrattoProposta.contratto.data_inizio ? 'Chiudi' : 'Non ora'}</AlertDialogCancel>
+            {contrattoProposta && contrattoProposta.data > contrattoProposta.contratto.data_inizio && (
+              <AlertDialogAction
+                disabled={chiudiContratto.isPending}
+                onClick={(e) => {
+                  e.preventDefault();
+                  const motivo = MOTIVO_CONTRATTO_DA_ASSEGNAZIONE[contrattoProposta.motivoAssegnazione];
+                  if (!motivo) { setContrattoProposta(null); return; }
+                  chiudiContratto.mutate({
+                    contratto_id: contrattoProposta.contratto.id,
+                    data: contrattoProposta.data,
+                    motivo,
+                  });
+                }}
+              >Chiudi contratto</AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

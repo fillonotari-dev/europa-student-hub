@@ -489,6 +489,7 @@ export type Database = {
           garante_telefono: string | null
           giorno_scadenza: number
           id: string
+          motivo_chiusura: string | null
           note: string | null
           stato: string
           struttura_id: string
@@ -520,6 +521,7 @@ export type Database = {
           garante_telefono?: string | null
           giorno_scadenza?: number
           id?: string
+          motivo_chiusura?: string | null
           note?: string | null
           stato?: string
           struttura_id: string
@@ -551,6 +553,7 @@ export type Database = {
           garante_telefono?: string | null
           giorno_scadenza?: number
           id?: string
+          motivo_chiusura?: string | null
           note?: string | null
           stato?: string
           struttura_id?: string
@@ -1076,6 +1079,10 @@ export type Database = {
         Args: { p_temp_id: string }
         Returns: boolean
       }
+      chiudi_contratto: {
+        Args: { p_contratto_id: string; p_data_fine: string; p_motivo: string }
+        Returns: number
+      }
       consume_candidatura_sessione: {
         Args: { p_temp_id: string }
         Returns: undefined
@@ -1116,6 +1123,10 @@ export type Database = {
           msg_id: number
           read_ct: number
         }[]
+      }
+      riporta_contratto_in_bozza: {
+        Args: { p_contratto_id: string }
+        Returns: undefined
       }
     }
     Enums: {
