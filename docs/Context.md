@@ -114,13 +114,17 @@ Al candidato approvato viene poi assegnato un posto in una camera specifica. Nas
 | Tabella | Contenuto |
 |---|---|
 | `anagrafiche_fatturazione` | L'intestatario del documento fiscale: di norma lo studente, ma può essere un soggetto terzo (società sportiva, azienda, genitore con partita IVA). `tipo` fra `persona_fisica` (richiede nome e cognome) e `soggetto_giuridico` (richiede denominazione), dati fiscali, indirizzo completo (`indirizzo_nazione` default `IT`), `codice_destinatario` vincolato a 7 caratteri `[A-Z0-9]`, PEC, email di recapito, `studente_id` opzionale, `fic_entity_id` per il collegamento futuro a Fatture in Cloud. Indice **unico parziale** su `studente_id` quando valorizzato: un solo record per studente, mentre le anagrafiche intestate a terzi (con `studente_id` nullo) restano libere |
-| `contratti` | Il contratto di ospitalità: `studente_id`, `struttura_id` e `anagrafica_fatturazione_id` obbligatori, `assegnazione_id` opzionale (per caricare contratti firmati fuori dal sistema), `tipo` (`breve` / `lunga`), periodo, `canone_mensile` con `canone_note`, `aliquota_iva` (default 10.00), dati garante tutti nullable, `stato` fra `bozza`, `attivo`, `scaduto`, `risolto`, `rinnovato`, `contratto_precedente_id` per i rinnovi, `file_firmato_path`. Include l'intero ciclo del **deposito cauzionale** (`deposito_richiesto`, `deposito_importo`, `deposito_motivo_esenzione`, `deposito_stato`, `deposito_data_incasso`, `deposito_modalita`, `deposito_importo_restituito`, `deposito_motivo_trattenuta`) |
+| `contratti` | Il contratto di ospitalità: `studente_id`, `struttura_id` e `anagrafica_fatturazione_id` obbligatori, `assegnazione_id` opzionale (per caricare contratti firmati fuori dal sistema), periodo, `giorno_scadenza` (1-28, default 1: il giorno del mese in cui scade ogni mensilità; il limite a 28 evita il problema di febbraio), `canone_mensile` con `canone_note`, `aliquota_iva` (default 10.00), dati garante tutti nullable, `stato` fra `bozza`, `attivo`, `scaduto`, `risolto`, `rinnovato`, `contratto_precedente_id` per i rinnovi, `file_firmato_path`. Include l'intero ciclo del **deposito cauzionale** (`deposito_richiesto`, `deposito_importo`, `deposito_motivo_esenzione`, `deposito_stato`, `deposito_data_incasso`, `deposito_modalita`, `deposito_importo_restituito`, `deposito_motivo_trattenuta`). **Non esiste più la colonna `tipo`** (`breve` / `lunga`): serviva solo a scegliere quale modello precompilare in PDF, e la generazione del contratto da modello è fuori perimetro — il sistema archivia il firmato, non lo genera |
 | `canoni` | Lo scadenzario: una riga per mensilità, `competenza` vincolata al primo giorno del mese, `imponibile`, `aliquota_iva`, `totale` come colonna **generata** dal database, `scadenza`, `stato` fra `da_fatturare`, `fatturato`, `incassato`, `annullato`. Unica per (`contratto_id`, `competenza`), cancellazione a cascata dal contratto |
 | `listini` | Tariffe per (`struttura_id`, `tipo_camera`) con periodo di validità. Servono **solo a proporre** il canone alla creazione del contratto: il prezzo che vale è quello scritto sul contratto. Vincolo `EXCLUDE USING gist` che vieta periodi sovrapposti per la stessa coppia sede/tipo camera, perché due listini contemporanei renderebbero ambiguo il valore proposto |
 
 **Il deposito sta su `contratti`, non in una tabella dedicata:** il rapporto è uno-a-uno rigido e un importo duplicato in due tabelle prima o poi diverge. Un unico CHECK garantisce la coerenza: se `deposito_richiesto` è vero servono importo maggiore di zero e stato valorizzato senza motivo di esenzione; se è falso, importo e stato restano nulli ed è obbligatorio il motivo di esenzione.
 
 **`canoni.imponibile` e `canoni.aliquota_iva` sono uno snapshot deliberato** dei corrispondenti campi del contratto al momento della generazione della mensilità, non una denormalizzazione da correggere. Se il canone del contratto cambia, le mensilità già generate devono restare quelle che erano. È lo stesso principio dei campi `*_snapshot` su `candidature`.
+
+**Canone intero sui mesi parziali — regola provvisoria, da confermare con la direzione.** Lo scadenzario genera una riga per ogni mese di calendario toccato dal periodo, con canone **intero** anche sul primo e sull'ultimo mese se parziali. Il rateo sui giorni non è stato deciso: finché non lo è, l'operatore corregge a mano la singola mensilità finché resta `da_fatturare`. La regola vive in una funzione pura, `generaScadenzario` (`src/lib/scadenzario.ts`), coperta da `src/test/scadenzario.test.ts`.
+
+**`canoni.totale` è `GENERATED ALWAYS STORED`:** Postgres rifiuta l'intera scrittura se le si assegna un valore. Il generatore di tipi la espone come scrivibile in `Insert` e `Update`, ma non lo è: non passarla mai nei payload.
 
 **Vincoli e regole di dominio nel database** (§5: le regole stanno nel database, non nel frontend):
 
@@ -224,6 +228,8 @@ I messaggi di errore verso l'utente sono generici, il dettaglio finisce nei log 
 
 Il bucket `documenti_studenti` è privato: gli amministratori leggono tramite signed URL a scadenza breve, nessuna lettura pubblica.
 
+Il bucket **`contratti`** è anch'esso privato e contiene i contratti firmati, con path `{contratto_id}/{nome_file}`. È **separato da `documenti_studenti` per scelta**: quest'ultimo viene ripulito dalla edge function `delete-candidatura`, che cancella tutti i path legati a una candidatura, e un contratto firmato non deve poter finire in una cancellazione pensata per i documenti di un candidato. Le policy su `storage.objects` consentono lettura, caricamento, sostituzione ed eliminazione solo agli amministratori autenticati (`has_role(auth.uid(), 'admin')`), nessun accesso anonimo; la policy di scrittura ammette **solo file con estensione `pdf`**. Il limite di 10 MB è applicato lato client. La lettura passa da signed URL a scadenza breve.
+
 I file dei candidati vivono in due posizioni distinte:
 
 - **Cartella temporanea `pending/{temp_id}/{tipo}/{filename}`**: dove `upload-candidatura-doc` deposita ogni file caricato dal form. `temp_id` è l'UUID della sessione di candidatura, non della candidatura definitiva (che ancora non esiste al momento dell'upload).
@@ -255,7 +261,7 @@ Attenzione a una distinzione che ha già causato un bug: `candidature.struttura_
 
 L'area `/admin` è organizzata attorno a `AdminLayout`, che fornisce:
 
-- una **sidebar** con le voci principali (Dashboard, Candidature, Residenti, Camere, Strutture). Non esiste più la sezione "Storico": gli archiviati vivono nelle liste principali via filtro `stadio=archiviato`.
+- una **sidebar** con le voci principali (Dashboard, Candidature, Residenti, Contratti, Camere, Strutture). Non esiste più la sezione "Storico": gli archiviati vivono nelle liste principali via filtro `stadio=archiviato`.
 - una **top bar globale** con titolo della pagina corrente e ricerca globale persone.
 
 Le pagine sotto `/admin` **non** stampano più un proprio titolo o sottotitolo: iniziano direttamente dalla toolbar filtri o dal contenuto. Il titolo mostrato in top bar è risolto in ordine da un override esplicito (`usePageTitle(label)` per rotte con parametri variabili, es. `"Rossi Mario"` sulla pagina persona) oppure da una mappa statica `rotta → label` per le rotte fisse.
@@ -363,14 +369,14 @@ Contratti e fatturazione sono oggetto di una proposta integrativa separata (Fase
 3. **Ogni nuova email passa da `enqueue-transactional.ts`.** Non ricostruire il payload a mano: mancherebbero `idempotency_key` e `unsubscribe_token`.
 4. **Ogni nuova funzione `SECURITY DEFINER` va revocata esplicitamente da `PUBLIC`, `anon` e `authenticated`.** Revocare solo da `PUBLIC` non basta: Supabase concede l'esecuzione ad `anon` e `authenticated` separatamente. Questo errore è già stato commesso su sei funzioni.
 5. **Ogni nuova funzione ha `SET search_path`.**
-6. **Ogni nuova pagina con dati per sede usa `useStrutturaFilter`.**
+6. **Ogni nuova pagina con dati per sede espone il filtro sede.** L'hook `useStrutturaFilter` non esiste più (il filtro sede globale è stato rimosso): il filtro vive nel query param `sede` della pagina, con un `Select` popolato da `strutture`, come in Candidature, Residenti e Contratti.
 7. **Le metriche di occupazione si calcolano dalle assegnazioni attive**, mai dalla struttura preferita in candidatura.
 8. **Prima di dichiarare chiuso un intervento, rileggere il codice.** È già successo che un fix riportato come completato non fosse presente.
 9. **Il design system è in `design-system.md`** e va rispettato: token semantici, mai colori hard-coded, componenti shadcn mai riscritti.
 10. **Se una modifica tocca dati personali, verificare che l'informativa la copra** prima di rilasciarla.
 11. **Non scrivere righe di transizione in `log_stato_candidature` dal codice applicativo.** Lo fa il trigger. Le funzioni server possono inserire solo righe di evento (`stato_precedente = stato_nuovo`) con una nota che ne spiega il significato.
 12. **I tipi documento si prendono da `supabase/functions/_shared/documenti-tipi.ts`.** Non riscrivere l'elenco in edge function o componenti: divergerebbe dal vincolo DB.
-13. **Il filtro sede si legge da `useStrutturaFilter`.** Non reimplementare selettori locali per pagina.
+13. **Il filtro sede sta nel query param `sede`** e si comporta in modo identico su tutte le liste: stesso `Select`, stesse etichette, stesso reset di pagina. Non introdurre varianti locali.
 14. **Lo stato di una lista (ricerca, filtri, pagina) vive nell'indirizzo (query params).** Non in navigation state, non in `useState` locale che va perso alla navigazione: la pagina persona deve poter ricostruire l'URL di ritorno.
 15. **Le azioni disponibili su una candidatura si leggono da `getAvailableActions`** in `src/lib/candidaturaActions.ts`. Lista e scheda persona non devono mai calcolarle in modo indipendente.
 16. **Le ricerche di posti liberi per intervallo passano dalla funzione `camere_disponibilita`.** Non ricalcolare a mano in JS lo stato di occupazione per periodo: la funzione conosce le assegnazioni sovrapposte e il vincolo `EXCLUDE`.
