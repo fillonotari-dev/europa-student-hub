@@ -1050,6 +1050,14 @@ export type Database = {
       }
     }
     Functions: {
+      aggiorna_canone_contratto: {
+        Args: { p_canone: number; p_contratto_id: string }
+        Returns: number
+      }
+      attiva_contratto: {
+        Args: { p_contratto_id: string; p_righe: Json }
+        Returns: number
+      }
       camere_disponibilita: {
         Args: { p_al: string; p_dal: string; p_struttura_id?: string }
         Returns: {
