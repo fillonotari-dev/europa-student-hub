@@ -915,6 +915,7 @@ export type Database = {
           created_at: string | null
           data_nascita: string | null
           email: string
+          email_fattura: string | null
           id: string
           indirizzo_cap: string | null
           indirizzo_civico: string | null
@@ -939,6 +940,7 @@ export type Database = {
           created_at?: string | null
           data_nascita?: string | null
           email: string
+          email_fattura?: string | null
           id?: string
           indirizzo_cap?: string | null
           indirizzo_civico?: string | null
@@ -963,6 +965,7 @@ export type Database = {
           created_at?: string | null
           data_nascita?: string | null
           email?: string
+          email_fattura?: string | null
           id?: string
           indirizzo_cap?: string | null
           indirizzo_civico?: string | null
