@@ -50,6 +50,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
   const [studenteId, setStudenteId] = useState<string>(studenteFisso ?? '');
   const [dataFineVecchio, setDataFineVecchio] = useState('');
   const [strutturaId, setStrutturaId] = useState('');
+  const [tipoCamera, setTipoCamera] = useState<string>('');
   const [assegnazioneId, setAssegnazioneId] = useState<string | null>(null);
   const [dataInizio, setDataInizio] = useState('');
   const [dataFine, setDataFine] = useState('');
@@ -57,7 +58,10 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
   const [canone, setCanone] = useState('');
   const [canoneNote, setCanoneNote] = useState('');
   const [aliquota, setAliquota] = useState('10');
-  const [listinoMancante, setListinoMancante] = useState(false);
+  const [listino, setListino] = useState<{ importo: number; valido_dal: string } | null>(null);
+  const [listinoCercato, setListinoCercato] = useState(false);
+  const [ultimoProposto, setUltimoProposto] = useState<string | null>(null);
+  const [origine, setOrigine] = useState<{ strutturaId: string; tipoCamera: string } | null>(null);
   const [note, setNote] = useState('');
 
   const [garante, setGarante] = useState({ nome: '', relazione: '', telefono: '', email: '' });
@@ -132,6 +136,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
         setDataInizio(ass.data_inizio ?? '');
         setDataFine(ass.data_fine ?? '');
         if ((ass as any).camere?.struttura_id) setStrutturaId((ass as any).camere.struttura_id);
+        if ((ass as any).camere?.tipo) setTipoCamera((ass as any).camere.tipo);
       }
 
       const cand = (candidature ?? [])[0];
@@ -142,30 +147,6 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
           telefono: cand.garante_telefono ?? '',
           email: cand.garante_email ?? '',
         });
-      }
-
-      // Canone proposto dal listino valido oggi.
-      const sid = (ass as any)?.camere?.struttura_id;
-      const tipoCamera = (ass as any)?.camere?.tipo;
-      if (sid && tipoCamera) {
-        const { data: listino } = await supabase
-          .from('listini')
-          .select('importo_mensile')
-          .eq('struttura_id', sid)
-          .eq('tipo_camera', tipoCamera)
-          .lte('valido_dal', oggi())
-          .or(`valido_al.is.null,valido_al.gte.${oggi()}`)
-          .maybeSingle();
-        if (!annullato) {
-          if (listino?.importo_mensile != null) {
-            setCanone(String(listino.importo_mensile));
-            setListinoMancante(false);
-          } else {
-            setListinoMancante(true);
-          }
-        }
-      } else {
-        setListinoMancante(true);
       }
 
       if (anagrafica) {
@@ -262,7 +243,67 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
         email_recapito: a.email_recapito ?? '',
       }));
     }
+
+    // Tipo camera del contratto sostituito: serve solo a proporre il prezzo.
+    if (c.assegnazione_id) {
+      (async () => {
+        const { data } = await supabase
+          .from('assegnazioni')
+          .select('camere(tipo)')
+          .eq('id', c.assegnazione_id)
+          .maybeSingle();
+        const t = (data as any)?.camere?.tipo;
+        if (t) {
+          setTipoCamera(t);
+          setOrigine({ strutturaId: c.struttura_id ?? '', tipoCamera: t });
+        }
+      })();
+    } else {
+      setOrigine({ strutturaId: c.struttura_id ?? '', tipoCamera: '' });
+    }
   }, [open, sostituisce]);
+
+  // Ricerca del listino valido oggi: dipende solo dalla coppia sede + tipo camera,
+  // non dall'esistenza di un'assegnazione.
+  useEffect(() => {
+    if (!open) return;
+    if (!strutturaId || !tipoCamera) {
+      setListino(null);
+      setListinoCercato(false);
+      return;
+    }
+    let annullato = false;
+    (async () => {
+      const { data } = await supabase
+        .from('listini')
+        .select('importo_mensile, valido_dal')
+        .eq('struttura_id', strutturaId)
+        .eq('tipo_camera', tipoCamera)
+        .lte('valido_dal', oggi())
+        .or(`valido_al.is.null,valido_al.gte.${oggi()}`)
+        .order('valido_dal', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (annullato) return;
+      setListinoCercato(true);
+      if (data?.importo_mensile != null) {
+        const trovato = { importo: Number(data.importo_mensile), valido_dal: data.valido_dal as string };
+        setListino(trovato);
+        // In sostituzione il prezzo si applica solo su richiesta esplicita:
+        // il canone precompilato può essere un importo negoziato.
+        if (!sostituisce) {
+          const proposta = String(trovato.importo);
+          setCanone(prev => (prev === '' || prev === ultimoProposto ? proposta : prev));
+          setUltimoProposto(proposta);
+        }
+      } else {
+        setListino(null);
+      }
+    })();
+    return () => { annullato = true; };
+    // ultimoProposto volutamente fuori: serve solo come riferimento al momento dell'applicazione.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, strutturaId, tipoCamera, sostituisce]);
 
   // Proposta del codice destinatario al cambio nazione (solo se non compilato a mano).
   const proposto = ana.indirizzo_nazione === 'IT' ? '0000000' : 'XXXXXXX';
@@ -282,12 +323,19 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
     return m;
   }, [ana]);
 
+  const nomeStruttura = (strutture ?? []).find((s: any) => s.id === strutturaId)?.nome ?? '';
+
+  const condizioniCambiate =
+    !!sostituisce && !!origine && (origine.strutturaId !== strutturaId || origine.tipoCamera !== tipoCamera);
+
   const reset = () => {
     setStudenteId(studenteFisso ?? '');
     setDataFineVecchio('');
     setStrutturaId(''); setAssegnazioneId(null);
     setDataInizio(''); setDataFine(''); setGiornoScadenza('1');
-    setCanone(''); setCanoneNote(''); setAliquota('10'); setListinoMancante(false); setNote('');
+    setTipoCamera('');
+    setCanone(''); setCanoneNote(''); setAliquota('10'); setNote('');
+    setListino(null); setListinoCercato(false); setUltimoProposto(null); setOrigine(null);
     setGarante({ nome: '', relazione: '', telefono: '', email: '' });
     setDepositoRichiesto(true); setDepositoImporto(''); setDepositoEsenzione('');
     setModalita('studente'); setAnagraficaEsistenteId(null);
@@ -483,14 +531,53 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
               <F label="Data fine *">
                 <Input type="date" className="mt-1.5" value={dataFine} onChange={e => setDataFine(e.target.value)} />
               </F>
+              <F label="Tipo camera (per il prezzo di listino)">
+                <Select value={tipoCamera} onValueChange={setTipoCamera}>
+                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="Seleziona…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="singola">Singola</SelectItem>
+                    <SelectItem value="doppia">Doppia</SelectItem>
+                  </SelectContent>
+                </Select>
+              </F>
               <F label="Canone mensile (€) *">
                 <Input type="number" min="0" step="0.01" className="mt-1.5" value={canone}
                   onChange={e => setCanone(e.target.value)} />
-                {listinoMancante && (
+                {!strutturaId || !tipoCamera ? (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Seleziona struttura e tipo camera per vedere il canone di listino.
+                  </p>
+                ) : listinoCercato && !listino ? (
                   <p className="text-xs text-muted-foreground mt-1">
                     Nessun listino valido oggi per questa sede e tipo camera: inserisci l'importo a mano.
                   </p>
-                )}
+                ) : listino ? (
+                  <div className="mt-1 space-y-1">
+                    <p className="text-xs text-muted-foreground">
+                      Listino: {listino.importo.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })} — {nomeStruttura} · camera {tipoCamera} · dal {new Date(`${listino.valido_dal}T00:00:00`).toLocaleDateString('it-IT')}
+                    </p>
+                    {sostituisce && String(listino.importo) !== canone && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={condizioniCambiate ? 'default' : 'outline'}
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          const v = String(listino.importo);
+                          setCanone(v);
+                          setUltimoProposto(v);
+                        }}
+                      >
+                        Usa il prezzo di listino ({listino.importo.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })})
+                      </Button>
+                    )}
+                    {sostituisce && condizioniCambiate && (
+                      <p className="text-xs text-amber-600">
+                        Sede o tipo camera sono cambiati rispetto al contratto sostituito: il prezzo precedente probabilmente non vale più.
+                      </p>
+                    )}
+                  </div>
+                ) : null}
               </F>
               <F label="Aliquota IVA (%)">
                 <Input type="number" min="0" step="0.01" className="mt-1.5" value={aliquota}

@@ -1107,6 +1107,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      imposta_listino: {
+        Args: {
+          p_importo: number
+          p_struttura_id: string
+          p_tipo_camera: string
+          p_valido_dal: string
+        }
+        Returns: string
+      }
       move_to_dlq: {
         Args: {
           dlq_name: string
