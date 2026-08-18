@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -10,7 +11,14 @@ import {
   PaginationNext, PaginationPrevious,
 } from '@/components/ui/pagination';
 import { ContrattoDialog } from '@/components/admin/contratti/ContrattoDialog';
-import { FileText, Plus, Search } from 'lucide-react';
+import { RowActions } from '@/components/admin/RowActions';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { eliminaContrattoBozza } from '@/lib/contrattoDelete';
+import { FileText, Plus, Search, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 15;
@@ -32,8 +40,25 @@ export const fmtIt = (d?: string | null) => (d ? new Date(d + 'T00:00:00').toLoc
 
 export default function Contratti() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
+  const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [openNuovo, setOpenNuovo] = useState(false);
+  const [daEliminare, setDaEliminare] = useState<any | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const elimina = async () => {
+    if (!daEliminare) return;
+    setBusy(true);
+    try {
+      await eliminaContrattoBozza(daEliminare);
+      toast({ title: 'Contratto eliminato' });
+      setDaEliminare(null);
+      qc.invalidateQueries({ queryKey: ['contratti'] });
+    } catch (e: any) {
+      toast({ title: 'Errore', description: e?.message ?? 'Eliminazione non riuscita', variant: 'destructive' });
+    } finally { setBusy(false); }
+  };
 
   const search = searchParams.get('q') ?? '';
   const filterStato = searchParams.get('stato') ?? 'tutti';
@@ -121,11 +146,12 @@ export default function Contratti() {
               <th className="text-left px-4 py-3 font-semibold">Stato</th>
               <th className="text-left px-4 py-3 font-semibold">Deposito</th>
               <th className="text-left px-4 py-3 font-semibold">PDF firmato</th>
+              <th />
             </tr>
           </thead>
           <tbody className="text-sm">
             {pageItems.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">Nessun contratto</td></tr>
+              <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">Nessun contratto</td></tr>
             )}
             {pageItems.map((r: any) => (
               <tr key={r.id} className="border-t border-border/50 hover:bg-muted/50 cursor-pointer"
@@ -149,11 +175,40 @@ export default function Contratti() {
                     ? <span className="inline-flex items-center gap-1 text-primary"><FileText className="w-4 h-4" /> Sì</span>
                     : <span className="text-muted-foreground">No</span>}
                 </td>
+                <td className="px-4 py-3 text-right">
+                  {r.stato === 'bozza' && (
+                    <RowActions>
+                      <DropdownMenuItem className="text-destructive focus:text-destructive"
+                        onSelect={(e) => { e.preventDefault(); setDaEliminare(r); }}>
+                        <Trash2 className="w-4 h-4 mr-2" /> Elimina contratto
+                      </DropdownMenuItem>
+                    </RowActions>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      <AlertDialog open={!!daEliminare} onOpenChange={(o) => { if (!o) setDaEliminare(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare la bozza di contratto?</AlertDialogTitle>
+            <AlertDialogDescription>
+              L'operazione non è reversibile. {daEliminare?.file_firmato_path
+                ? 'Verrà eliminato prima il PDF allegato e poi il contratto. '
+                : ''}
+              I dati di fatturazione dello studente restano disponibili per altri contratti.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Annulla</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => { e.preventDefault(); elimina(); }} disabled={busy}>Elimina</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {totalPages > 1 && (
         <Pagination>
