@@ -136,6 +136,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
         setDataInizio(ass.data_inizio ?? '');
         setDataFine(ass.data_fine ?? '');
         if ((ass as any).camere?.struttura_id) setStrutturaId((ass as any).camere.struttura_id);
+        if ((ass as any).camere?.tipo) setTipoCamera((ass as any).camere.tipo);
       }
 
       const cand = (candidature ?? [])[0];
@@ -146,30 +147,6 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
           telefono: cand.garante_telefono ?? '',
           email: cand.garante_email ?? '',
         });
-      }
-
-      // Canone proposto dal listino valido oggi.
-      const sid = (ass as any)?.camere?.struttura_id;
-      const tipoCamera = (ass as any)?.camere?.tipo;
-      if (sid && tipoCamera) {
-        const { data: listino } = await supabase
-          .from('listini')
-          .select('importo_mensile')
-          .eq('struttura_id', sid)
-          .eq('tipo_camera', tipoCamera)
-          .lte('valido_dal', oggi())
-          .or(`valido_al.is.null,valido_al.gte.${oggi()}`)
-          .maybeSingle();
-        if (!annullato) {
-          if (listino?.importo_mensile != null) {
-            setCanone(String(listino.importo_mensile));
-            setListinoMancante(false);
-          } else {
-            setListinoMancante(true);
-          }
-        }
-      } else {
-        setListinoMancante(true);
       }
 
       if (anagrafica) {
