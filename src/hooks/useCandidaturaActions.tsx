@@ -199,11 +199,42 @@ export function useCandidaturaActions(options: Options = {}) {
         .update({ stato: 'conclusa', data_fine: v.data, note: v.note || null, motivo_chiusura: v.motivo })
         .eq('id', v.assegnazione_id);
       if (error) throw error;
+      // Il contratto collegato non si accorge della conclusione: se ce n'è uno
+      // attivo lo proponiamo (non lo imponiamo) in chiusura.
+      if (v.motivo === 'trasferimento') return null;
+      const { data: contratto } = await supabase
+        .from('contratti')
+        .select('id, data_inizio, data_fine, stato')
+        .eq('assegnazione_id', v.assegnazione_id)
+        .eq('stato', 'attivo')
+        .maybeSingle();
+      if (!contratto) return null;
+      return { contratto, data: v.data, motivoAssegnazione: v.motivo };
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
       invalidateAll();
       toast({ title: 'Soggiorno concluso' });
       setEndTarget(null); setEndNote(''); setEndMotivo('');
+      if (res) setContrattoProposta(res as any);
+    },
+    onError: (e: any) => toast({ title: 'Errore', description: e?.message, variant: 'destructive' }),
+  });
+
+  const chiudiContratto = useMutation({
+    mutationFn: async (v: { contratto_id: string; data: string; motivo: string }) => {
+      const { data, error } = await supabase.rpc('chiudi_contratto', {
+        p_contratto_id: v.contratto_id, p_data_fine: v.data, p_motivo: v.motivo,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (annullate) => {
+      queryClient.invalidateQueries({ queryKey: ['contratti'] });
+      toast({
+        title: 'Contratto chiuso',
+        description: (annullate ?? 0) > 0 ? `Annullate ${annullate} mensilità successive al mese di chiusura.` : undefined,
+      });
+      setContrattoProposta(null);
     },
     onError: (e: any) => toast({ title: 'Errore', description: e?.message, variant: 'destructive' }),
   });
