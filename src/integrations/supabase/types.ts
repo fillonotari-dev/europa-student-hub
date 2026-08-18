@@ -14,6 +14,93 @@ export type Database = {
   }
   public: {
     Tables: {
+      anagrafiche_fatturazione: {
+        Row: {
+          codice_destinatario: string | null
+          codice_fiscale: string | null
+          cognome: string | null
+          created_at: string
+          denominazione: string | null
+          email_recapito: string | null
+          fic_entity_id: number | null
+          id: string
+          indirizzo_cap: string | null
+          indirizzo_civico: string | null
+          indirizzo_comune: string | null
+          indirizzo_nazione: string
+          indirizzo_provincia: string | null
+          indirizzo_via: string | null
+          nome: string | null
+          note: string | null
+          partita_iva: string | null
+          pec: string | null
+          studente_id: string | null
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          codice_destinatario?: string | null
+          codice_fiscale?: string | null
+          cognome?: string | null
+          created_at?: string
+          denominazione?: string | null
+          email_recapito?: string | null
+          fic_entity_id?: number | null
+          id?: string
+          indirizzo_cap?: string | null
+          indirizzo_civico?: string | null
+          indirizzo_comune?: string | null
+          indirizzo_nazione?: string
+          indirizzo_provincia?: string | null
+          indirizzo_via?: string | null
+          nome?: string | null
+          note?: string | null
+          partita_iva?: string | null
+          pec?: string | null
+          studente_id?: string | null
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          codice_destinatario?: string | null
+          codice_fiscale?: string | null
+          cognome?: string | null
+          created_at?: string
+          denominazione?: string | null
+          email_recapito?: string | null
+          fic_entity_id?: number | null
+          id?: string
+          indirizzo_cap?: string | null
+          indirizzo_civico?: string | null
+          indirizzo_comune?: string | null
+          indirizzo_nazione?: string
+          indirizzo_provincia?: string | null
+          indirizzo_via?: string | null
+          nome?: string | null
+          note?: string | null
+          partita_iva?: string | null
+          pec?: string | null
+          studente_id?: string | null
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anagrafiche_fatturazione_studente_id_fkey"
+            columns: ["studente_id"]
+            isOneToOne: false
+            referencedRelation: "studenti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anagrafiche_fatturazione_studente_id_fkey"
+            columns: ["studente_id"]
+            isOneToOne: false
+            referencedRelation: "v_studenti_stadio"
+            referencedColumns: ["studente_id"]
+          },
+        ]
+      }
       assegnazioni: {
         Row: {
           camera_id: string
@@ -326,6 +413,202 @@ export type Database = {
           },
         ]
       }
+      canoni: {
+        Row: {
+          aliquota_iva: number
+          competenza: string
+          contratto_id: string
+          created_at: string
+          id: string
+          imponibile: number
+          note: string | null
+          scadenza: string
+          stato: string
+          totale: number | null
+          updated_at: string
+        }
+        Insert: {
+          aliquota_iva: number
+          competenza: string
+          contratto_id: string
+          created_at?: string
+          id?: string
+          imponibile: number
+          note?: string | null
+          scadenza: string
+          stato?: string
+          totale?: number | null
+          updated_at?: string
+        }
+        Update: {
+          aliquota_iva?: number
+          competenza?: string
+          contratto_id?: string
+          created_at?: string
+          id?: string
+          imponibile?: number
+          note?: string | null
+          scadenza?: string
+          stato?: string
+          totale?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "canoni_contratto_id_fkey"
+            columns: ["contratto_id"]
+            isOneToOne: false
+            referencedRelation: "contratti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contratti: {
+        Row: {
+          aliquota_iva: number
+          anagrafica_fatturazione_id: string
+          assegnazione_id: string | null
+          canone_mensile: number
+          canone_note: string | null
+          contratto_precedente_id: string | null
+          created_at: string
+          data_fine: string
+          data_inizio: string
+          deposito_data_incasso: string | null
+          deposito_importo: number | null
+          deposito_importo_restituito: number | null
+          deposito_modalita: string | null
+          deposito_motivo_esenzione: string | null
+          deposito_motivo_trattenuta: string | null
+          deposito_richiesto: boolean
+          deposito_stato: string | null
+          file_firmato_path: string | null
+          garante_email: string | null
+          garante_nome: string | null
+          garante_relazione: string | null
+          garante_telefono: string | null
+          id: string
+          note: string | null
+          stato: string
+          struttura_id: string
+          studente_id: string
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          aliquota_iva?: number
+          anagrafica_fatturazione_id: string
+          assegnazione_id?: string | null
+          canone_mensile: number
+          canone_note?: string | null
+          contratto_precedente_id?: string | null
+          created_at?: string
+          data_fine: string
+          data_inizio: string
+          deposito_data_incasso?: string | null
+          deposito_importo?: number | null
+          deposito_importo_restituito?: number | null
+          deposito_modalita?: string | null
+          deposito_motivo_esenzione?: string | null
+          deposito_motivo_trattenuta?: string | null
+          deposito_richiesto?: boolean
+          deposito_stato?: string | null
+          file_firmato_path?: string | null
+          garante_email?: string | null
+          garante_nome?: string | null
+          garante_relazione?: string | null
+          garante_telefono?: string | null
+          id?: string
+          note?: string | null
+          stato?: string
+          struttura_id: string
+          studente_id: string
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          aliquota_iva?: number
+          anagrafica_fatturazione_id?: string
+          assegnazione_id?: string | null
+          canone_mensile?: number
+          canone_note?: string | null
+          contratto_precedente_id?: string | null
+          created_at?: string
+          data_fine?: string
+          data_inizio?: string
+          deposito_data_incasso?: string | null
+          deposito_importo?: number | null
+          deposito_importo_restituito?: number | null
+          deposito_modalita?: string | null
+          deposito_motivo_esenzione?: string | null
+          deposito_motivo_trattenuta?: string | null
+          deposito_richiesto?: boolean
+          deposito_stato?: string | null
+          file_firmato_path?: string | null
+          garante_email?: string | null
+          garante_nome?: string | null
+          garante_relazione?: string | null
+          garante_telefono?: string | null
+          id?: string
+          note?: string | null
+          stato?: string
+          struttura_id?: string
+          studente_id?: string
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contratti_anagrafica_fatturazione_id_fkey"
+            columns: ["anagrafica_fatturazione_id"]
+            isOneToOne: false
+            referencedRelation: "anagrafiche_fatturazione"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratti_assegnazione_id_fkey"
+            columns: ["assegnazione_id"]
+            isOneToOne: false
+            referencedRelation: "assegnazioni"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratti_assegnazione_id_fkey"
+            columns: ["assegnazione_id"]
+            isOneToOne: false
+            referencedRelation: "v_studenti_stadio"
+            referencedColumns: ["assegnazione_id"]
+          },
+          {
+            foreignKeyName: "contratti_contratto_precedente_id_fkey"
+            columns: ["contratto_precedente_id"]
+            isOneToOne: false
+            referencedRelation: "contratti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratti_struttura_id_fkey"
+            columns: ["struttura_id"]
+            isOneToOne: false
+            referencedRelation: "strutture"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratti_studente_id_fkey"
+            columns: ["studente_id"]
+            isOneToOne: false
+            referencedRelation: "studenti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratti_studente_id_fkey"
+            columns: ["studente_id"]
+            isOneToOne: false
+            referencedRelation: "v_studenti_stadio"
+            referencedColumns: ["studente_id"]
+          },
+        ]
+      }
       documenti: {
         Row: {
           candidatura_id: string | null
@@ -504,6 +787,44 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      listini: {
+        Row: {
+          created_at: string
+          id: string
+          importo_mensile: number
+          struttura_id: string
+          tipo_camera: string
+          valido_al: string | null
+          valido_dal: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          importo_mensile: number
+          struttura_id: string
+          tipo_camera: string
+          valido_al?: string | null
+          valido_dal: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          importo_mensile?: number
+          struttura_id?: string
+          tipo_camera?: string
+          valido_al?: string | null
+          valido_dal?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listini_struttura_id_fkey"
+            columns: ["struttura_id"]
+            isOneToOne: false
+            referencedRelation: "strutture"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       log_stato_candidature: {
         Row: {
