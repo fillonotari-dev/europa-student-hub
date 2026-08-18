@@ -111,6 +111,8 @@ export function getAvailableActions(c: CandidaturaLike, opts: AvailableActionsOp
       break;
     case 'in_attesa_studente':
       out.push(make('invia_form_completo'));
+      out.push(makeAs('assegna_camera', 'secondaria'));
+      out.push(makeAs('metti_in_attesa_posto', 'secondaria'));
       out.push(make('rifiuta'));
       break;
     case 'da_decidere':
@@ -159,7 +161,8 @@ export function getAvailableActions(c: CandidaturaLike, opts: AvailableActionsOp
   }
 
   if (
-    (stadio === 'archiviato' || stadio === 'da_valutare' || stadio === 'in_attesa_studente')
+    (stadio === 'archiviato' || stadio === 'da_valutare' || stadio === 'in_attesa_studente'
+      || stadio === 'da_decidere' || stadio === 'in_attesa_posto')
     && !opts.haAvutoAssegnazione
   ) {
     out.push(make('elimina'));
