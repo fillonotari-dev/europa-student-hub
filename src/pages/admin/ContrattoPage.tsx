@@ -20,6 +20,11 @@ import { Check, FileUp, FileText, Pencil, Trash2, X } from 'lucide-react';
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
 const oggiPrimoDelMese = () => `${new Date().toISOString().slice(0, 7)}-01`;
 
+const Riga = ({ k, v }: { k: string; v: any }) =>
+  v == null || v === '' ? null : (
+    <div className="flex gap-2 text-sm"><span className="text-muted-foreground min-w-[170px]">{k}</span><span>{v}</span></div>
+  );
+
 export default function ContrattoPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -241,11 +246,6 @@ export default function ContrattoPage() {
     );
   }
 
-  const ana: any = contratto.anagrafiche_fatturazione;
-  const Riga = ({ k, v }: { k: string; v: any }) =>
-    v == null || v === '' ? null : (
-      <div className="flex gap-2 text-sm"><span className="text-muted-foreground min-w-[170px]">{k}</span><span>{v}</span></div>
-    );
 
   return (
     <div className="space-y-6">
@@ -329,14 +329,21 @@ export default function ContrattoPage() {
         </section>
 
         <section className="bg-card border border-border/50 rounded-lg p-5 space-y-2">
-          <h2 className="text-sm font-semibold mb-2">Intestazione fattura</h2>
-          <Riga k="Intestatario" v={ana?.tipo === 'soggetto_giuridico' ? ana?.denominazione : `${ana?.nome ?? ''} ${ana?.cognome ?? ''}`.trim()} />
-          <Riga k="Codice fiscale" v={ana?.codice_fiscale} />
-          <Riga k="Partita IVA" v={ana?.partita_iva} />
-          <Riga k="Indirizzo" v={[ana?.indirizzo_via, ana?.indirizzo_civico, ana?.indirizzo_cap, ana?.indirizzo_comune, ana?.indirizzo_provincia, ana?.indirizzo_nazione].filter(Boolean).join(' ')} />
-          <Riga k="Codice destinatario" v={ana?.codice_destinatario} />
-          <Riga k="PEC" v={ana?.pec} />
-          <Riga k="Email di recapito" v={ana?.email_recapito} />
+          {(() => {
+            const ana: any = contratto.anagrafiche_fatturazione;
+            return (
+              <>
+                <h2 className="text-sm font-semibold mb-2">Intestazione fattura</h2>
+                <Riga k="Intestatario" v={ana?.tipo === 'soggetto_giuridico' ? ana?.denominazione : `${ana?.nome ?? ''} ${ana?.cognome ?? ''}`.trim()} />
+                <Riga k="Codice fiscale" v={ana?.codice_fiscale} />
+                <Riga k="Partita IVA" v={ana?.partita_iva} />
+                <Riga k="Indirizzo" v={[ana?.indirizzo_via, ana?.indirizzo_civico, ana?.indirizzo_cap, ana?.indirizzo_comune, ana?.indirizzo_provincia, ana?.indirizzo_nazione].filter(Boolean).join(' ')} />
+                <Riga k="Codice destinatario" v={ana?.codice_destinatario} />
+                <Riga k="PEC" v={ana?.pec} />
+                <Riga k="Email di recapito" v={ana?.email_recapito} />
+              </>
+            );
+          })()}
         </section>
 
         <section className="bg-card border border-border/50 rounded-lg p-5 space-y-2">
