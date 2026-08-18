@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { enqueueTransactional, SITE_NAME } from "../_shared/enqueue-transactional.ts";
 import { CandidaturaLinkCompletamentoEmail } from "../_shared/email-templates/candidatura-link-completamento.tsx";
 import { getContatti } from "../_shared/contatti.ts";
+import { statoDopoLinkGenerato } from "../_shared/stato-candidatura.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -82,6 +83,13 @@ Deno.serve(async (req) => {
     if (existing.versione_form === "completa" && existing.completata_il) {
       return json({ error: "Candidatura già completata" }, 400);
     }
+    // Una candidatura già decisa non torna indietro a chiedere il form.
+    // 'in_attesa_posto' resta consentito: è lista d'attesa, non un esito.
+    if (existing.stato === "accolta" || existing.stato === "rifiutata") {
+      return json({ error: "Candidatura già decisa: impossibile generare il link" }, 400);
+    }
+
+    const nuovoStato = statoDopoLinkGenerato(existing.stato as string);
 
     const token = generateToken();
     const hash = await sha256Hex(token);
@@ -92,17 +100,23 @@ Deno.serve(async (req) => {
       .update({
         completamento_token_hash: hash,
         token_scade_il: scadenza,
+        stato: nuovoStato,
       })
       .eq("id", candidaturaId);
     if (updErr) throw updErr;
 
-    await admin.from("log_stato_candidature").insert({
-      candidatura_id: candidaturaId,
-      stato_precedente: existing.stato,
-      stato_nuovo: existing.stato,
-      cambiato_da: userData.user.id,
-      note: "Generato link form completo",
-    });
+    // Quando lo stato cambia la transizione la registra il trigger
+    // candidature_log_stato: la riga manuale sarebbe un duplicato confuso.
+    // Resta utile per la rigenerazione del link a stato invariato.
+    if (nuovoStato === existing.stato) {
+      await admin.from("log_stato_candidature").insert({
+        candidatura_id: candidaturaId,
+        stato_precedente: existing.stato,
+        stato_nuovo: existing.stato,
+        cambiato_da: userData.user.id,
+        note: "Rigenerato link form completo",
+      });
+    }
 
     // Send email with the completion link. Never block the response on email failure.
     const studente = (existing as any).studenti;

@@ -4,6 +4,7 @@ import { moveDocumentToFinal } from "../_shared/move-documenti.ts";
 import { enqueueTransactional } from "../_shared/enqueue-transactional.ts";
 import { CandidaturaCompletataAdminEmail } from "../_shared/email-templates/candidatura-completata-admin.tsx";
 import { getContatti } from "../_shared/contatti.ts";
+import { statoDopoCompletamento } from "../_shared/stato-candidatura.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -155,6 +156,8 @@ Deno.serve(async (req) => {
       firmate_il: new Date().toISOString(),
     };
 
+    const nuovoStato = statoDopoCompletamento(cand.stato as string);
+
     const { error: updErr } = await supabase
       .from("candidature")
       .update({
@@ -162,6 +165,7 @@ Deno.serve(async (req) => {
         completata_il: new Date().toISOString(),
         completamento_token_hash: null,
         token_scade_il: null,
+        stato: nuovoStato,
         lingue_parlate,
         orari,
         personalita,
@@ -194,12 +198,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    await supabase.from("log_stato_candidature").insert({
-      candidatura_id: cand.id,
-      stato_precedente: cand.stato,
-      stato_nuovo: cand.stato,
-      note: "Form completo inviato dallo studente",
-    });
+    // La transizione di stato è già registrata dal trigger candidature_log_stato:
+    // la riga evento serve solo quando lo stato resta invariato.
+    if (nuovoStato === cand.stato) {
+      await supabase.from("log_stato_candidature").insert({
+        candidatura_id: cand.id,
+        stato_precedente: cand.stato,
+        stato_nuovo: cand.stato,
+        note: "Form completo inviato dallo studente",
+      });
+    }
 
     await supabase.rpc("consume_candidatura_sessione", { p_temp_id: tempId });
 
