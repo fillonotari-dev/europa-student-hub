@@ -412,6 +412,9 @@ export function useCandidaturaActions(options: Options = {}) {
   // ---- Stato dialog ------------------------------------------------------
 
   const [deleteTarget, setDeleteTarget] = useState<CandidaturaLike | null>(null);
+  const [contrattoProposta, setContrattoProposta] = useState<
+    { contratto: { id: string; data_inizio: string; data_fine: string }; data: string; motivoAssegnazione: string } | null
+  >(null);
   const [statoConfirm, setStatoConfirm] = useState<{ c: CandidaturaLike; nextStato: string } | null>(null);
   const [regenConfirm, setRegenConfirm] = useState<CandidaturaLike | null>(null);
   const [linkTarget, setLinkTarget] = useState<CandidaturaLike | null>(null);
