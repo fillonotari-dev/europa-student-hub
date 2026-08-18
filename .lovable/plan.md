@@ -12,12 +12,21 @@ Verificato prima di scrivere il piano: la tabella `contratti` contiene **zero ri
   - stato in `bozza`/`attivo` -> motivo NULL.
 - Il CHECK viene aggiunto senza `NOT VALID`: se esistesse una riga già chiusa la migration fallirebbe in modo esplicito, senza forzare valori.
 
-## 2. Funzione `chiudi_contratto(p_contratto_id, p_data_fine, p_motivo, p_stato) RETURNS integer`
+## 2. Funzione `chiudi_contratto(p_contratto_id, p_data_fine, p_motivo) RETURNS integer`
 
 `SECURITY INVOKER`, `SET search_path TO 'public'`, `REVOKE ALL FROM PUBLIC`, `GRANT EXECUTE TO authenticated` (come `attiva_contratto`). In una sola transazione:
 
+Lo stato non è un parametro: si deriva dal motivo con una mappa totale, così il chiamante non può passare una coppia incoerente.
+
+| motivo | stato risultante |
+|---|---|
+| fine_naturale | scaduto |
+| partenza_anticipata | risolto |
+| risoluzione | risolto |
+| sostituzione | rinnovato |
+
 - errore se il contratto non esiste o non è in stato `attivo`;
-- errore se `p_stato` non è in (`scaduto`, `risolto`, `rinnovato`) o `p_motivo` non è fra i quattro ammessi;
+- errore se `p_motivo` non è fra i quattro ammessi;
 - errore esplicito se `p_data_fine` è minore o uguale a `data_inizio`, con indicazione che per lo studente mai arrivato la strada è "Riporta in bozza" seguita dall'eliminazione;
 - riscrive `data_fine` con `p_data_fine`, imposta `stato` e `motivo_chiusura`;
 - porta ad `annullato` i canoni `da_fatturare` con competenza successiva al mese di `p_data_fine` — il mese di chiusura resta dovuto per intero;
@@ -38,19 +47,21 @@ Stesse regole di sicurezza. In una sola transazione:
 
 Per lo stato `attivo`:
 
-- **Chiudi contratto** — dialogo con data di fine effettiva precompilata a oggi, motivo fra `fine_naturale`, `partenza_anticipata` e `risoluzione`, e anteprima calcolata dai canoni: quante mensilità verranno annullate e quante restano intoccate perché già fatturate o incassate. Chiama `chiudi_contratto` con stato `scaduto` per fine naturale e `risolto` per gli altri due motivi.
+- **Chiudi contratto** — dialogo con data di fine effettiva precompilata a oggi, motivo fra `fine_naturale`, `partenza_anticipata` e `risoluzione`, e anteprima calcolata dai canoni: quante mensilità verranno annullate e quante restano intoccate perché già fatturate o incassate. Chiama `chiudi_contratto` passando solo il motivo: lo stato lo deriva la funzione.
 - **Riporta in bozza** — visibile solo se nessuna mensilità è fatturata o incassata e il deposito non è stato incassato. Se le condizioni non sono soddisfatte l'azione non compare e al suo posto un testo spiega che il contratto ha già prodotto documenti fiscali e può solo essere chiuso. Dialogo di conferma che avverte della cancellazione delle mensilità.
 
 Gli stati `scaduto`, `risolto` e `rinnovato` non offrono nessuna di queste azioni. L'intestazione mostra anche il motivo di chiusura.
 
 ## 5. Sostituzione del contratto
 
-Azione **Sostituisci contratto** su un contratto `attivo`:
+Azione **Sostituisci contratto** su un contratto `attivo`. L'ordine è prima creare, poi chiudere: se l'operatore abbandona il dialogo non succede nulla, e non resta un contratto dichiarato `rinnovato` senza successore, che sarebbe bloccato per sempre (sia `chiudi_contratto` sia `riporta_contratto_in_bozza` pretendono lo stato `attivo`).
 
-- chiede la data di fine del vecchio contratto, poi chiama `chiudi_contratto` con stato `rinnovato` e motivo `sostituzione`;
-- apre subito `ContrattoDialog` precompilato dal contratto chiuso: studente, struttura, assegnazione, anagrafica di fatturazione, canone, aliquota, giorno di scadenza, garante, deposito; `data_inizio` proposta al giorno successivo alla fine del vecchio;
-- il nuovo contratto nasce con `contratto_precedente_id` valorizzato con l'id del vecchio;
-- nella scheda contratto: se `contratto_precedente_id` è valorizzato, link "Sostituisce il contratto del [periodo]"; sul vecchio contratto il link inverso verso il successore.
+1. si apre `ContrattoDialog` precompilato dal contratto in corso — studente, struttura, assegnazione, anagrafica di fatturazione, canone, aliquota, giorno di scadenza, garante, deposito — che chiede anche la data di fine da applicare al vecchio contratto; `data_inizio` è proposta al giorno successivo a quella data;
+2. alla conferma si crea **prima** il nuovo contratto in `bozza`, con `contratto_precedente_id` valorizzato con l'id del vecchio;
+3. solo dopo la creazione riuscita si chiama `chiudi_contratto` sul vecchio con motivo `sostituzione`;
+4. se il passo 3 fallisce, il nuovo contratto esiste in bozza ed è eliminabile dall'interfaccia: la situazione è recuperabile, e l'errore viene mostrato con l'indicazione di riprovare la chiusura dalla scheda del vecchio contratto.
+
+Nella scheda contratto: se `contratto_precedente_id` è valorizzato, link "Sostituisce il contratto del [periodo]"; sul vecchio contratto il link inverso verso il successore.
 
 Tecnicamente `ContrattoDialog` riceve due prop opzionali nuove (precompilazione e id del contratto precedente) che inizializzano il form all'apertura, senza cambiare il comportamento delle chiamate esistenti.
 
@@ -66,6 +77,8 @@ In `useCandidaturaActions`, dopo il successo di "Concludi soggiorno" si cerca un
 | trasferimento | nessuna proposta | — |
 
 Rifiutando non succede nulla; accettando si chiama `chiudi_contratto`.
+
+**Contratto non ancora cominciato:** se la data di fine proposta è minore o uguale alla `data_inizio` del contratto — caso tipico di `mai_arrivato`, ma la condizione è generale — la chiusura **non** viene proposta, perché `chiudi_contratto` la rifiuterebbe. Al suo posto il dialogo spiega che un contratto non può chiudersi prima di cominciare e indica "Riporta in bozza" come strada corretta, con il link alla scheda del contratto.
 
 ## 7. Documentazione
 
