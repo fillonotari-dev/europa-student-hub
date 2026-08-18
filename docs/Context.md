@@ -66,7 +66,9 @@ Sono **obbligatori**: lingue parlate, orari prevalenti, personalità (con testo 
 
 Il token viene validato da `get-completion-form` prima di mostrare il modulo e di nuovo da `complete-candidatura` al momento dell'invio. È monouso: dopo il completamento il link restituisce `410`.
 
-All'invio del link di completamento la candidatura passa a **`in_attesa_studente`**; alla ricezione del form completo passa a **`da_decidere`**.
+All'invio del link di completamento la candidatura passa a **`in_attesa_studente`**; alla ricezione del form completo passa a **`da_decidere`**. Le due transizioni sono calcolate dalle funzioni pure `statoDopoLinkGenerato` e `statoDopoCompletamento` (`supabase/functions/_shared/stato-candidatura.ts`, coperte da test in `src/test/stato-candidatura.test.ts`) e applicate nello stesso update della candidatura: la riga di transizione la scrive il trigger `candidature_log_stato` (regola 11), quindi le edge function inseriscono una riga evento manuale **solo** quando lo stato resta invariato.
+
+Le funzioni non retrocedono mai una candidatura già decisa: da `accolta`, `rifiutata` o `in_attesa_posto` lo stato resta invariato. Inoltre `generate-completion-link` **rifiuta** la generazione del link se la candidatura è `accolta` o `rifiutata`. `in_attesa_posto` resta consentito: è una lista d'attesa, non un esito, e ci si arriva anche direttamente da `da_valutare` — serve poter chiedere la documentazione completa a un candidato in lista prima di assegnargli un posto che si libera; il candidato compila il form restando in lista.
 
 ### Fase 3 — Valutazione e assegnazione
 
@@ -250,7 +252,9 @@ Le liste (Candidature, Residenti) sono costruite sulla vista `v_studenti_stadio`
 - **Candidature** (`/admin/candidature`): mostra `da_valutare`, `in_attesa_studente`, `da_decidere`, `in_attesa_posto`. Il filtro stadio consente anche `archiviato`.
 - **Residenti** (`/admin/residenti`): mostra `assegnato` (candidatura accolta con posto pre-arrivo) e `in_casa` (soggiorno in corso). Include anche `archiviato` come filtro opt-in.
 
-**Azioni per stadio (sintesi):** `da_valutare` → invia form completo · assegna posto · lista d'attesa · rifiuta. `in_attesa_studente` → invia/rigenera link · rifiuta. `da_decidere` → assegna posto · lista d'attesa · rifiuta. `in_attesa_posto` → assegna posto · aggiorna priorità · rifiuta. `assegnato` → comunica esito · annulla assegnazione. `in_casa` → azioni da Residenti (trasferisci, concludi). `archiviato` → solo contatta/elimina.
+**Azioni per stadio (sintesi):** `da_valutare` → invia form completo · assegna posto · lista d'attesa · rifiuta. `in_attesa_studente` → invia/rigenera link (principale) · assegna posto · lista d'attesa · rifiuta. `da_decidere` → assegna posto · lista d'attesa · rifiuta. `in_attesa_posto` → assegna posto · aggiorna priorità · rifiuta. `assegnato` → comunica esito · annulla assegnazione. `in_casa` → azioni da Residenti (trasferisci, concludi). `archiviato` → solo contatta/elimina.
+
+**Eliminazione candidatura:** `elimina` è offerta sugli stadi non ancora "in casa" — `da_valutare`, `in_attesa_studente`, `da_decidere`, `in_attesa_posto`, `archiviato` — e solo se la persona non ha mai avuto un'assegnazione. Gli stadi `assegnato` e `in_casa` non la offrono mai. La guardia definitiva è lato server: `delete-candidatura` rifiuta con `409` se esiste una qualsiasi assegnazione collegata.
 
 "Assegna posto" naviga a `/admin/camere?candidatura=…` che apre il flusso di assegnazione; alla conferma la candidatura passa contestualmente a `accolta`. "Annulla assegnazione" cancella la riga di assegnazione (solo pre-arrivo) e riporta la candidatura a `da_decidere` azzerando `esito_email_inviata_il`; se il soggiorno è già iniziato bisogna usare "Concludi" da Residenti.
 
