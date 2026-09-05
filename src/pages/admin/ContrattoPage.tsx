@@ -101,18 +101,13 @@ export default function ContrattoPage() {
   // Il criterio vive in src/lib/canoniRicalcolo.ts e rispecchia la condizione
   // della funzione database aggiorna_canone_contratto: il conteggio mostrato
   // nel dialogo coincide con ciò che la RPC farà davvero.
-  const daRicalcolare = useMemo(
+  const partizione = useMemo(
     () => (contratto
-      ? partizionaMensilitaPerCambioCanone(canoni ?? [], Number(contratto.canone_mensile), todayIso()).aggiornate
-      : []),
+      ? partizionaMensilitaPerCambioCanone(canoni ?? [], Number(contratto.canone_mensile), todayIso())
+      : { aggiornate: [], protette: [], fuoriPerimetro: [] }),
     [canoni, contratto],
   );
-  const personalizzate = useMemo(
-    () => (contratto
-      ? (canoni ?? []).filter((c: any) => imponibilePersonalizzato(c, Number(contratto.canone_mensile)))
-      : []),
-    [canoni, contratto],
-  );
+  const daRicalcolare = partizione.aggiornate;
   const intoccabili = useMemo(
     () => (canoni ?? []).filter((c: any) => c.stato === 'fatturato' || c.stato === 'incassato'),
     [canoni],
@@ -597,7 +592,7 @@ export default function ContrattoPage() {
                       onChange={e => setBozzaRiga(b => ({ ...b, imponibile: e.target.value }))} /> : (
                       <span className="inline-flex items-center gap-1.5">
                         {fmtEuro(c.imponibile)}
-                        {contratto && imponibilePersonalizzato(c, Number(contratto.canone_mensile)) && (
+                        {contratto && c.stato === 'da_fatturare' && imponibilePersonalizzato(c, Number(contratto.canone_mensile)) && (
                           <span className="cursor-help"
                             // Dichiara solo il fatto osservabile: nessuna promessa sui
                             // cambi di canone, che dipende anche da stato e competenza.
