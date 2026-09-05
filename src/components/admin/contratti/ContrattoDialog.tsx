@@ -16,6 +16,7 @@ import {
   type AnaState, type Modalita,
 } from './AnagraficaFatturazioneFields';
 import { caricaAnaStudente } from './anagraficaStudente';
+import { scomposizione, imponibileDaLordo, lordoDaImponibile } from '@/lib/iva';
 
 type Props = {
   open: boolean;
@@ -32,6 +33,8 @@ type Props = {
 };
 
 const oggi = () => new Date().toISOString().slice(0, 10);
+
+const fmtE = (n: number) => n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
 
 const giornoDopo = (iso: string) => {
   if (!iso) return '';
@@ -158,7 +161,8 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
     setDataInizio(giornoDopo(fine));
     setDataFine(c.data_fine ?? '');
     setGiornoScadenza(String(c.giorno_scadenza ?? 1));
-    setCanone(c.canone_mensile != null ? String(c.canone_mensile) : '');
+    // Il database conserva l'imponibile; l'operatore ragiona sul lordo.
+    setCanone(c.canone_mensile != null ? String(lordoDaImponibile(Number(c.canone_mensile), Number(c.aliquota_iva ?? 10))) : '');
     setCanoneNote(c.canone_note ?? '');
     setAliquota(c.aliquota_iva != null ? String(c.aliquota_iva) : '10');
     setNote(c.note ?? '');
@@ -208,7 +212,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
     (async () => {
       const { data } = await supabase
         .from('listini')
-        .select('importo_mensile, valido_dal')
+        .select('importo_mensile_lordo, valido_dal')
         .eq('struttura_id', strutturaId)
         .eq('tipo_camera', tipoCamera)
         .lte('valido_dal', oggi())
@@ -218,8 +222,8 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
         .maybeSingle();
       if (annullato) return;
       setListinoCercato(true);
-      if (data?.importo_mensile != null) {
-        const trovato = { importo: Number(data.importo_mensile), valido_dal: data.valido_dal as string };
+      if (data?.importo_mensile_lordo != null) {
+        const trovato = { importo: Number(data.importo_mensile_lordo), valido_dal: data.valido_dal as string };
         setListino(trovato);
         // In sostituzione il prezzo si applica solo su richiesta esplicita:
         // il canone precompilato può essere un importo negoziato.
@@ -350,7 +354,8 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
           data_inizio: dataInizio,
           data_fine: dataFine,
           giorno_scadenza: Number(giornoScadenza) || 1,
-          canone_mensile: Number(canone),
+          // L'operatore digita il lordo, il database conserva l'imponibile.
+          canone_mensile: imponibileDaLordo(Number(canone), Number(aliquota) || 0),
           canone_note: nz(canoneNote),
           aliquota_iva: Number(aliquota),
           garante_nome: nz(garante.nome),
