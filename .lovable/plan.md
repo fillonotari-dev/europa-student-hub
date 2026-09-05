@@ -7,7 +7,8 @@ Oggi il riquadro "Intestazione fattura" nella scheda contratto è di sola lettur
 - Nel riquadro "Intestazione fattura" compare un pulsante **Modifica**, sempre disponibile (anche a contratto attivo o chiuso).
 - Il dialogo che si apre ha esattamente gli stessi campi della creazione contratto, con la stessa scelta fra **intesta allo studente** e **intesta a un altro soggetto**.
 - Se esiste già almeno una mensilità **fatturata o incassata**, in cima al dialogo compare un avviso in evidenza: cambiare l'intestatario ora non modifica le fatture già emesse, che restano intestate a chi erano. È un avviso, non un blocco.
-- Se l'anagrafica era già collegata a Fatture in Cloud e viene modificata, dopo il salvataggio il riquadro segnala che i dati sono cambiati dopo l'ultimo collegamento e invita a risincronizzare, con il pulsante di sincronizzazione già presente. Nessuna sincronizzazione automatica.
+- Se l'intestazione che si sta modificando è usata anche da altri contratti, il dialogo lo dice prima della conferma, indicando quanti.
+- Se l'anagrafica era già collegata a Fatture in Cloud e viene modificata, dopo il salvataggio il riquadro invita a risincronizzare, con il pulsante già presente. Nessuna sincronizzazione automatica.
 - Passare da "studente" a "altro soggetto" non cancella l'anagrafica dello studente: resta a disposizione dei contratti successivi.
 
 ## Come viene realizzato
