@@ -16,13 +16,13 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { generaScadenzario, totaleRiga } from '@/lib/scadenzario';
+import { imponibilePersonalizzato, partizionaMensilitaPerCambioCanone } from '@/lib/canoniRicalcolo';
 import { eliminaContrattoBozza } from '@/lib/contrattoDelete';
 import { fmtEuro, fmtIt, STATO_CONTRATTO_COLORS } from './Contratti';
 import { cn } from '@/lib/utils';
-import { AlertTriangle, Check, FileUp, FileText, Pencil, Repeat, Trash2, Undo2, X } from 'lucide-react';
+import { AlertTriangle, Check, FileUp, FileText, Info, Pencil, Repeat, Trash2, Undo2, X } from 'lucide-react';
 
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
-const oggiPrimoDelMese = () => `${new Date().toISOString().slice(0, 7)}-01`;
 const todayIso = () => new Date().toISOString().slice(0, 10);
 const primoDelMeseDi = (iso: string) => (iso ? `${iso.slice(0, 7)}-01` : '');
 
@@ -98,9 +98,20 @@ export default function ContrattoPage() {
     });
   }, [contratto]);
 
+  // Il criterio vive in src/lib/canoniRicalcolo.ts e rispecchia la condizione
+  // della funzione database aggiorna_canone_contratto: il conteggio mostrato
+  // nel dialogo coincide con ciò che la RPC farà davvero.
   const daRicalcolare = useMemo(
-    () => (canoni ?? []).filter((c: any) => c.stato === 'da_fatturare' && c.competenza >= oggiPrimoDelMese()),
-    [canoni],
+    () => (contratto
+      ? partizionaMensilitaPerCambioCanone(canoni ?? [], Number(contratto.canone_mensile), todayIso()).aggiornate
+      : []),
+    [canoni, contratto],
+  );
+  const personalizzate = useMemo(
+    () => (contratto
+      ? (canoni ?? []).filter((c: any) => imponibilePersonalizzato(c, Number(contratto.canone_mensile)))
+      : []),
+    [canoni, contratto],
   );
   const intoccabili = useMemo(
     () => (canoni ?? []).filter((c: any) => c.stato === 'fatturato' || c.stato === 'incassato'),
@@ -583,7 +594,19 @@ export default function ContrattoPage() {
                   <td className="px-4 py-2">{new Date(c.competenza + 'T00:00:00').toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}</td>
                   <td className="px-4 py-2">
                     {inEdit ? <Input className="h-8 w-28" type="number" step="0.01" value={bozzaRiga.imponibile}
-                      onChange={e => setBozzaRiga(b => ({ ...b, imponibile: e.target.value }))} /> : fmtEuro(c.imponibile)}
+                      onChange={e => setBozzaRiga(b => ({ ...b, imponibile: e.target.value }))} /> : (
+                      <span className="inline-flex items-center gap-1.5">
+                        {fmtEuro(c.imponibile)}
+                        {contratto && imponibilePersonalizzato(c, Number(contratto.canone_mensile)) && (
+                          <span className="cursor-help"
+                            // Dichiara solo il fatto osservabile: nessuna promessa sui
+                            // cambi di canone, che dipende anche da stato e competenza.
+                            title="L'importo di questa riga è diverso dal canone del contratto.">
+                            <Info className="w-3.5 h-3.5 text-muted-foreground" aria-label="Importo personalizzato" />
+                          </span>
+                        )}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-2">{c.aliquota_iva}%</td>
                   <td className="px-4 py-2">{fmtEuro(c.totale)}</td>
@@ -674,6 +697,12 @@ export default function ContrattoPage() {
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm">
                 <p>Verranno portate a {fmtEuro(Number(nuovoCanone))} {daRicalcolare.length} mensilità da fatturare con competenza corrente o futura.</p>
+                {personalizzate.length > 0 && (
+                  <p className="text-muted-foreground">
+                    {personalizzate.length} {personalizzate.length === 1 ? 'mensilità ha' : 'mensilità hanno'} un importo personalizzato e non
+                    {personalizzate.length === 1 ? ' verrà toccata' : ' verranno toccate'}: se serve, correggile a mano dalla tabella dello scadenzario.
+                  </p>
+                )}
                 {intoccabili.length > 0 && (
                   <p>Non verranno toccate {intoccabili.length} mensilità già fatturate o incassate: corrispondono a documenti fiscali emessi.</p>
                 )}
