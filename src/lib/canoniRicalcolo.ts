@@ -21,8 +21,16 @@ export type MensilitaCanone = {
 export type PartizioneMensilita<T extends MensilitaCanone> = {
   /** Righe che un cambio di canone aggiornerebbe. */
   aggiornate: T[];
-  /** Righe che un cambio di canone lascerebbe intatte. */
-  intatte: T[];
+  /**
+   * Righe che un cambio di canone risparmia proprio per via dell'importo
+   * personalizzato: da_fatturare, competenza nel perimetro, imponibile diverso.
+   */
+  protette: T[];
+  /**
+   * Tutto il resto: mesi passati, righe fatturate, incassate, annullate.
+   * Fuori dal perimetro del cambio di canone a prescindere dall'importo.
+   */
+  fuoriPerimetro: T[];
 };
 
 function primoDelMese(oggi: string): string {
@@ -36,15 +44,19 @@ export function partizionaMensilitaPerCambioCanone<T extends MensilitaCanone>(
 ): PartizioneMensilita<T> {
   const soglia = primoDelMese(oggi);
   const aggiornate: T[] = [];
-  const intatte: T[] = [];
+  const protette: T[] = [];
+  const fuoriPerimetro: T[] = [];
   for (const m of mensilita) {
-    const toccata =
-      m.stato === 'da_fatturare' &&
-      m.competenza >= soglia &&
-      Number(m.imponibile) === canoneAttuale;
-    (toccata ? aggiornate : intatte).push(m);
+    const nelPerimetro = m.stato === 'da_fatturare' && m.competenza >= soglia;
+    if (!nelPerimetro) {
+      fuoriPerimetro.push(m);
+    } else if (Number(m.imponibile) === canoneAttuale) {
+      aggiornate.push(m);
+    } else {
+      protette.push(m);
+    }
   }
-  return { aggiornate, intatte };
+  return { aggiornate, protette, fuoriPerimetro };
 }
 
 /** Vero se l'imponibile della riga è diverso dal canone del contratto. */
