@@ -18,6 +18,7 @@ import {
 import { generaScadenzario, totaleRiga } from '@/lib/scadenzario';
 import { imponibilePersonalizzato, partizionaMensilitaPerCambioCanone } from '@/lib/canoniRicalcolo';
 import { eliminaContrattoBozza } from '@/lib/contrattoDelete';
+import { scomposizione, imponibileDaLordo, lordoDaImponibile } from '@/lib/iva';
 import { fmtEuro, fmtIt, STATO_CONTRATTO_COLORS } from './Contratti';
 import { cn } from '@/lib/utils';
 import { AlertTriangle, Check, FileUp, FileText, Info, Pencil, Repeat, Trash2, Undo2, X } from 'lucide-react';
@@ -227,15 +228,20 @@ export default function ContrattoPage() {
     }
     setBusy(true);
     try {
+      // L'operatore digita il lordo; il database conserva l'imponibile.
+      const s = scomposizione(val, Number(contratto.aliquota_iva) || 0);
       // Canone e mensilità future aggiornati nella stessa transazione.
       const { data, error } = await supabase.rpc('aggiorna_canone_contratto', {
         p_contratto_id: contratto.id,
-        p_canone: val,
+        p_canone: s.imponibile,
       });
       if (error) throw error;
+      const nota = Math.abs(s.totale - val) >= 0.005
+        ? ` Per via dell'arrotondamento il totale registrato è ${fmtEuro(s.totale)}, non ${fmtEuro(val)}.`
+        : '';
       toast({
         title: 'Canone aggiornato',
-        description: (data ?? 0) > 0 ? `Ricalcolate ${data} mensilità da fatturare.` : undefined,
+        description: ((data ?? 0) > 0 ? `Ricalcolate ${data} mensilità da fatturare.` : 'Nessuna mensilità ricalcolata.') + nota,
       });
       setEditCanone(false); setConfermaRicalcolo(false);
       refresh();
@@ -277,11 +283,14 @@ export default function ContrattoPage() {
   };
 
   const salvaRiga = async (riga: any) => {
-    const imp = Number(bozzaRiga.imponibile);
-    if (bozzaRiga.imponibile.trim() === '' || !Number.isFinite(imp) || imp < 0) {
-      toast({ title: 'Imponibile non valido', description: 'Inserisci un importo numerico maggiore o uguale a zero.', variant: 'destructive' });
+    const lordo = Number(bozzaRiga.imponibile);
+    if (bozzaRiga.imponibile.trim() === '' || !Number.isFinite(lordo) || lordo < 0) {
+      toast({ title: 'Importo non valido', description: 'Inserisci un importo numerico maggiore o uguale a zero.', variant: 'destructive' });
       return;
     }
+    // Il campo è IVA inclusa; sul database va l'imponibile.
+    const sc = scomposizione(lordo, Number(riga.aliquota_iva) || 0);
+    const imp = sc.imponibile;
     if (!bozzaRiga.scadenza.trim() || Number.isNaN(new Date(`${bozzaRiga.scadenza}T00:00:00`).getTime())) {
       toast({ title: 'Scadenza non valida', description: 'Indica una data di scadenza valida.', variant: 'destructive' });
       return;
@@ -297,6 +306,12 @@ export default function ContrattoPage() {
         })
         .eq('id', riga.id);
       if (error) throw error;
+      toast({
+        title: 'Mensilità aggiornata',
+        description: Math.abs(sc.totale - lordo) >= 0.005
+          ? `Per via dell'arrotondamento il totale registrato è ${fmtEuro(sc.totale)}, non ${fmtEuro(lordo)}.`
+          : undefined,
+      });
       setRigaEdit(null);
       refresh();
     } catch (e: any) {
@@ -433,9 +448,14 @@ export default function ContrattoPage() {
               </>
             ) : (
               <>
-                <span>{fmtEuro(contratto.canone_mensile)}</span>
+                <span>
+                  {fmtEuro(lordoDaImponibile(Number(contratto.canone_mensile), Number(contratto.aliquota_iva) || 0))}
+                  <span className="text-muted-foreground text-xs ml-1.5">
+                    IVA inclusa · imponibile {fmtEuro(contratto.canone_mensile)}
+                  </span>
+                </span>
                 <Button size="icon" variant="ghost" className="h-7 w-7"
-                  onClick={() => { setNuovoCanone(String(contratto.canone_mensile)); setEditCanone(true); }}>
+                  onClick={() => { setNuovoCanone(String(lordoDaImponibile(Number(contratto.canone_mensile), Number(contratto.aliquota_iva) || 0))); setEditCanone(true); }}>
                   <Pencil className="w-3.5 h-3.5" />
                 </Button>
               </>
@@ -566,9 +586,9 @@ export default function ContrattoPage() {
           <thead>
             <tr className="bg-muted/70 text-xs uppercase tracking-wider text-muted-foreground">
               <th className="text-left px-4 py-3 font-semibold">Competenza</th>
+              <th className="text-left px-4 py-3 font-semibold">Importo (IVA incl.)</th>
               <th className="text-left px-4 py-3 font-semibold">Imponibile</th>
-              <th className="text-left px-4 py-3 font-semibold">IVA</th>
-              <th className="text-left px-4 py-3 font-semibold">Totale</th>
+              <th className="text-left px-4 py-3 font-semibold">Aliquota</th>
               <th className="text-left px-4 py-3 font-semibold">Scadenza</th>
               <th className="text-left px-4 py-3 font-semibold">Stato</th>
               <th className="text-left px-4 py-3 font-semibold">Note</th>
@@ -591,7 +611,7 @@ export default function ContrattoPage() {
                     {inEdit ? <Input className="h-8 w-28" type="number" step="0.01" value={bozzaRiga.imponibile}
                       onChange={e => setBozzaRiga(b => ({ ...b, imponibile: e.target.value }))} /> : (
                       <span className="inline-flex items-center gap-1.5">
-                        {fmtEuro(c.imponibile)}
+                        {fmtEuro(c.totale)}
                         {contratto && c.stato === 'da_fatturare' && imponibilePersonalizzato(c, Number(contratto.canone_mensile)) && (
                           <span className="cursor-help"
                             // Dichiara solo il fatto osservabile: nessuna promessa sui
@@ -603,8 +623,8 @@ export default function ContrattoPage() {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-2">{c.aliquota_iva}%</td>
-                  <td className="px-4 py-2">{fmtEuro(c.totale)}</td>
+                  <td className="px-4 py-2 text-muted-foreground">{fmtEuro(c.imponibile)}</td>
+                  <td className="px-4 py-2 text-muted-foreground">{c.aliquota_iva}%</td>
                   <td className="px-4 py-2">
                     {inEdit ? <Input className="h-8 w-36" type="date" value={bozzaRiga.scadenza}
                       onChange={e => setBozzaRiga(b => ({ ...b, scadenza: e.target.value }))} /> : fmtIt(c.scadenza)}
@@ -622,7 +642,7 @@ export default function ContrattoPage() {
                       </div>
                     ) : (
                       <Button size="icon" variant="ghost" className="h-8 w-8"
-                        onClick={() => { setRigaEdit(c.id); setBozzaRiga({ imponibile: String(c.imponibile), scadenza: c.scadenza, note: c.note ?? '' }); }}>
+                        onClick={() => { setRigaEdit(c.id); setBozzaRiga({ imponibile: String(lordoDaImponibile(Number(c.imponibile), Number(c.aliquota_iva) || 0)), scadenza: c.scadenza, note: c.note ?? '' }); }}>
                         <Pencil className="w-3.5 h-3.5" />
                       </Button>
                     ))}
@@ -649,9 +669,9 @@ export default function ContrattoPage() {
                 {anteprima.map(r => (
                   <tr key={r.competenza} className="border-b border-border/40 last:border-0">
                     <td className="px-3 py-1.5">{new Date(r.competenza + 'T00:00:00').toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}</td>
-                    <td className="px-3 py-1.5">{fmtEuro(r.imponibile)}</td>
+                    <td className="px-3 py-1.5">{fmtEuro(totaleRiga(r))}<span className="text-xs text-muted-foreground ml-1.5">IVA incl.</span></td>
                     <td className="px-3 py-1.5 text-muted-foreground">scad. {fmtIt(r.scadenza)}</td>
-                    <td className="px-3 py-1.5 text-right">{fmtEuro(totaleRiga(r))}</td>
+                    <td className="px-3 py-1.5 text-right text-muted-foreground">imponibile {fmtEuro(r.imponibile)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -692,7 +712,7 @@ export default function ContrattoPage() {
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm">
                 {daRicalcolare.length > 0 ? (
-                  <p>Verranno portate a {fmtEuro(Number(nuovoCanone))} {daRicalcolare.length} mensilità da fatturare con competenza corrente o futura.</p>
+                  <p>Verranno portate a {fmtEuro(Number(nuovoCanone))} IVA inclusa {daRicalcolare.length} mensilità da fatturare con competenza corrente o futura.</p>
                 ) : (
                   <p>Nessuna mensilità verrà ricalcolata: non ci sono righe da fatturare con competenza corrente o futura ancora allineate al canone attuale.</p>
                 )}
