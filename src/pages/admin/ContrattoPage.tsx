@@ -598,11 +598,12 @@ export default function ContrattoPage() {
                       <span className="inline-flex items-center gap-1.5">
                         {fmtEuro(c.imponibile)}
                         {contratto && imponibilePersonalizzato(c, Number(contratto.canone_mensile)) && (
-                          <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help"
-                            aria-label="Importo personalizzato"
+                          <span className="cursor-help"
                             // Dichiara solo il fatto osservabile: nessuna promessa sui
                             // cambi di canone, che dipende anche da stato e competenza.
-                            title="L'importo di questa riga è diverso dal canone del contratto." />
+                            title="L'importo di questa riga è diverso dal canone del contratto.">
+                            <Info className="w-3.5 h-3.5 text-muted-foreground" aria-label="Importo personalizzato" />
+                          </span>
                         )}
                       </span>
                     )}
