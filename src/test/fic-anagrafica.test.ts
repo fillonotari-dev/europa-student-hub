@@ -36,10 +36,23 @@ const baseEstera: AnagraficaFic = {
   email_recapito: 'anna@example.com',
 };
 
+const baseSocieta: AnagraficaFic = {
+  tipo: 'soggetto_giuridico',
+  denominazione: 'Edil Studenti Srl',
+  partita_iva: '01234560365',
+  indirizzo_via: 'Via Emilia',
+  indirizzo_civico: '100',
+  indirizzo_cap: '41121',
+  indirizzo_comune: 'Modena',
+  indirizzo_provincia: 'MO',
+  indirizzo_nazione: 'IT',
+  email_recapito: 'amministrazione@edilstudenti.example.com',
+};
+
 describe('mappaAnagraficaPerFic — anagrafica estera', () => {
   it('omette il codice fiscale anche se presente', () => {
     const m = mappaAnagraficaPerFic({ ...baseEstera, codice_fiscale: 'RSSMRA00A01F205X' });
-    expect(m.data.tax_code).toBeNull();
+    expect(m.data.tax_code).toBe('');
     expect(m.trasformazioni.join(' ')).toContain('codice fiscale non inviato');
   });
 
@@ -62,7 +75,28 @@ describe('mappaAnagraficaPerFic — anagrafica estera', () => {
 
   it('lascia la partita IVA vuota per un paese UE senza identificativo', () => {
     const m = mappaAnagraficaPerFic(baseEstera);
-    expect(m.data.vat_number).toBeNull();
+    expect(m.data.vat_number).toBe('');
+  });
+});
+
+describe('mappaAnagraficaPerFic — ei_code', () => {
+  it('ripiega su 0000000 per l\'Italia senza codice destinatario', () => {
+    const m = mappaAnagraficaPerFic({ ...baseItalia, codice_destinatario: '' });
+    expect(m.data.ei_code).toBe('0000000');
+  });
+
+  it('ripiega su XXXXXXX per l\'estero senza codice destinatario', () => {
+    const m = mappaAnagraficaPerFic(baseEstera);
+    expect(m.data.ei_code).toBe('XXXXXXX');
+  });
+});
+
+describe('mappaAnagraficaPerFic — invariante sul payload', () => {
+  it('nessuna proprietà del payload è null né undefined (FIC rifiuta il null esplicito; undefined ometterebbe la chiave)', () => {
+    for (const a of [baseItalia, baseEstera, baseSocieta]) {
+      const { data } = mappaAnagraficaPerFic(a);
+      expect(Object.values(data).some((v) => v == null)).toBe(false);
+    }
   });
 });
 
