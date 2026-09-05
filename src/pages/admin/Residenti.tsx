@@ -182,9 +182,6 @@ export default function Residenti() {
             {(strutture ?? []).map((s: any) => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
-          <UserPlus className="w-4 h-4 mr-1.5" /> Aggiungi persona
-        </Button>
         <ExportButton
           filename="residenti"
           getRows={() => filtered.map(r => ({
@@ -199,6 +196,9 @@ export default function Residenti() {
             'Data fine': fmtDate(r.data_fine ?? undefined),
           }))}
         />
+        <Button size="sm" onClick={() => setAddOpen(true)}>
+          <UserPlus className="w-4 h-4 mr-1.5" /> Aggiungi persona
+        </Button>
       </div>
 
       <div className="bg-card border border-border/50 rounded-lg overflow-hidden">
