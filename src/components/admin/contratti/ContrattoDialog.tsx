@@ -11,11 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
-import { codiceDestinatarioProposto } from '@shared/fic-anagrafica';
 import {
-  AnagraficaFatturazioneFields, F, anaDaRiga, anaVuota, payloadAnagrafica,
+  AnagraficaFatturazioneFields, F, anaDaRiga, anaTerzoVuota, anaVuota, payloadAnagrafica,
   type AnaState, type Modalita,
 } from './AnagraficaFatturazioneFields';
+import { caricaAnaStudente } from './anagraficaStudente';
 
 type Props = {
   open: boolean;
