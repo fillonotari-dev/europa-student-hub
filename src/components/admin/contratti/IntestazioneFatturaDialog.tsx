@@ -7,9 +7,11 @@ import {
 } from '@/components/ui/dialog';
 import { AlertTriangle } from 'lucide-react';
 import {
-  AnagraficaFatturazioneFields, anaDaRiga, anaVuota, erroreAnagrafica, payloadAnagrafica,
+  AnagraficaFatturazioneFields, anaDaRiga, anaTerzoVuota, anaVuota, erroreAnagrafica, payloadAnagrafica,
   type AnaState, type Modalita,
 } from './AnagraficaFatturazioneFields';
+import { caricaAnaStudente } from './anagraficaStudente';
+import { rigaDestinazioneAnagrafica } from '@/lib/anagraficaFatturazione';
 
 type Props = {
   open: boolean;
