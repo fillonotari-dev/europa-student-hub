@@ -23,11 +23,20 @@ Il conteggio non guarda più l'intestazione attualmente collegata, ma quella che
 
 Il conteggio si aggiorna al cambio di modalità, non solo all'apertura.
 
+La scelta della riga di destinazione diventa una funzione pura, coperta da quattro test (uno per esito): studente con anagrafica esistente → si aggiorna quella riga; studente senza anagrafica → riga nuova; altro soggetto partendo da altro soggetto → si aggiorna quella riga; da studente a altro soggetto → riga nuova. La stessa funzione alimenta sia l'avviso sia il salvataggio.
+
 ## 3. La nota "esiste già un'anagrafica per questa persona"
 
 Viene mostrata solo quando la ricerca ha effettivamente trovato l'anagrafica dello studente, come già fa la creazione contratto.
 
+## Se il ricaricamento fallisce
+
+Se la lettura dei dati dello studente non riesce, la modalità torna a quella di partenza, i campi restano quelli di prima e viene mostrato un messaggio d'errore: non si resta mai su "studente" con i dati della società in pagina.
+
+In creazione contratto, se la modalità viene cambiata prima di aver scelto uno studente, il passaggio a "studente" svuota i campi identificativi e non tenta alcun caricamento; i dati vengono precompilati appena lo studente viene selezionato, come già avviene oggi.
+
 ## Dettagli tecnici
+
 
 - Nuovo modulo `src/components/admin/contratti/anagraficaStudente.ts` con `caricaAnaStudente(studenteId)`: cerca la riga in `anagrafiche_fatturazione` per `studente_id`, altrimenti costruisce lo stato dai campi di `studenti`; restituisce `{ id, ana }`. Usato dai due dialoghi e dal precompilamento esistente di `ContrattoDialog`, così la regola vive in un punto solo.
 - `AnagraficaFatturazioneFields.tsx`: il selettore smette di modificare `tipo` da sé e delega tutto a `onModalitaChange`; si aggiunge `anaTerzoVuota()` accanto ad `anaVuota()`/`anaDaRiga()`. Nuova prop opzionale `disabilitato` per il breve caricamento.
