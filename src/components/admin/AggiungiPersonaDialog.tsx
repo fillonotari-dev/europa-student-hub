@@ -231,7 +231,7 @@ export function AggiungiPersonaDialog({ open, onOpenChange }: { open: boolean; o
             <Select value={form.indirizzo_nazione} onValueChange={v => setForm(f => ({ ...f, indirizzo_nazione: v, indirizzo_provincia: '' }))}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {COUNTRIES.map((c: any) => <SelectItem key={c.code} value={c.code}>{c.it}</SelectItem>)}
+                {COUNTRIES.map(c => <SelectItem key={c.code} value={c.code}>{c.it}</SelectItem>)}
               </SelectContent>
             </Select>
           </Campo>
@@ -240,7 +240,7 @@ export function AggiungiPersonaDialog({ open, onOpenChange }: { open: boolean; o
               <Select value={form.indirizzo_provincia} onValueChange={v => setForm(f => ({ ...f, indirizzo_provincia: v }))}>
                 <SelectTrigger><SelectValue placeholder="Seleziona" /></SelectTrigger>
                 <SelectContent>
-                  {PROVINCE.map((p: any) => <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>)}
+                  {PROVINCE.map(p => <SelectItem key={p.sigla} value={p.sigla}>{p.nome}</SelectItem>)}
                 </SelectContent>
               </Select>
             </Campo>
