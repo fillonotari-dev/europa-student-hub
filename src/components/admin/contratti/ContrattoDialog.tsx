@@ -558,10 +558,11 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
             <h3 className="text-sm font-semibold">Intestazione della fattura</h3>
             <AnagraficaFatturazioneFields
               modalita={modalita}
-              onModalitaChange={setModalita}
+              onModalitaChange={cambiaModalita}
               ana={ana}
               onAnaChange={setAna}
               mostraNotaAnagraficaEsistente={!!anagraficaEsistenteId}
+              disabilitato={caricandoAna}
             />
           </section>
 
