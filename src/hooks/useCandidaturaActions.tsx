@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { MailCheck, Copy, CheckCircle, Mail, AlertTriangle } from 'lucide-react';
 import {
   type CandidaturaActionId, type CandidaturaLike,
+  statoDopoAnnullamento, deveInviareEsito,
 } from '@/lib/candidaturaActions';
 
 type Ctx = {
