@@ -255,6 +255,40 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
     setModalita('studente'); setAnagraficaEsistenteId(null); setAna(anaVuota());
   };
 
+  /**
+   * Il cambio di modalità ricarica i campi: senza ricaricamento i dati della
+   * società finirebbero sull'anagrafica dello studente (condivisa fra i suoi
+   * contratti) e il codice fiscale dello studente sulla riga della società.
+   */
+  const cambiaModalita = async (nuova: Modalita) => {
+    if (nuova === modalita) return;
+    if (nuova === 'terzo') { setModalita('terzo'); setAna(anaTerzoVuota()); return; }
+    if (!studenteId) {
+      // Nessuno studente ancora scelto: campi vuoti, la precompilazione arriva
+      // quando lo studente viene selezionato.
+      setModalita('studente'); setAnagraficaEsistenteId(null); setAna({ ...anaVuota(), tipo: 'persona_fisica' });
+      return;
+    }
+    setCaricandoAna(true);
+    try {
+      const { id, ana: caricata } = await caricaAnaStudente(studenteId);
+      setAnagraficaEsistenteId(id);
+      setAna(caricata);
+      setModalita('studente');
+    } catch (e: any) {
+      // Mai restare su "studente" con i dati del terzo in pagina.
+      toast({
+        title: 'Errore',
+        description: e?.message ?? 'Impossibile caricare i dati dello studente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setCaricandoAna(false);
+    }
+  };
+
+
+
   const errore = (): string | null => {
     if (!studenteId) return 'Seleziona lo studente.';
     if (!strutturaId) return 'Seleziona la struttura.';
