@@ -34,8 +34,11 @@ export function IntestazioneFatturaDialog({ open, onOpenChange, contratto, haFat
   const [modalita, setModalita] = useState<Modalita>('studente');
   const [ana, setAna] = useState<AnaState>(anaVuota());
   const [altriContratti, setAltriContratti] = useState<number>(0);
+  const [anagraficaStudenteId, setAnagraficaStudenteId] = useState<string | null>(null);
+  const [caricando, setCaricando] = useState(false);
 
   const anaCorrente = contratto?.anagrafiche_fatturazione ?? null;
+  const studenteId: string | undefined = contratto?.studente_id;
 
   // Precompilazione una volta sola per apertura: un refetch della scheda non
   // deve sovrascrivere quello che l'operatore sta scrivendo.
@@ -54,74 +57,98 @@ export function IntestazioneFatturaDialog({ open, onOpenChange, contratto, haFat
     }
   }, [open, anaCorrente, contratto?.id]);
 
-  // Quanti altri contratti puntano alla stessa intestazione: la conseguenza si dice prima.
+  // Id dell'anagrafica dello studente: serve sia all'avviso sia al salvataggio,
+  // anche quando il contratto è oggi intestato a un altro soggetto.
   useEffect(() => {
-    if (!open || !anaCorrente?.id) { setAltriContratti(0); return; }
+    if (!open || !studenteId) { setAnagraficaStudenteId(null); return; }
+    let annullato = false;
+    (async () => {
+      const { data } = await supabase
+        .from('anagrafiche_fatturazione').select('id').eq('studente_id', studenteId).maybeSingle();
+      if (!annullato) setAnagraficaStudenteId(data?.id ?? null);
+    })();
+    return () => { annullato = true; };
+  }, [open, studenteId]);
+
+  // La riga che il salvataggio toccherà davvero: alimenta avviso e scrittura.
+  const destinazione = rigaDestinazioneAnagrafica({ modalita, anagraficaStudenteId, anaCorrente });
+
+  // Quanti altri contratti puntano a quella riga: la conseguenza si dice prima.
+  useEffect(() => {
+    if (!open || destinazione.azione !== 'aggiorna') { setAltriContratti(0); return; }
     let annullato = false;
     (async () => {
       const { count } = await supabase
         .from('contratti')
         .select('id', { count: 'exact', head: true })
-        .eq('anagrafica_fatturazione_id', anaCorrente.id)
+        .eq('anagrafica_fatturazione_id', destinazione.id)
         .neq('id', contratto.id);
       if (!annullato) setAltriContratti(count ?? 0);
     })();
     return () => { annullato = true; };
-  }, [open, anaCorrente?.id, contratto?.id]);
+  }, [open, destinazione.azione, destinazione.id, contratto?.id]);
+
+  /**
+   * Il cambio di modalità ricarica i campi: lasciarli com'erano significherebbe
+   * scrivere i dati della società sull'anagrafica dello studente (condivisa fra
+   * i suoi contratti e spinta su Fatture in Cloud) e viceversa.
+   */
+  const cambiaModalita = async (nuova: Modalita) => {
+    if (nuova === modalita) return;
+    if (nuova === 'terzo') { setModalita('terzo'); setAna(anaTerzoVuota()); return; }
+    if (!studenteId) { setModalita('studente'); setAna({ ...anaVuota(), tipo: 'persona_fisica' }); return; }
+    setCaricando(true);
+    try {
+      const { id, ana: caricata } = await caricaAnaStudente(studenteId);
+      setAnagraficaStudenteId(id);
+      setAna(caricata);
+      setModalita('studente');
+    } catch (e: any) {
+      // Mai restare su "studente" con i dati del terzo in pagina.
+      toast({
+        title: 'Errore',
+        description: e?.message ?? 'Impossibile caricare i dati dello studente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setCaricando(false);
+    }
+  };
 
   const salva = async () => {
     const err = erroreAnagrafica(ana);
     if (err) { toast({ title: 'Dati incompleti', description: err, variant: 'destructive' }); return; }
     setSaving(true);
     try {
-      const studenteId: string = contratto.studente_id;
-      const payload = payloadAnagrafica(ana, modalita, studenteId);
-      const eraTerzo = anaCorrente ? !anaCorrente.studente_id : false;
-      let anagraficaId: string | null = null;
+      const payload = payloadAnagrafica(ana, modalita, studenteId ?? null);
+      let anagraficaId: string;
       let eraCollegataFic = false;
 
-      if (modalita === 'studente') {
-        // L'indice unico parziale anagrafiche_fatt_studente_uniq garantisce una
-        // sola anagrafica per studente: se esiste si aggiorna, altrimenti si crea.
-        const { data: esistente } = await supabase
-          .from('anagrafiche_fatturazione')
-          .select('id, fic_entity_id')
-          .eq('studente_id', studenteId)
-          .maybeSingle();
-        if (esistente) {
-          const { error } = await supabase
-            .from('anagrafiche_fatturazione').update(payload).eq('id', esistente.id);
-          if (error) throw error;
-          anagraficaId = esistente.id;
-          eraCollegataFic = esistente.fic_entity_id != null;
-        } else {
-          const { data, error } = await supabase
-            .from('anagrafiche_fatturazione').insert(payload).select('id').single();
-          if (error) throw error;
-          anagraficaId = data.id;
-        }
-      } else if (eraTerzo && anaCorrente) {
+      if (destinazione.azione === 'aggiorna') {
+        const { data: riga } = await supabase
+          .from('anagrafiche_fatturazione').select('fic_entity_id').eq('id', destinazione.id).maybeSingle();
+        eraCollegataFic = riga?.fic_entity_id != null;
         const { error } = await supabase
-          .from('anagrafiche_fatturazione').update(payload).eq('id', anaCorrente.id);
+          .from('anagrafiche_fatturazione').update(payload).eq('id', destinazione.id);
         if (error) throw error;
-        anagraficaId = anaCorrente.id;
-        eraCollegataFic = anaCorrente.fic_entity_id != null;
+        anagraficaId = destinazione.id;
       } else {
-        // Da "studente" a "altro soggetto": nuova riga. L'anagrafica dello
-        // studente resta, appartiene alla persona e serve ai contratti successivi.
+        // Nuova riga: l'anagrafica precedente resta, appartiene alla persona
+        // e serve ai contratti successivi.
         const { data, error } = await supabase
           .from('anagrafiche_fatturazione').insert(payload).select('id').single();
         if (error) throw error;
         anagraficaId = data.id;
       }
 
-      if (anagraficaId && anagraficaId !== anaCorrente?.id) {
+      if (anagraficaId !== anaCorrente?.id) {
         const { error } = await supabase
           .from('contratti')
           .update({ anagrafica_fatturazione_id: anagraficaId })
           .eq('id', contratto.id);
         if (error) throw error;
       }
+
 
       toast({ title: 'Intestazione aggiornata' });
       onOpenChange(false);
