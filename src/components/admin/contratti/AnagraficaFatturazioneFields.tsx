@@ -52,6 +52,12 @@ export const anaVuota = (): AnaState => ({
   email_recapito: '',
 });
 
+/**
+ * Stato per "intesta a un altro soggetto": i campi identificativi vanno svuotati,
+ * altrimenti i dati della persona precedente finiscono sulla riga del terzo.
+ */
+export const anaTerzoVuota = (): AnaState => ({ ...anaVuota(), tipo: 'soggetto_giuridico', codice_destinatario: '' });
+
 /** Riga di anagrafiche_fatturazione → stato del form. */
 export const anaDaRiga = (r: any): AnaState => ({
   tipo: r?.tipo ?? 'persona_fisica',
@@ -104,15 +110,21 @@ export const erroreAnagrafica = (ana: AnaState): string | null => {
 
 type Props = {
   modalita: Modalita;
+  /**
+   * Il cambio di modalità ricarica i dati: il componente non tocca lo stato,
+   * decide il chiamante (anagrafica dello studente oppure campi svuotati).
+   */
   onModalitaChange: (m: Modalita) => void;
   ana: AnaState;
   onAnaChange: (aggiorna: (a: AnaState) => AnaState) => void;
   /** Nota "esiste già un'anagrafica per questa persona: verrà aggiornata". */
   mostraNotaAnagraficaEsistente?: boolean;
+  /** Campi in sola lettura durante il ricaricamento, per non salvare uno stato intermedio. */
+  disabilitato?: boolean;
 };
 
 export function AnagraficaFatturazioneFields({
-  modalita, onModalitaChange, ana, onAnaChange, mostraNotaAnagraficaEsistente,
+  modalita, onModalitaChange, ana, onAnaChange, mostraNotaAnagraficaEsistente, disabilitato,
 }: Props) {
   // Proposta del codice destinatario al cambio nazione (solo se non compilato a mano).
   const proposto = codiceDestinatarioProposto(ana.indirizzo_nazione);
@@ -131,14 +143,8 @@ export function AnagraficaFatturazioneFields({
   const datiFiscaliMancanti = useMemo(() => campiMancantiPerFattura(ana), [ana]);
 
   return (
-    <>
-      <Select
-        value={modalita}
-        onValueChange={(v: Modalita) => {
-          onModalitaChange(v);
-          onAnaChange(prev => ({ ...prev, tipo: v === 'terzo' ? 'soggetto_giuridico' : 'persona_fisica' }));
-        }}
-      >
+    <fieldset disabled={disabilitato} className="contents">
+      <Select value={modalita} onValueChange={(v: Modalita) => onModalitaChange(v)}>
         <SelectTrigger className="w-full sm:w-[320px]"><SelectValue /></SelectTrigger>
         <SelectContent>
           <SelectItem value="studente">Intesta allo studente</SelectItem>
@@ -151,6 +157,7 @@ export function AnagraficaFatturazioneFields({
           Esiste già un'anagrafica di fatturazione per questa persona: verrà aggiornata con i dati qui sotto.
         </p>
       )}
+
 
       {modalita === 'terzo' && (
         <F label="Tipo soggetto">
@@ -195,6 +202,6 @@ export function AnagraficaFatturazioneFields({
           </p>
         </div>
       )}
-    </>
+    </fieldset>
   );
 }

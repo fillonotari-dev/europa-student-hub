@@ -11,11 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
-import { codiceDestinatarioProposto } from '@shared/fic-anagrafica';
 import {
-  AnagraficaFatturazioneFields, F, anaDaRiga, anaVuota, payloadAnagrafica,
+  AnagraficaFatturazioneFields, F, anaDaRiga, anaTerzoVuota, anaVuota, payloadAnagrafica,
   type AnaState, type Modalita,
 } from './AnagraficaFatturazioneFields';
+import { caricaAnaStudente } from './anagraficaStudente';
 
 type Props = {
   open: boolean;
@@ -71,6 +71,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
   const [modalita, setModalita] = useState<Modalita>('studente');
   const [anagraficaEsistenteId, setAnagraficaEsistenteId] = useState<string | null>(null);
   const [ana, setAna] = useState<AnaState>(anaVuota());
+  const [caricandoAna, setCaricandoAna] = useState(false);
 
   const { data: strutture } = useQuery({
     queryKey: ['strutture-tutte'],
@@ -90,9 +91,9 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
     let annullato = false;
 
     (async () => {
-      const [{ data: studente }, { data: assegnazioni }, { data: candidature }, { data: anagrafica }] =
+      const [datiFatturazione, { data: assegnazioni }, { data: candidature }] =
         await Promise.all([
-          supabase.from('studenti').select('*').eq('id', studenteId).maybeSingle(),
+          caricaAnaStudente(studenteId).catch(() => null),
           supabase
             .from('assegnazioni')
             .select('id, data_inizio, data_fine, stato, camere(id, tipo, struttura_id)')
@@ -105,7 +106,6 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
             .eq('studente_id', studenteId)
             .order('created_at', { ascending: false })
             .limit(1),
-          supabase.from('anagrafiche_fatturazione').select('*').eq('studente_id', studenteId).maybeSingle(),
         ]);
       if (annullato) return;
 
@@ -131,28 +131,12 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
         });
       }
 
-      if (anagrafica) {
-        setAnagraficaEsistenteId(anagrafica.id);
-        setAna(anaDaRiga(anagrafica));
-      } else if (studente) {
-        setAnagraficaEsistenteId(null);
-        setAna(prev => ({
-          ...prev,
-          tipo: 'persona_fisica',
-          nome: studente.nome ?? '',
-          cognome: studente.cognome ?? '',
-          codice_fiscale: studente.codice_fiscale ?? '',
-          indirizzo_via: studente.indirizzo_via ?? '',
-          indirizzo_civico: studente.indirizzo_civico ?? '',
-          indirizzo_cap: studente.indirizzo_cap ?? '',
-          indirizzo_comune: studente.indirizzo_comune ?? '',
-          indirizzo_provincia: studente.indirizzo_provincia ?? '',
-          indirizzo_nazione: studente.indirizzo_nazione ?? 'IT',
-          codice_destinatario: codiceDestinatarioProposto(studente.indirizzo_nazione),
-          email_recapito: (studente as any).email_fattura || studente.email || '',
-        }));
+      if (datiFatturazione) {
+        setAnagraficaEsistenteId(datiFatturazione.id);
+        setAna(datiFatturazione.ana);
       }
     })();
+
 
     return () => { annullato = true; };
   }, [open, studenteId, sostituisce]);
@@ -270,6 +254,40 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
     setDepositoRichiesto(true); setDepositoImporto(''); setDepositoEsenzione('');
     setModalita('studente'); setAnagraficaEsistenteId(null); setAna(anaVuota());
   };
+
+  /**
+   * Il cambio di modalità ricarica i campi: senza ricaricamento i dati della
+   * società finirebbero sull'anagrafica dello studente (condivisa fra i suoi
+   * contratti) e il codice fiscale dello studente sulla riga della società.
+   */
+  const cambiaModalita = async (nuova: Modalita) => {
+    if (nuova === modalita) return;
+    if (nuova === 'terzo') { setModalita('terzo'); setAna(anaTerzoVuota()); return; }
+    if (!studenteId) {
+      // Nessuno studente ancora scelto: campi vuoti, la precompilazione arriva
+      // quando lo studente viene selezionato.
+      setModalita('studente'); setAnagraficaEsistenteId(null); setAna({ ...anaVuota(), tipo: 'persona_fisica' });
+      return;
+    }
+    setCaricandoAna(true);
+    try {
+      const { id, ana: caricata } = await caricaAnaStudente(studenteId);
+      setAnagraficaEsistenteId(id);
+      setAna(caricata);
+      setModalita('studente');
+    } catch (e: any) {
+      // Mai restare su "studente" con i dati del terzo in pagina.
+      toast({
+        title: 'Errore',
+        description: e?.message ?? 'Impossibile caricare i dati dello studente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setCaricandoAna(false);
+    }
+  };
+
+
 
   const errore = (): string | null => {
     if (!studenteId) return 'Seleziona lo studente.';
@@ -540,10 +558,11 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
             <h3 className="text-sm font-semibold">Intestazione della fattura</h3>
             <AnagraficaFatturazioneFields
               modalita={modalita}
-              onModalitaChange={setModalita}
+              onModalitaChange={cambiaModalita}
               ana={ana}
               onAnaChange={setAna}
               mostraNotaAnagraficaEsistente={!!anagraficaEsistenteId}
+              disabilitato={caricandoAna}
             />
           </section>
 
