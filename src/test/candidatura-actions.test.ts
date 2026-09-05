@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getAvailableActions, type CandidaturaLike } from "@/lib/candidaturaActions";
+import { getAvailableActions, statoDopoAnnullamento, deveInviareEsito, type CandidaturaLike } from "@/lib/candidaturaActions";
 
 function cand(stadio: string, extra: Partial<CandidaturaLike> = {}): CandidaturaLike {
   return { id: "c1", stadio, ...extra };
