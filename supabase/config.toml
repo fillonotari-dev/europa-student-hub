@@ -17,3 +17,5 @@ project_id = "mxfrhocvswxfweyafqce"
     verify_jwt = false
   [functions.fic-test-connection]
     verify_jwt = true
+  [functions.fic-sync-anagrafica]
+    verify_jwt = true

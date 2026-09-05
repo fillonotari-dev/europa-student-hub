@@ -36,6 +36,7 @@
     "src",
     "supabase/functions/_shared/codice-fiscale.ts",
     "supabase/functions/_shared/province.ts",
-    "supabase/functions/_shared/countries.ts"
+    "supabase/functions/_shared/countries.ts",
+    "supabase/functions/_shared/fic-anagrafica.ts"
   ]
 }
