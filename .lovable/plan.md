@@ -26,6 +26,8 @@ Anche il testo dell'AlertDialog di conferma (riga 765) diventa dipendente dall'o
 ### 3. Assegna: niente email per gli inserimenti manuali
 La chiamata a `send-esito-email` avviene solo se `mode === 'assegna'` **e** `c.origine !== 'inserimento_manuale'`. Il risultato della mutazione distingue tre casi (email inviata, invio fallito, invio non previsto) così il toast può dire: «Nessuna email inviata: la persona è stata inserita dall'amministrazione.» In questo caso il toast non è `destructive`: l'assegnazione è riuscita.
 
+Nel dialogo di assegnazione, il campo "Nota per l'email di esito" va nascosto quando `c.origine === 'inserimento_manuale'` e al suo posto compare la riga: "Per gli inserimenti manuali non viene inviata alcuna email di esito." Così l'operatore non compila una nota che non partirà.
+
 ### 4. Test
 `src/test/candidatura-actions.test.ts` copre oggi solo `getAvailableActions`, funzione pura. Aggiungiamo:
 - una piccola funzione pura esportata da `src/lib/candidaturaActions.ts` — `statoDopoAnnullamento(origine)` — usata dalla mutazione e testata direttamente (`inserimento_manuale` → `in_attesa_posto`, `form_pubblico`/`undefined` → `da_decidere`);
