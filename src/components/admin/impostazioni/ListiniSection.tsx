@@ -41,7 +41,7 @@ export function ListiniSection() {
     queryFn: async () =>
       (await supabase
         .from('listini')
-        .select('id, struttura_id, tipo_camera, importo_mensile, valido_dal, valido_al')
+        .select('id, struttura_id, tipo_camera, importo_mensile_lordo, valido_dal, valido_al')
         .order('valido_dal', { ascending: false })).data ?? [],
   });
 
@@ -130,7 +130,7 @@ export function ListiniSection() {
                 <tr key={r.id} className={`border-t ${inVigore(r) ? '' : 'text-muted-foreground'}`}>
                   <td className="px-3 py-2">{nomeStruttura(r.struttura_id)}</td>
                   <td className="px-3 py-2 capitalize">{r.tipo_camera}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{fmtEuro(Number(r.importo_mensile))}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{fmtEuro(Number(r.importo_mensile_lordo))}</td>
                   <td className="px-3 py-2">{fmtData(r.valido_dal)}</td>
                   <td className="px-3 py-2">{r.valido_al ? fmtData(r.valido_al) : '—'}</td>
                   <td className="px-3 py-2">
@@ -165,7 +165,7 @@ export function ListiniSection() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="listino_importo">Importo mensile (€)</Label>
+              <Label htmlFor="listino_importo">Importo mensile IVA inclusa (€)</Label>
               <Input id="listino_importo" type="number" min="0" step="0.01" value={importo}
                 onChange={(e) => setImporto(e.target.value)} />
             </div>
@@ -190,7 +190,7 @@ export function ListiniSection() {
                   </p>
                   {daChiudere ? (
                     <p>
-                      Il prezzo attuale di {fmtEuro(Number(daChiudere.importo_mensile))} (in vigore dal {fmtData(daChiudere.valido_dal)})
+                      Il prezzo attuale di {fmtEuro(Number(daChiudere.importo_mensile_lordo))} (in vigore dal {fmtData(daChiudere.valido_dal)})
                       verrà chiuso il {validoDal ? fmtData(giornoPrima(validoDal)) : '—'}.
                     </p>
                   ) : (
