@@ -51,7 +51,7 @@ export function FattureInCloudSection() {
           {loading ? 'Verifica in corso...' : 'Verifica connessione'}
         </Button>
 
-        {esito && esito.ok && (
+        {esito?.ok === true && (
           <div className="rounded-md border p-4 space-y-1.5">
             <div className="flex items-center gap-2 text-sm font-medium">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
@@ -68,7 +68,7 @@ export function FattureInCloudSection() {
           </div>
         )}
 
-        {esito && !esito.ok && (
+        {esito?.ok === false && (
           <div className="rounded-md border border-destructive/40 p-4 space-y-1.5">
             <div className="flex items-center gap-2 text-sm font-medium text-destructive">
               <XCircle className="w-4 h-4" />
