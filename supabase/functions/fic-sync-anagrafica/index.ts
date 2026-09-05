@@ -37,6 +37,24 @@ function isQuotaError(status: number, bodyText: string): boolean {
   return t.includes('quota') || t.includes('rate') || t.includes('limit')
 }
 
+/**
+ * Estrae la spiegazione di un rifiuto 400/422 dal corpo della risposta FIC:
+ * error.message e error.validation_result. Se il corpo non è JSON conserva i
+ * primi 500 caratteri in fic_error_raw: è il caso in cui altrimenti non
+ * resterebbe niente. Mai il corpo integrale.
+ */
+function estraiDiagnosticaFic(bodyText: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(bodyText)
+    const out: Record<string, unknown> = {}
+    if (typeof parsed?.error?.message === 'string') out.fic_error_message = parsed.error.message
+    if (parsed?.error?.validation_result != null) out.fic_validation_result = parsed.error.validation_result
+    return out
+  } catch {
+    return { fic_error_raw: bodyText.slice(0, 500) }
+  }
+}
+
 function retryDelayMs(res: Response, attempt: number): number {
   const ra = res.headers.get('Retry-After')
   const secs = ra ? parseInt(ra, 10) : NaN
@@ -209,10 +227,19 @@ Deno.serve(async (req) => {
       : 'Il token non ha i permessi necessari per gestire i clienti.'
     else if (lastStatus === 422 || lastStatus === 400) msg = 'Fatture in Cloud ha rifiutato i dati dell\'anagrafica.'
     else msg = `Fatture in Cloud ha risposto con errore ${lastStatus}.`
+    const ridotto: Record<string, unknown> = { anagrafica_id: anagraficaId, ...quota }
+    if (lastStatus === 400 || lastStatus === 422) {
+      // Solo i nomi dei campi valorizzati, mai i valori: il payload contiene
+      // dati personali e non deve finire nel registro.
+      ridotto.campi_inviati = Object.entries(mappatura.data as Record<string, unknown>)
+        .filter(([, v]) => v !== null && v !== undefined && v !== '')
+        .map(([k]) => k)
+      Object.assign(ridotto, estraiDiagnosticaFic(lastBody))
+    }
     await logFic(admin, {
       metodo, endpoint: endpointLabel, http_status: lastStatus, esito: 'errore',
       messaggio: msg,
-      payload_ridotto: { anagrafica_id: anagraficaId, ...quota },
+      payload_ridotto: ridotto,
     })
     return jsonResponse(200, { ok: false, message: msg })
   }
