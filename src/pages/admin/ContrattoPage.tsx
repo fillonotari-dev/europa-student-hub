@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { FicSyncAnagrafica } from '@/components/admin/contratti/FicSyncAnagrafica';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -470,6 +471,10 @@ export default function ContrattoPage() {
                 <Riga k="Codice destinatario" v={ana?.codice_destinatario} />
                 <Riga k="PEC" v={ana?.pec} />
                 <Riga k="Email di recapito" v={ana?.email_recapito} />
+                <FicSyncAnagrafica
+                  anagrafica={ana}
+                  onSynced={() => qc.invalidateQueries({ queryKey: ['contratto', id] })}
+                />
               </>
             );
           })()}
