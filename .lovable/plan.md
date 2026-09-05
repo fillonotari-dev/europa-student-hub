@@ -30,6 +30,10 @@ BEGIN
 
   -- Solo le mensilità ancora allineate al canone precedente: quelle corrette a
   -- mano dall'operatore sono deliberatamente diverse e non vanno riscritte.
+  -- Limite noto, compromesso accettato: se l'operatore corregge una riga a un
+  -- valore che coincide esattamente col canone precedente, quella riga è
+  -- indistinguibile da una standard e verrà aggiornata. Non si risolve con una
+  -- colonna in più.
   UPDATE public.canoni
      SET imponibile = p_canone
    WHERE contratto_id = p_contratto_id
@@ -57,7 +61,7 @@ Il dialogo "Ricalcolare le mensilità?" dichiara entrambe le quantità: quante v
 
 ## 4. Segnalazione in tabella
 
-Nella colonna Imponibile dello scadenzario, accanto all'importo di una riga il cui imponibile è diverso dal canone del contratto compare un piccolo segno (icona) con testo esplicativo al passaggio del mouse: importo personalizzato, non allineato al canone, non verrà aggiornato dai cambi di canone. Nessuna colonna nuova.
+Nella colonna Imponibile dello scadenzario, accanto all'importo di una riga il cui imponibile è diverso dal canone del contratto compare un piccolo segno (icona) con testo al passaggio del mouse che dichiara solo questo: l'importo di questa riga è diverso dal canone del contratto. Nessuna promessa sul comportamento futuro — su una riga di un mese passato o già fatturata sarebbe vera per motivi diversi da quello dichiarato. Nessuna colonna nuova.
 
 ## 5. Resoconto
 
