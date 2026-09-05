@@ -36,7 +36,7 @@ export function FattureInCloudSection() {
   };
 
   return (
-    <Card>
+    <Card className="mt-6">
       <CardContent className="p-6 space-y-4">
         <div>
           <h2 className="text-lg font-semibold">Fatture in Cloud</h2>
