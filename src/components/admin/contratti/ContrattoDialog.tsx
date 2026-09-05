@@ -90,9 +90,9 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
     let annullato = false;
 
     (async () => {
-      const [{ data: studente }, { data: assegnazioni }, { data: candidature }, { data: anagrafica }] =
+      const [datiFatturazione, { data: assegnazioni }, { data: candidature }] =
         await Promise.all([
-          supabase.from('studenti').select('*').eq('id', studenteId).maybeSingle(),
+          caricaAnaStudente(studenteId).catch(() => null),
           supabase
             .from('assegnazioni')
             .select('id, data_inizio, data_fine, stato, camere(id, tipo, struttura_id)')
@@ -105,7 +105,6 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
             .eq('studente_id', studenteId)
             .order('created_at', { ascending: false })
             .limit(1),
-          supabase.from('anagrafiche_fatturazione').select('*').eq('studente_id', studenteId).maybeSingle(),
         ]);
       if (annullato) return;
 
@@ -131,28 +130,12 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
         });
       }
 
-      if (anagrafica) {
-        setAnagraficaEsistenteId(anagrafica.id);
-        setAna(anaDaRiga(anagrafica));
-      } else if (studente) {
-        setAnagraficaEsistenteId(null);
-        setAna(prev => ({
-          ...prev,
-          tipo: 'persona_fisica',
-          nome: studente.nome ?? '',
-          cognome: studente.cognome ?? '',
-          codice_fiscale: studente.codice_fiscale ?? '',
-          indirizzo_via: studente.indirizzo_via ?? '',
-          indirizzo_civico: studente.indirizzo_civico ?? '',
-          indirizzo_cap: studente.indirizzo_cap ?? '',
-          indirizzo_comune: studente.indirizzo_comune ?? '',
-          indirizzo_provincia: studente.indirizzo_provincia ?? '',
-          indirizzo_nazione: studente.indirizzo_nazione ?? 'IT',
-          codice_destinatario: codiceDestinatarioProposto(studente.indirizzo_nazione),
-          email_recapito: (studente as any).email_fattura || studente.email || '',
-        }));
+      if (datiFatturazione) {
+        setAnagraficaEsistenteId(datiFatturazione.id);
+        setAna(datiFatturazione.ana);
       }
     })();
+
 
     return () => { annullato = true; };
   }, [open, studenteId, sostituisce]);
