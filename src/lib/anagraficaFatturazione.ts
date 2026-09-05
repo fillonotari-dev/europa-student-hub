@@ -13,7 +13,10 @@ export type RigaDestinazione =
  *
  * - modalità "studente": si aggiorna l'anagrafica dello studente se esiste
  *   (l'indice unico parziale anagrafiche_fatt_studente_uniq la mantiene unica),
- *   altrimenti se ne crea una nuova;
+ *   altrimenti se ne crea una nuova. Se l'id non è ancora arrivato dalla query
+ *   asincrona ma il contratto è già intestato allo studente, la destinazione è
+ *   l'anagrafica corrente: senza questo passaggio un salvataggio immediato
+ *   concluderebbe "crea" e l'INSERT violerebbe l'indice unico;
  * - modalità "terzo" partendo da un terzo: si aggiorna quella riga;
  * - modalità "terzo" partendo dallo studente: si crea una riga nuova, perché
  *   l'anagrafica dello studente appartiene alla persona e serve ai contratti
