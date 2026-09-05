@@ -121,7 +121,7 @@ export function ListiniSection() {
               <tr>
                 <th className="text-left font-medium px-3 py-2">Sede</th>
                 <th className="text-left font-medium px-3 py-2">Tipo camera</th>
-                <th className="text-right font-medium px-3 py-2">Importo</th>
+                <th className="text-right font-medium px-3 py-2">Importo (IVA incl.)</th>
                 <th className="text-left font-medium px-3 py-2">Dal</th>
                 <th className="text-left font-medium px-3 py-2">Al</th>
                 <th className="px-3 py-2" />
