@@ -43,10 +43,12 @@ describe('conversione IVA inclusa / imponibile', () => {
     for (let e = 1; e <= 1000; e++) {
       const s = scomposizione(e, 10);
       const impCent = imponibileCentDaLordoCent(e * 100, 10);
-      const attesoCent = totaleCentDaImponibileCent(impCent, 10);
+      // Oracolo indipendente: impCent * 1,1 arrotondato half-up, su interi.
+      const attesoCent = Math.floor((impCent * 11 + 5) / 10);
       expect(Math.round(s.imponibile * 100)).toBe(impCent);
       expect(Math.round(s.totale * 100)).toBe(attesoCent);
       expect(Math.round(s.iva * 100)).toBe(attesoCent - impCent);
     }
+
   });
 });
