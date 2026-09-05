@@ -595,7 +595,18 @@ export default function ContrattoPage() {
                   <td className="px-4 py-2">{new Date(c.competenza + 'T00:00:00').toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}</td>
                   <td className="px-4 py-2">
                     {inEdit ? <Input className="h-8 w-28" type="number" step="0.01" value={bozzaRiga.imponibile}
-                      onChange={e => setBozzaRiga(b => ({ ...b, imponibile: e.target.value }))} /> : fmtEuro(c.imponibile)}
+                      onChange={e => setBozzaRiga(b => ({ ...b, imponibile: e.target.value }))} /> : (
+                      <span className="inline-flex items-center gap-1.5">
+                        {fmtEuro(c.imponibile)}
+                        {contratto && imponibilePersonalizzato(c, Number(contratto.canone_mensile)) && (
+                          <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help"
+                            aria-label="Importo personalizzato"
+                            // Dichiara solo il fatto osservabile: nessuna promessa sui
+                            // cambi di canone, che dipende anche da stato e competenza.
+                            title="L'importo di questa riga è diverso dal canone del contratto." />
+                        )}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-2">{c.aliquota_iva}%</td>
                   <td className="px-4 py-2">{fmtEuro(c.totale)}</td>
@@ -686,6 +697,12 @@ export default function ContrattoPage() {
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm">
                 <p>Verranno portate a {fmtEuro(Number(nuovoCanone))} {daRicalcolare.length} mensilità da fatturare con competenza corrente o futura.</p>
+                {personalizzate.length > 0 && (
+                  <p className="text-muted-foreground">
+                    {personalizzate.length} {personalizzate.length === 1 ? 'mensilità ha' : 'mensilità hanno'} un importo personalizzato e non
+                    {personalizzate.length === 1 ? ' verrà toccata' : ' verranno toccate'}: se serve, correggile a mano dalla tabella dello scadenzario.
+                  </p>
+                )}
                 {intoccabili.length > 0 && (
                   <p>Non verranno toccate {intoccabili.length} mensilità già fatturate o incassate: corrispondono a documenti fiscali emessi.</p>
                 )}
