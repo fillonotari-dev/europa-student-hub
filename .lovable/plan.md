@@ -1,6 +1,6 @@
 # Inserimento manuale di una persona: il percorso in area admin
 
-Obiettivo: dare all'amministrazione un modo per registrare a mano una persona mai passata dal form pubblico, chiamando la funzione di database `crea_persona_manuale` già esistente e verificata.
+Obiettivo: dare all'amministrazione un modo per registrare a mano una persona mai passata dal form pubblico, appoggiandosi alla funzione `crea_persona_manuale`, che in questo giro viene corretta: lo stato della candidatura non è più costante ma derivato dalla presenza dell'assegnazione.
 
 ## Verifiche fatte prima di scrivere il piano
 
@@ -14,7 +14,14 @@ Obiettivo: dare all'amministrazione un modo per registrare a mano una persona ma
 
 ## Cosa faremo
 
-### 1. Esiti da comunicare: esclusione degli inserimenti manuali
+### 1. Correzione della funzione `crea_persona_manuale` (migration)
+Lo stato della candidatura non è più costante `accolta`: la funzione lo deriva — `accolta` se `p_assegnazione` non è nullo, `in_attesa_posto` se è nullo. Mai preso dal payload.
+Motivo verificabile: `v_studenti_stadio` classifica come `archiviato` qualsiasi candidatura il cui stato non sia fra `da_valutare`, `in_attesa_studente`, `da_decidere`, `in_attesa_posto` e che non abbia un'assegnazione attiva — una persona inserita senza posto letto sparirebbe da entrambe le liste.
+Conseguenze:
+- La riga in `log_stato_candidature` deve riportare lo stato effettivamente scritto (`stato_nuovo` uguale allo stato derivato, `stato_precedente` nullo, nota invariata).
+- Il posto "Fuori perimetro: nessuna modifica al database" non vale più: questa correzione richiede una migration che aggiorna solo il corpo della funzione. Permessi, `SECURITY INVOKER`, `SET search_path`, controlli ed errori tradotti restano invariati.
+
+### 2. Esiti da comunicare: esclusione degli inserimenti manuali
 Poiché il conteggio in Dashboard non esiste, applichiamo l'esclusione dove la condizione vive davvero, così una persona inserita a mano non risulta mai "esito da comunicare":
 - `studentiQuery.ts`: aggiungere `origine` alle colonne lette e al tipo `StadioRow`.
 - `CandidaturaBadges.tsx`: il badge "Esito da comunicare" non compare quando `origine === 'inserimento_manuale'`.
