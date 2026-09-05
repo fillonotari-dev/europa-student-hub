@@ -147,14 +147,17 @@ export function useCandidaturaActions(options: Options = {}) {
       }
       const { error: delErr } = await supabase.from('assegnazioni').delete().eq('id', assegnazioneId);
       if (delErr) throw delErr;
+      const nuovoStato = statoDopoAnnullamento(c.origine);
       const { error: updErr } = await supabase.from('candidature')
-        .update({ stato: 'da_decidere', esito_email_inviata_il: null, esito_email_nota: null })
+        .update({ stato: nuovoStato, esito_email_inviata_il: null, esito_email_nota: null })
         .eq('id', c.id);
       if (updErr) throw updErr;
     },
-    onSuccess: () => {
+    onSuccess: (_data, c) => {
       invalidateAll();
-      toast({ title: 'Assegnazione annullata', description: 'La candidatura torna in "Da decidere".' });
+      const nuovoStato = statoDopoAnnullamento(c.origine);
+      const label = nuovoStato === 'in_attesa_posto' ? '"Lista d\'attesa"' : '"Da decidere"';
+      toast({ title: 'Assegnazione annullata', description: `La candidatura torna in ${label}.` });
       setAnnullaTarget(null);
     },
     onError: (e: any) => toast({ title: 'Errore', description: e?.message, variant: 'destructive' }),
