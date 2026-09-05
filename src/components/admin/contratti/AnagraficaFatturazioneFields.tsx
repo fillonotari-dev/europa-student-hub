@@ -4,6 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertTriangle } from 'lucide-react';
 import { campiMancantiPerFattura, codiceDestinatarioProposto } from '@shared/fic-anagrafica';
+import { COUNTRIES } from '@shared/countries';
 
 export type Modalita = 'studente' | 'terzo';
 
@@ -187,7 +188,19 @@ export function AnagraficaFatturazioneFields({
         <F label="CAP"><Input className="mt-1.5" value={ana.indirizzo_cap} onChange={e => onAnaChange(a => ({ ...a, indirizzo_cap: e.target.value }))} /></F>
         <F label="Comune"><Input className="mt-1.5" value={ana.indirizzo_comune} onChange={e => onAnaChange(a => ({ ...a, indirizzo_comune: e.target.value }))} /></F>
         <F label="Provincia"><Input className="mt-1.5" maxLength={2} value={ana.indirizzo_provincia} onChange={e => onAnaChange(a => ({ ...a, indirizzo_provincia: e.target.value.toUpperCase() }))} /></F>
-        <F label="Nazione"><Input className="mt-1.5" maxLength={2} value={ana.indirizzo_nazione} onChange={e => onAnaChange(a => ({ ...a, indirizzo_nazione: e.target.value.toUpperCase() }))} /></F>
+        <F label="Nazione">
+          {/* Select da elenco chiuso, non testo libero: indirizzo_nazione decide
+              la mappatura estera, l'appartenenza UE e il codice destinatario.
+              Un refuso fra due codici validi (IE per IT) passerebbe ogni
+              validazione e produrrebbe una fattura formalmente valida e
+              sostanzialmente sbagliata, senza alcun errore. */}
+          <Select value={ana.indirizzo_nazione} onValueChange={v => onAnaChange(a => ({ ...a, indirizzo_nazione: v, indirizzo_provincia: '' }))}>
+            <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {COUNTRIES.map(c => <SelectItem key={c.code} value={c.code}>{c.it}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </F>
         <F label="Codice destinatario"><Input className="mt-1.5" maxLength={7} value={ana.codice_destinatario} onChange={e => onAnaChange(a => ({ ...a, codice_destinatario: e.target.value.toUpperCase() }))} /></F>
         <F label="PEC"><Input className="mt-1.5" value={ana.pec} onChange={e => onAnaChange(a => ({ ...a, pec: e.target.value }))} /></F>
         <F label="Email di recapito"><Input className="mt-1.5" value={ana.email_recapito} onChange={e => onAnaChange(a => ({ ...a, email_recapito: e.target.value }))} /></F>
