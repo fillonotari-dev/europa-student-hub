@@ -7,7 +7,8 @@ Oggi il riquadro "Intestazione fattura" nella scheda contratto è di sola lettur
 - Nel riquadro "Intestazione fattura" compare un pulsante **Modifica**, sempre disponibile (anche a contratto attivo o chiuso).
 - Il dialogo che si apre ha esattamente gli stessi campi della creazione contratto, con la stessa scelta fra **intesta allo studente** e **intesta a un altro soggetto**.
 - Se esiste già almeno una mensilità **fatturata o incassata**, in cima al dialogo compare un avviso in evidenza: cambiare l'intestatario ora non modifica le fatture già emesse, che restano intestate a chi erano. È un avviso, non un blocco.
-- Se l'anagrafica era già collegata a Fatture in Cloud e viene modificata, dopo il salvataggio il riquadro segnala che i dati sono cambiati dopo l'ultimo collegamento e invita a risincronizzare, con il pulsante di sincronizzazione già presente. Nessuna sincronizzazione automatica.
+- Se l'intestazione che si sta modificando è usata anche da altri contratti, il dialogo lo dice prima della conferma, indicando quanti.
+- Se l'anagrafica era già collegata a Fatture in Cloud e viene modificata, dopo il salvataggio il riquadro invita a risincronizzare, con il pulsante già presente. Nessuna sincronizzazione automatica.
 - Passare da "studente" a "altro soggetto" non cancella l'anagrafica dello studente: resta a disposizione dei contratti successivi.
 
 ## Come viene realizzato
@@ -27,8 +28,12 @@ Props: `open`, `onOpenChange`, `contratto` (con `anagrafiche_fatturazione` già 
 **4. Avviso mensilità già fatturate.**
 `ContrattoPage.tsx` calcola già `(canoni ?? []).filter(c => c.stato === 'fatturato' || c.stato === 'incassato')` (riga ~105). Quel valore viene passato al dialogo come `haFattureEmesse` e produce l'avviso in evidenza in cima al form. Nessun blocco, nessun campo disabilitato.
 
-**5. Invito a risincronizzare.**
-Nessuna chiamata automatica a Fatture in Cloud. Dopo un salvataggio che ha toccato un'anagrafica con `fic_entity_id` valorizzato, la pagina mostra sopra a `FicSyncAnagrafica` una riga di avviso ("dati modificati dopo l'ultimo collegamento: risincronizza"). Il segnale è locale alla pagina (stato React impostato dal callback `onSaved`, azzerato dopo una sincronizzazione riuscita): resta visibile finché l'operatore non sincronizza o ricarica. Non viene aggiunta alcuna colonna al database.
+**5. Avviso "usata anche da altri contratti".**
+Il dialogo conta i contratti che puntano allo stesso `anagrafica_fatturazione_id` (`select count`, escluso quello corrente) e, se maggiore di zero, dichiara la conseguenza **prima della conferma**: «questa intestazione è usata anche da N altri contratti: la modifica vale per tutti». Stesso principio già applicato all'annullamento dell'assegnazione e alla sezione posto letto. È un avviso, non un blocco.
+
+**6. Invito a risincronizzare (comodità, non presidio).**
+Nessuna chiamata automatica a Fatture in Cloud. Dopo un salvataggio che ha toccato un'anagrafica con `fic_entity_id` valorizzato, la pagina mostra sopra a `FicSyncAnagrafica` una riga di avviso ("dati modificati dopo l'ultimo collegamento: risincronizza"). Il segnale è locale alla pagina (stato React impostato dal callback `onSaved`, azzerato dopo una sincronizzazione riuscita) e **sparisce al ricaricamento**: è una comodità per l'operatore, non una garanzia. Il presidio vero arriva in D2: siccome all'emissione si manda `entity.id`, una fattura emessa su un cliente disallineato uscirebbe con l'intestazione memorizzata su Fatture in Cloud — errore fiscale correggibile solo con nota di credito — quindi `fic-emetti-fattura` risincronizzerà l'anagrafica con lo stesso PUT idempotente **prima** di creare il documento. Nessuna colonna nuova qui.
+
 
 ## Fuori perimetro (dichiarato)
 
