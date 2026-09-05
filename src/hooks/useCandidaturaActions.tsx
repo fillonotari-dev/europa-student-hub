@@ -1106,7 +1106,7 @@ export function useCandidaturaActions(options: Options = {}) {
                   </Select>
                 </div>
               )}
-              {assignMode.kind === 'assegna' && (
+              {assignMode.kind === 'assegna' && assignMode.c.origine !== 'inserimento_manuale' && (
                 <div>
                   <Label>Nota email di esito (opzionale)</Label>
                   <Textarea rows={3} maxLength={2000} value={asNota}
@@ -1114,7 +1114,12 @@ export function useCandidaturaActions(options: Options = {}) {
                     placeholder="Aggiungi indicazioni personalizzate per l'accoglienza..." />
                 </div>
               )}
-              {assignMode.kind === 'assegna' && (
+              {assignMode.kind === 'assegna' && assignMode.c.origine === 'inserimento_manuale' && (
+                <p className="text-[11px] text-muted-foreground">
+                  Per gli inserimenti manuali non viene inviata alcuna email di esito.
+                </p>
+              )}
+              {assignMode.kind === 'assegna' && assignMode.c.origine !== 'inserimento_manuale' && (
                 <p className="text-[11px] text-muted-foreground">Alla conferma la candidatura passa in "Accolta" e viene inviata l'email di esito.</p>
               )}
               {assignMode.kind === 'rinnova' && (
