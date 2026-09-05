@@ -138,14 +138,14 @@ export function mappaAnagraficaPerFic(a: AnagraficaFic): MappaturaFic {
   const trasformazioni: string[] = [];
 
   let via = [s(a.indirizzo_via), s(a.indirizzo_civico)].filter(Boolean).join(' ');
-  let cap = nz(a.indirizzo_cap);
-  let provincia = nz(a.indirizzo_provincia);
-  let taxCode = nz(a.codice_fiscale);
-  let vat = nz(a.partita_iva);
+  let cap = fv(a.indirizzo_cap);
+  let provincia = fv(a.indirizzo_provincia);
+  let taxCode = fv(a.codice_fiscale);
+  let vat = fv(a.partita_iva);
 
   if (estera) {
     if (taxCode) trasformazioni.push('codice fiscale non inviato (anagrafica estera)');
-    taxCode = null;
+    taxCode = '';
 
     const capReale = s(a.indirizzo_cap);
     if (capReale) {
@@ -177,18 +177,21 @@ export function mappaAnagraficaPerFic(a: AnagraficaFic): MappaturaFic {
     data: {
       type: persona ? 'person' : 'company',
       name: nomeCompleto(a),
-      first_name: persona ? nz(a.nome) : null,
-      last_name: persona ? nz(a.cognome) : null,
+      first_name: persona ? fv(a.nome) : '',
+      last_name: persona ? fv(a.cognome) : '',
       tax_code: taxCode,
       vat_number: vat,
-      address_street: nz(via),
+      address_street: fv(via),
       address_postal_code: cap,
-      address_city: nz(a.indirizzo_comune),
+      address_city: fv(a.indirizzo_comune),
       address_province: provincia,
       country_iso: nazione,
-      certified_email: nz(a.pec),
-      email: nz(a.email_recapito),
-      ei_code: (nz(a.codice_destinatario) ?? codiceDestinatarioProposto(nazione)).toUpperCase(),
+      certified_email: fv(a.pec),
+      email: fv(a.email_recapito),
+      // Il ripiego è sul valore VUOTO (||), non sul nullo (??): con la
+      // normalizzazione a "" un ?? lascerebbe passare la stringa vuota e
+      // spedirebbe un ei_code vuoto, non ammesso sulla fattura elettronica.
+      ei_code: (fv(a.codice_destinatario) || codiceDestinatarioProposto(nazione)).toUpperCase(),
     },
   };
 }
