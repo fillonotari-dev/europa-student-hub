@@ -1,17 +1,19 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
   PaginationNext, PaginationPrevious,
 } from '@/components/ui/pagination';
 import { ExportButton } from '@/components/admin/ExportButton';
+import { AggiungiPersonaDialog } from '@/components/admin/AggiungiPersonaDialog';
 import { fmtDate } from '@/lib/exportXlsx';
-import { Search, Users as UsersIcon, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { Search, Users as UsersIcon, ArrowUp, ArrowDown, ArrowUpDown, UserPlus } from 'lucide-react';
 import { STADI_RESIDENTI, formatStadio } from '@/lib/statoCandidatura';
 import { StadioBadge } from '@/components/admin/candidatura/CandidaturaBadges';
 import { fetchStadi, type StadioRow } from '@/lib/studentiQuery';
@@ -24,6 +26,7 @@ type SortKey = 'nome' | 'email' | 'camera' | 'struttura' | 'stadio';
 export default function Residenti() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [addOpen, setAddOpen] = useState(false);
   const search = searchParams.get('q') ?? '';
   const filterStadio = searchParams.get('stadio') ?? 'tutti';
   const filterStruttura = searchParams.get('sede') ?? 'tutti';
@@ -179,6 +182,9 @@ export default function Residenti() {
             {(strutture ?? []).map((s: any) => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
+          <UserPlus className="w-4 h-4 mr-1.5" /> Aggiungi persona
+        </Button>
         <ExportButton
           filename="residenti"
           getRows={() => filtered.map(r => ({
@@ -260,6 +266,7 @@ export default function Residenti() {
       )}
 
       {actions.dialogs}
+      <AggiungiPersonaDialog open={addOpen} onOpenChange={setAddOpen} />
     </div>
     </CandidaturaActionsContext.Provider>
   );
