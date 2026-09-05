@@ -31,7 +31,19 @@ export const EU_COUNTRY_CODES: string[] = [
 export const TAX_ID_EXTRA_UE = 'OO99999999999';
 
 const s = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
-const nz = (v: unknown): string | null => (s(v) === '' ? null : s(v));
+
+/**
+ * Normalizzazione verso il payload di Fatture in Cloud: MAI null esplicito.
+ * FIC risponde 422 "must be a string" a qualunque proprietà stringa inviata
+ * come null (verificato su certified_email e vat_number). La stringa vuota
+ * soddisfa il validatore e su un PUT svuota il campo remoto — a differenza
+ * dell'omissione della chiave, che significherebbe "lascia com'era" e non
+ * permetterebbe mai di svuotare (es. tax_code delle anagrafiche estere).
+ * Se in futuro FIC rifiutasse "" su un campo specifico, per quel campo si
+ * ripiega sull'omissione della chiave, dichiarandolo qui.
+ */
+const fv = (v: unknown): string => s(v);
+
 
 export const nazioneDi = (a: AnagraficaFic): string => (s(a.indirizzo_nazione) || 'IT').toUpperCase();
 export const isEstera = (a: AnagraficaFic): boolean => nazioneDi(a) !== 'IT';
