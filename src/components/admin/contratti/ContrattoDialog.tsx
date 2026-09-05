@@ -11,8 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
-import { AlertTriangle } from 'lucide-react';
-import { campiMancantiPerFattura, codiceDestinatarioProposto } from '@shared/fic-anagrafica';
+import { codiceDestinatarioProposto } from '@shared/fic-anagrafica';
+import {
+  AnagraficaFatturazioneFields, F, anaDaRiga, anaVuota, payloadAnagrafica,
+  type AnaState, type Modalita,
+} from './AnagraficaFatturazioneFields';
 
 type Props = {
   open: boolean;
@@ -28,8 +31,6 @@ type Props = {
   sostituisce?: any | null;
 };
 
-type Modalita = 'studente' | 'terzo';
-
 const oggi = () => new Date().toISOString().slice(0, 10);
 
 const giornoDopo = (iso: string) => {
@@ -38,10 +39,6 @@ const giornoDopo = (iso: string) => {
   if (Number.isNaN(d.getTime())) return '';
   return new Date(d.getTime() + 86400000).toISOString().slice(0, 10);
 };
-
-const F = ({ label, children }: { label: string; children: React.ReactNode }) => (
-  <div><Label className="text-xs text-muted-foreground">{label}</Label>{children}</div>
-);
 
 export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso, onCreated, sostituisce }: Props) {
   const { toast } = useToast();
@@ -73,23 +70,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
 
   const [modalita, setModalita] = useState<Modalita>('studente');
   const [anagraficaEsistenteId, setAnagraficaEsistenteId] = useState<string | null>(null);
-  const [ana, setAna] = useState({
-    tipo: 'persona_fisica',
-    denominazione: '',
-    nome: '',
-    cognome: '',
-    codice_fiscale: '',
-    partita_iva: '',
-    indirizzo_via: '',
-    indirizzo_civico: '',
-    indirizzo_cap: '',
-    indirizzo_comune: '',
-    indirizzo_provincia: '',
-    indirizzo_nazione: 'IT',
-    codice_destinatario: '0000000',
-    pec: '',
-    email_recapito: '',
-  });
+  const [ana, setAna] = useState<AnaState>(anaVuota());
 
   const { data: strutture } = useQuery({
     queryKey: ['strutture-tutte'],
@@ -152,24 +133,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
 
       if (anagrafica) {
         setAnagraficaEsistenteId(anagrafica.id);
-        setAna(prev => ({
-          ...prev,
-          tipo: anagrafica.tipo ?? 'persona_fisica',
-          denominazione: anagrafica.denominazione ?? '',
-          nome: anagrafica.nome ?? '',
-          cognome: anagrafica.cognome ?? '',
-          codice_fiscale: anagrafica.codice_fiscale ?? '',
-          partita_iva: anagrafica.partita_iva ?? '',
-          indirizzo_via: anagrafica.indirizzo_via ?? '',
-          indirizzo_civico: anagrafica.indirizzo_civico ?? '',
-          indirizzo_cap: anagrafica.indirizzo_cap ?? '',
-          indirizzo_comune: anagrafica.indirizzo_comune ?? '',
-          indirizzo_provincia: anagrafica.indirizzo_provincia ?? '',
-          indirizzo_nazione: anagrafica.indirizzo_nazione ?? 'IT',
-          codice_destinatario: anagrafica.codice_destinatario ?? '',
-          pec: anagrafica.pec ?? '',
-          email_recapito: anagrafica.email_recapito ?? '',
-        }));
+        setAna(anaDaRiga(anagrafica));
       } else if (studente) {
         setAnagraficaEsistenteId(null);
         setAna(prev => ({
@@ -225,24 +189,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
     if (a) {
       setAnagraficaEsistenteId(a.id);
       setModalita(a.studente_id ? 'studente' : 'terzo');
-      setAna(prev => ({
-        ...prev,
-        tipo: a.tipo ?? 'persona_fisica',
-        denominazione: a.denominazione ?? '',
-        nome: a.nome ?? '',
-        cognome: a.cognome ?? '',
-        codice_fiscale: a.codice_fiscale ?? '',
-        partita_iva: a.partita_iva ?? '',
-        indirizzo_via: a.indirizzo_via ?? '',
-        indirizzo_civico: a.indirizzo_civico ?? '',
-        indirizzo_cap: a.indirizzo_cap ?? '',
-        indirizzo_comune: a.indirizzo_comune ?? '',
-        indirizzo_provincia: a.indirizzo_provincia ?? '',
-        indirizzo_nazione: a.indirizzo_nazione ?? 'IT',
-        codice_destinatario: a.codice_destinatario ?? '',
-        pec: a.pec ?? '',
-        email_recapito: a.email_recapito ?? '',
-      }));
+      setAna(anaDaRiga(a));
     }
 
     // Tipo camera del contratto sostituito: serve solo a proporre il prezzo.
@@ -306,22 +253,6 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, strutturaId, tipoCamera, sostituisce]);
 
-  // Proposta del codice destinatario al cambio nazione (solo se non compilato a mano).
-  const proposto = codiceDestinatarioProposto(ana.indirizzo_nazione);
-  useEffect(() => {
-    setAna(prev =>
-      prev.codice_destinatario === '' || prev.codice_destinatario === '0000000' || prev.codice_destinatario === 'XXXXXXX'
-        ? { ...prev, codice_destinatario: proposto }
-        : prev,
-    );
-  }, [proposto]);
-
-  // Soglia fattura, non sincronizzazione: qui avvisa senza bloccare su cosa
-  // mancherà per emettere (email di recapito inclusa). La stessa funzione sarà
-  // riusata in D2 prima dell'emissione; fic-sync-anagrafica usa invece
-  // campiMancantiPerFicSync, che non richiede l'email.
-  const datiFiscaliMancanti = useMemo(() => campiMancantiPerFattura(ana), [ana]);
-
   const nomeStruttura = (strutture ?? []).find((s: any) => s.id === strutturaId)?.nome ?? '';
 
   const condizioniCambiate =
@@ -337,7 +268,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
     setListino(null); setListinoCercato(false); setUltimoProposto(null); setOrigine(null);
     setGarante({ nome: '', relazione: '', telefono: '', email: '' });
     setDepositoRichiesto(true); setDepositoImporto(''); setDepositoEsenzione('');
-    setModalita('studente'); setAnagraficaEsistenteId(null);
+    setModalita('studente'); setAnagraficaEsistenteId(null); setAna(anaVuota());
   };
 
   const errore = (): string | null => {
@@ -371,24 +302,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
     if (err) { toast({ title: 'Dati incompleti', description: err, variant: 'destructive' }); return; }
     setSaving(true);
     try {
-      const payloadAna = {
-        tipo: ana.tipo,
-        denominazione: ana.tipo === 'soggetto_giuridico' ? nz(ana.denominazione) : null,
-        nome: ana.tipo === 'persona_fisica' ? nz(ana.nome) : null,
-        cognome: ana.tipo === 'persona_fisica' ? nz(ana.cognome) : null,
-        codice_fiscale: nz(ana.codice_fiscale),
-        partita_iva: nz(ana.partita_iva),
-        indirizzo_via: nz(ana.indirizzo_via),
-        indirizzo_civico: nz(ana.indirizzo_civico),
-        indirizzo_cap: nz(ana.indirizzo_cap),
-        indirizzo_comune: nz(ana.indirizzo_comune),
-        indirizzo_provincia: nz(ana.indirizzo_provincia),
-        indirizzo_nazione: ana.indirizzo_nazione || 'IT',
-        codice_destinatario: nz(ana.codice_destinatario?.toUpperCase()),
-        pec: nz(ana.pec),
-        email_recapito: nz(ana.email_recapito),
-        studente_id: modalita === 'studente' ? studenteId : null,
-      };
+      const payloadAna = payloadAnagrafica(ana, modalita, studenteId);
 
       let anagraficaId: string;
       if (anagraficaEsistenteId && (modalita === 'studente' || !!sostituisce)) {
