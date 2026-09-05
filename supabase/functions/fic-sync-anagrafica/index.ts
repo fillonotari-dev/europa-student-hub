@@ -234,7 +234,7 @@ Deno.serve(async (req) => {
       ridotto.campi_inviati = Object.entries(mappatura.data as Record<string, unknown>)
         .filter(([, v]) => v !== null && v !== undefined && v !== '')
         .map(([k]) => k)
-      ridotto.fic_diagnostica = estraiDiagnosticaFic(lastBody)
+      Object.assign(ridotto, estraiDiagnosticaFic(lastBody))
     }
     await logFic(admin, {
       metodo, endpoint: endpointLabel, http_status: lastStatus, esito: 'errore',
