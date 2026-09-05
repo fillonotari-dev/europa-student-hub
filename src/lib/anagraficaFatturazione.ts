@@ -32,9 +32,11 @@ export function rigaDestinazioneAnagrafica(args: {
   const { modalita, anagraficaStudenteId, anaCorrente } = args;
 
   if (modalita === 'studente') {
-    return anagraficaStudenteId
-      ? { azione: 'aggiorna', id: anagraficaStudenteId }
-      : { azione: 'crea', id: null };
+    if (anagraficaStudenteId) return { azione: 'aggiorna', id: anagraficaStudenteId };
+    // Id non ancora caricato: se il contratto è già intestato allo studente,
+    // l'anagrafica corrente è la sua — aggiornare quella, non inserire.
+    if (anaCorrente?.studente_id) return { azione: 'aggiorna', id: anaCorrente.id };
+    return { azione: 'crea', id: null };
   }
 
   const correnteEraTerzo = !!anaCorrente && !anaCorrente.studente_id;
