@@ -15,3 +15,5 @@ project_id = "mxfrhocvswxfweyafqce"
     verify_jwt = false
   [functions.handle-email-suppression]
     verify_jwt = false
+  [functions.fic-test-connection]
+    verify_jwt = true

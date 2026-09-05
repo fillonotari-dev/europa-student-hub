@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { AlertTriangle } from 'lucide-react';
 import { ListiniSection } from '@/components/admin/impostazioni/ListiniSection';
+import { FattureInCloudSection } from '@/components/admin/impostazioni/FattureInCloudSection';
 
 const PHONE_RE = /^[+\d][\d\s().\-]{4,30}$/;
 
@@ -168,6 +169,7 @@ export default function Impostazioni() {
         </CardContent>
       </Card>
       <ListiniSection />
+      <FattureInCloudSection />
     </div>
   );
 }
