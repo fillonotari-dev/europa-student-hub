@@ -110,17 +110,17 @@ export function campiMancantiPerFattura(a: AnagraficaFic): string[] {
 export type ClientePayloadFic = {
   type: 'person' | 'company';
   name: string;
-  first_name: string | null;
-  last_name: string | null;
-  tax_code: string | null;
-  vat_number: string | null;
-  address_street: string | null;
-  address_postal_code: string | null;
-  address_city: string | null;
-  address_province: string | null;
+  first_name: string;
+  last_name: string;
+  tax_code: string;
+  vat_number: string;
+  address_street: string;
+  address_postal_code: string;
+  address_city: string;
+  address_province: string;
   country_iso: string;
-  certified_email: string | null;
-  email: string | null;
+  certified_email: string;
+  email: string;
   ei_code: string;
 };
 
