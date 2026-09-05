@@ -71,6 +71,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
   const [modalita, setModalita] = useState<Modalita>('studente');
   const [anagraficaEsistenteId, setAnagraficaEsistenteId] = useState<string | null>(null);
   const [ana, setAna] = useState<AnaState>(anaVuota());
+  const [caricandoAna, setCaricandoAna] = useState(false);
 
   const { data: strutture } = useQuery({
     queryKey: ['strutture-tutte'],
