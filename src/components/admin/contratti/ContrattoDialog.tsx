@@ -12,6 +12,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { AlertTriangle } from 'lucide-react';
+import { campiMancantiPerFic, codiceDestinatarioProposto } from '@shared/fic-anagrafica';
 
 type Props = {
   open: boolean;
@@ -183,7 +184,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
           indirizzo_comune: studente.indirizzo_comune ?? '',
           indirizzo_provincia: studente.indirizzo_provincia ?? '',
           indirizzo_nazione: studente.indirizzo_nazione ?? 'IT',
-          codice_destinatario: (studente.indirizzo_nazione ?? 'IT') === 'IT' ? '0000000' : 'XXXXXXX',
+          codice_destinatario: codiceDestinatarioProposto(studente.indirizzo_nazione),
           email_recapito: (studente as any).email_fattura || studente.email || '',
         }));
       }
@@ -306,7 +307,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
   }, [open, strutturaId, tipoCamera, sostituisce]);
 
   // Proposta del codice destinatario al cambio nazione (solo se non compilato a mano).
-  const proposto = ana.indirizzo_nazione === 'IT' ? '0000000' : 'XXXXXXX';
+  const proposto = codiceDestinatarioProposto(ana.indirizzo_nazione);
   useEffect(() => {
     setAna(prev =>
       prev.codice_destinatario === '' || prev.codice_destinatario === '0000000' || prev.codice_destinatario === 'XXXXXXX'
@@ -315,13 +316,9 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
     );
   }, [proposto]);
 
-  const datiFiscaliMancanti = useMemo(() => {
-    const m: string[] = [];
-    if (!ana.codice_fiscale && !ana.partita_iva) m.push('codice fiscale o partita IVA');
-    if (!ana.codice_destinatario) m.push('codice destinatario');
-    if (!ana.email_recapito && !ana.pec) m.push('email di recapito o PEC');
-    return m;
-  }, [ana]);
+  // Unica implementazione, condivisa con l'edge function fic-sync-anagrafica:
+  // qui avvisa senza bloccare, lì blocca l'invio a Fatture in Cloud.
+  const datiFiscaliMancanti = useMemo(() => campiMancantiPerFic(ana), [ana]);
 
   const nomeStruttura = (strutture ?? []).find((s: any) => s.id === strutturaId)?.nome ?? '';
 
