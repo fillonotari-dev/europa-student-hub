@@ -133,12 +133,20 @@ Al candidato approvato viene poi assegnato un posto in una camera specifica. Nas
 **Vincoli e regole di dominio nel database** (§5: le regole stanno nel database, non nel frontend):
 
 - `contratti_durata_max_chk`: `data_fine <= data_inizio + 12 mesi - 1 giorno`. È il limite legale del contratto di ospitalità studentesca e vive nello schema, non solo nell'interfaccia.
-- **a. Canoni non riscrivibili** (`canoni_protect_fatturati`, trigger `BEFORE UPDATE OR DELETE`): una riga in stato `fatturato` o `incassato` non può essere cancellata né modificata. Le uniche eccezioni sono la transizione `fatturato` → `incassato` e l'aggiornamento di `note` (più `updated_at`). Qualsiasi variazione di importo, aliquota, competenza, scadenza o contratto viene rifiutata: una mensilità fatturata corrisponde a un documento fiscale emesso. Con stato `da_fatturare` o `annullato` nessuna restrizione.
+- **a. Canoni non riscrivibili** (`canoni_protect_fatturati`, trigger `BEFORE UPDATE OR DELETE`): una riga in stato `fatturato` o `incassato` non può essere cancellata né modificata. Le uniche eccezioni sono la transizione `fatturato` → `incassato` e l'aggiornamento di `note` (più `updated_at`). Qualsiasi variazione di importo, aliquota, competenza, scadenza, contratto o **`fattura_id`** viene rifiutata: una mensilità fatturata corrisponde a un documento fiscale emesso, e il legame con la fattura che l'ha coperta è immutabile quanto l'importo. Con stato `da_fatturare` o `annullato` nessuna restrizione — il collegamento alla fattura si scrive proprio lì, mentre lo stato è ancora `da_fatturare`.
 - **b. Contratti cancellabili solo in bozza** (`contratti_protect_delete`, trigger `BEFORE DELETE`): il rifiuto scatta se lo stato non è `bozza`. Il `CASCADE` sui canoni è comodo per scartare una bozza, pericoloso su un contratto reale; per chiudere un contratto vero si usa uno stato di chiusura (`risolto`, `scaduto`).
+- **c. Fatture emesse non riscrivibili** (`fatture_protect_emesse`, trigger `BEFORE UPDATE OR DELETE`): con `OLD.stato = 'emessa'` la riga non si cancella e non si modificano `fic_document_id`, `numero`, `numerazione`, `data`, `imponibile`, `iva`, `totale`, `contratto_id`. Restano aggiornabili `ei_status` e `url_documento`, che cambiano da remoto dopo l'emissione. La **scrittura in due fasi non è ostacolata**: il passaggio `in_invio` → `emessa` avviene con `OLD.stato = 'in_invio'`, quindi il blocco non si attiva.
+- **d. Una mensilità si collega solo a una fattura del proprio contratto** (`canoni_fattura_stesso_contratto_fkey`): FK **composta** `(fattura_id, contratto_id) REFERENCES fatture (id, contratto_id)`. Con `fattura_id` nullo (MATCH SIMPLE) il vincolo non si applica, quindi l'aggiunta è additiva sulle righe esistenti; quando è valorizzato la coincidenza di contratto è garantita per costruzione, senza trigger.
 
-Entrambe le funzioni trigger sono `SECURITY INVOKER` con `SET search_path TO 'public'`, come tutte le altre funzioni trigger del progetto: la regola 4 del §12 riguarda le funzioni RPC invocabili dal client, non i trigger.
+**I due stati non finali di `fatture` non sono intercambiabili.** `in_invio` significa «abbiamo chiamato Fatture in Cloud e non sappiamo com'è andata» (timeout, connessione caduta): il documento **potrebbe** esistere da remoto, la riga va riconciliata e mai riprovata alla cieca. `errore` significa «Fatture in Cloud ha rifiutato in modo definitivo», tipicamente un 4xx di validazione: il documento **sicuramente non esiste**, si corregge e si riprova. Senza questa distinzione lo stato `errore` non serve a niente.
 
-Le quattro tabelle hanno RLS attiva con un'unica policy `FOR ALL TO authenticated` su `has_role(auth.uid(), 'admin')`. Nessun accesso `anon`.
+**Impostazioni di emissione** su `public.impostazioni` (tabella a riga singola, id = 1): `fic_numerazione` (default `/S`), `fic_giorni_scadenza` (30), `fic_giorno_emissione` (25), `fic_iban`, `fic_metodo_pagamento` (`bonifico`). Si leggono e si modificano nella sezione "Fatture in Cloud" di `/admin/impostazioni` (`src/components/admin/impostazioni/FattureInCloudSection.tsx`). La sigla di numerazione diventa **di sola lettura** se esiste almeno una riga in `fatture` con `stato = 'emessa'`: cambiarla dopo il primo documento romperebbe la continuità del registro fiscale.
+
+Tutte le funzioni trigger citate sono `SECURITY INVOKER` con `SET search_path TO 'public'`, come tutte le altre funzioni trigger del progetto: la regola 4 del §12 riguarda le funzioni RPC invocabili dal client, non i trigger.
+
+Le tabelle hanno RLS attiva con un'unica policy `FOR ALL TO authenticated` su `has_role(auth.uid(), 'admin')`. Nessun accesso `anon`.
+
+
 
 ### Viste e funzioni di lettura
 
