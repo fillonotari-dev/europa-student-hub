@@ -39,6 +39,7 @@ export interface CandidaturaLike {
   id: string;
   stato?: string | null;
   versione_form?: string | null;
+  origine?: string | null;
   esito_email_inviata_il?: string | null;
   token_scade_il?: string | null;
   completata_il?: string | null;
@@ -147,7 +148,9 @@ export function getAvailableActions(c: CandidaturaLike, opts: AvailableActionsOp
   // invia_esito compare per ogni candidatura accolta/rifiutata: se l'email non
   // è mai stata inviata la label è "Invia esito"; altrimenti "Reinvia esito".
   // Regola allargata così l'operatore ha sempre una rete se l'invio in-gesto è fallito.
-  if (c.stato === 'accolta' || c.stato === 'rifiutata') {
+  // Eccezione: le candidature con origine 'inserimento_manuale' non hanno un esito
+  // da comunicare — la persona non è mai passata dal form pubblico.
+  if ((c.stato === 'accolta' || c.stato === 'rifiutata') && c.origine !== 'inserimento_manuale') {
     const a = make('invia_esito');
     a.label = c.esito_email_inviata_il ? 'Reinvia esito' : 'Invia esito';
     out.push(a);

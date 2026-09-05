@@ -30,6 +30,7 @@ export type StadioRow = {
   completata_il?: string | null;
   anno_accademico?: string | null;
   created_at?: string | null;
+  origine?: string | null;
 };
 
 export async function fetchStadi(stadi: string[]): Promise<StadioRow[]> {
@@ -48,7 +49,7 @@ export async function fetchStadi(stadi: string[]): Promise<StadioRow[]> {
   const [candDetails, strutture] = await Promise.all([
     candIds.length
       ? supabase.from('candidature')
-          .select('id, versione_form, esito_email_inviata_il, token_scade_il, completata_il, anno_accademico, created_at')
+          .select('id, versione_form, esito_email_inviata_il, token_scade_il, completata_il, anno_accademico, created_at, origine')
           .in('id', candIds)
       : Promise.resolve({ data: [] as any[] }),
     strutturaIds.length
@@ -70,6 +71,7 @@ export async function fetchStadi(stadi: string[]): Promise<StadioRow[]> {
       completata_il: c?.completata_il ?? null,
       anno_accademico: c?.anno_accademico ?? null,
       created_at: c?.created_at ?? null,
+      origine: c?.origine ?? null,
     } as StadioRow;
   });
 }
