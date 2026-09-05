@@ -10,7 +10,7 @@ Due valori riservati salvati nel deposito sicuro del backend: `FIC_ACCESS_TOKEN`
 
 Nuova tabella con: `id`, `created_at`, `operazione`, `metodo`, `endpoint`, `http_status`, `esito` (`ok` / `errore`), `messaggio`, `payload_ridotto` (jsonb).
 
-- Protezione attiva, unica regola di accesso `FOR ALL TO authenticated` su `has_role(auth.uid(), 'admin')`, permessi ad `authenticated` e `service_role`: identica impostazione delle quattro tabelle della migration `20260818221948`.
+- Protezione attiva; permessi minimi: `GRANT SELECT` ad `authenticated` con policy `FOR SELECT` su `has_role(auth.uid(), 'admin')` (l'app legge soltanto il registro), e `GRANT ALL` al solo `service_role`, che è l'unico a scrivere dalle funzioni server. Diversamente dalle tabelle di dominio della migration `20260818221948`, questo è un registro di chiamate: l'applicazione non può modificarlo né cancellarlo.
 - `payload_ridotto` contiene solo campi selezionati esplicitamente (nome azienda, partita IVA, quote residue, codice errore). Il token non compare in nessun campo, e le risposte che contengono credenziali vengono filtrate campo per campo prima della scrittura, mai copiate intere.
 - Migration puramente additiva: nessun DROP, nessun ALTER restrittivo, nessuna modifica ai dati esistenti.
 
@@ -18,10 +18,8 @@ Nuova tabella con: `id`, `created_at`, `operazione`, `metodo`, `endpoint`, `http
 
 - `verify_jwt` attivo in `supabase/config.toml`; in apertura verifica il ruolo `admin` con `has_role` e risponde `403` altrimenti.
 - Non viene inserita nell'elenco delle funzioni pubbliche del §7 di `docs/Context.md`; verrà documentata come funzione riservata all'amministratore.
-- Endpoint interrogati (verificati sulla specifica ufficiale OpenAPI di Fatture in Cloud, non dedotti):
-  - `GET https://api-v2.fattureincloud.it/c/{company_id}/company/info` — conferma che token e azienda sono validi e restituisce il nome dell'azienda.
-  - `GET https://api-v2.fattureincloud.it/user/companies` — unica fonte documentata della partita IVA (`vat_number`) associata all'id azienda. La sua risposta contiene anche token di accesso per azienda: vengono scartati subito, non registrati e non restituiti all'interfaccia.
-- Da entrambe le risposte vengono letti gli header `RateLimit-HourlyRemaining` e `RateLimit-MonthlyRemaining`.
+- Unica chiamata (verificata sulla specifica ufficiale OpenAPI di Fatture in Cloud, non dedotta): `GET https://api-v2.fattureincloud.it/c/{company_id}/company/info` — conferma che il token funziona e punta all'azienda giusta, restituendo il nome dell'azienda. Non viene interrogata `/user/companies`: esporrebbe token di accesso e la partita IVA che restituirebbe non serve, perché i dati del cedente li mette Fatture in Cloud sul documento.
+- Dalla risposta vengono letti gli header `RateLimit-HourlyRemaining` e `RateLimit-MonthlyRemaining`.
 - Ogni chiamata, riuscita o fallita, scrive una riga in `fic_log`.
 - Su risposta `429`, o `403` per superamento quota, la funzione rispetta l'header `Retry-After` e riprova al massimo due volte con attesa crescente; al terzo fallimento restituisce l'errore all'interfaccia e si ferma.
 - Messaggi di errore in italiano, senza dettagli tecnici inutili e senza mai riportare il token.
