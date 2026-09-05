@@ -27,18 +27,18 @@ Poiché il conteggio in Dashboard non esiste, applichiamo l'esclusione dove la c
 - `CandidaturaBadges.tsx`: il badge "Esito da comunicare" non compare quando `origine === 'inserimento_manuale'`.
 - `candidaturaActions.ts`: l'azione "Invia esito" non viene proposta per le candidature manuali (resta disponibile tutto il resto).
 
-Se invece si vuole *anche* una nuova voce "Esiti da comunicare" nella Dashboard, la aggiungiamo già filtrata con `.neq('origine','inserimento_manuale')` — ditelo e la includo.
+Nessuna nuova voce "Esiti da comunicare" nella Dashboard: tema a sé, non di questo intervento.
 
-### 2. Pulsante "Aggiungi persona"
+### 3. Pulsante "Aggiungi persona"
 Nella toolbar di `/admin/residenti`, accanto al pulsante di esportazione. Nessun pulsante in `/admin/candidature`.
 
-### 3. Dialogo — sezione anagrafica
-Nuovo componente a livello di modulo (mai definito dentro un altro componente) `src/components/admin/AggiungiPersonaDialog.tsx`.
-Campi, gli stessi che `submit-candidatura` scrive su `studenti`: nome, cognome, email, telefono, data di nascita, nazionalità, codice fiscale con la casella "codice fiscale non disponibile", indirizzo (via, civico, CAP, comune, provincia, nazione con default `IT`).
+### 4. Dialogo — sezione anagrafica
+...
 Obbligatori solo nome, cognome, email. Codice fiscale validato, se compilato, con `validateCodiceFiscale` da `@shared/codice-fiscale`; salvato in forma normalizzata.
 
-### 4. Dialogo — sezione posto letto (facoltativa)
+### 5. Dialogo — sezione posto letto (facoltativa)
 Interruttore che apre: sede, data inizio (obbligatoria quando la sezione è attiva), data fine (facoltativa), camera e posto. L'elenco viene solo da `camere_disponibilita`; se la data fine è vuota si interroga con un orizzonte esplicito a partire dalla data inizio, e i posti già occupati arrivano da `posti_occupati_numeri`.
+Quando l'interruttore è chiuso il dialogo dichiara la conseguenza: «Senza posto letto la persona entra in lista d'attesa e comparirà in Candidature, non in Residenti.»
 
 ### 5. Controllo email
 Al `blur` del campo email, ricerca esatta su `studenti`. Se esiste, blocco della conferma e collegamento "Apri la scheda" verso `/admin/studenti/:id`.
