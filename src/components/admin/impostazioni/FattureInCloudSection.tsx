@@ -255,6 +255,8 @@ export function FattureInCloudSection() {
             <p className="text-[13px]">{esito.messaggio}</p>
           </div>
         )}
+
+        <ImpostazioniFatturazione />
       </CardContent>
     </Card>
   );
