@@ -309,6 +309,15 @@ Nella scheda contratto le azioni compaiono solo per lo stato `attivo`: "Chiudi c
 
 Concludere un soggiorno da Residenti non chiudeva il contratto collegato, che continuava a produrre mensilità per mesi inesistenti. Oggi, dopo la conclusione di un'assegnazione con un contratto `attivo` collegato (`contratti.assegnazione_id`), il sistema **propone** la chiusura — non la impone: si può rifiutare. La data è precompilata con quella di chiusura del soggiorno e il motivo è suggerito dal motivo dell'assegnazione: `fine_naturale → fine_naturale`, `partenza_anticipata` e `mai_arrivato → partenza_anticipata`, `allontanato → risoluzione`. Con motivo `trasferimento` non viene proposto nulla, perché il contratto sopravvive al cambio di camera. Se la data proposta è pari o precedente alla `data_inizio` del contratto — caso tipico del "mai arrivato", ma la condizione è generale — la chiusura non viene proposta: il dialogo spiega che il contratto non può chiudersi prima di cominciare e rimanda a "Riporta in bozza" nella sua scheda.
 
+### Collegamento a Fatture in Cloud (sola lettura)
+
+Il gestionale è collegato a Fatture in Cloud per la futura emissione dei documenti fiscali. In questa fase il collegamento è **esclusivamente in lettura**: nessun documento viene creato, modificato o inviato, e non esistono sincronizzazioni né webhook.
+
+- **Credenziali**: `FIC_ACCESS_TOKEN` e `FIC_COMPANY_ID` vivono solo nei secret del backend; non compaiono in tabelle, nel frontend o nei log.
+- **`fic-test-connection`**: edge function riservata agli amministratori (`verify_jwt = true` più controllo `has_role` in apertura; **non** è nel perimetro pubblico del §7). Esegue una sola chiamata, `GET /c/{company_id}/company/info` (specifica OpenAPI ufficiale), che conferma token e azienda restituendo il nome dell'azienda. `/user/companies` non viene mai interrogata: esporrebbe token di accesso, e la partita IVA che restituirebbe non serve perché i dati del cedente li scrive Fatture in Cloud sul documento. Su `429` o `403` da superamento quota rispetta `Retry-After` e riprova al massimo due volte con attesa crescente, poi restituisce l'errore.
+- **`fic_log`**: registro di ogni chiamata (operazione, metodo, endpoint, stato HTTP, esito, messaggio, `payload_ridotto` con campi selezionati esplicitamente — mai il token). È un **registro**, non una tabella di dominio: l'applicazione ha solo `GRANT SELECT` con policy admin, la scrittura è appannaggio esclusivo del `service_role`. Sarà il primo posto dove guardare quando una fattura non partirà.
+- **Interfaccia**: sezione "Fatture in Cloud" in `/admin/impostazioni`, sotto Listini, con il solo comando "Verifica connessione" (`src/components/admin/impostazioni/FattureInCloudSection.tsx`).
+
 ### Pagina persona
 
 La finestra modale di dettaglio candidatura è sostituita da una pagina dedicata: `/admin/studenti/:id` (`src/pages/admin/StudentePage.tsx`). Contiene, nell'ordine:

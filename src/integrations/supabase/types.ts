@@ -764,6 +764,42 @@ export type Database = {
         }
         Relationships: []
       }
+      fic_log: {
+        Row: {
+          created_at: string
+          endpoint: string
+          esito: string
+          http_status: number | null
+          id: string
+          messaggio: string | null
+          metodo: string
+          operazione: string
+          payload_ridotto: Json | null
+        }
+        Insert: {
+          created_at?: string
+          endpoint: string
+          esito: string
+          http_status?: number | null
+          id?: string
+          messaggio?: string | null
+          metodo: string
+          operazione: string
+          payload_ridotto?: Json | null
+        }
+        Update: {
+          created_at?: string
+          endpoint?: string
+          esito?: string
+          http_status?: number | null
+          id?: string
+          messaggio?: string | null
+          metodo?: string
+          operazione?: string
+          payload_ridotto?: Json | null
+        }
+        Relationships: []
+      }
       impostazioni: {
         Row: {
           contatto_email: string | null
