@@ -834,7 +834,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          importo_mensile: number
+          importo_mensile_lordo: number
           struttura_id: string
           tipo_camera: string
           valido_al: string | null
@@ -843,7 +843,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
-          importo_mensile: number
+          importo_mensile_lordo: number
           struttura_id: string
           tipo_camera: string
           valido_al?: string | null
@@ -852,7 +852,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
-          importo_mensile?: number
+          importo_mensile_lordo?: number
           struttura_id?: string
           tipo_camera?: string
           valido_al?: string | null
