@@ -40,14 +40,17 @@ Obbligatori solo nome, cognome, email. Codice fiscale validato, se compilato, co
 Interruttore che apre: sede, data inizio (obbligatoria quando la sezione è attiva), data fine (facoltativa), camera e posto. L'elenco viene solo da `camere_disponibilita`; se la data fine è vuota si interroga con un orizzonte esplicito a partire dalla data inizio, e i posti già occupati arrivano da `posti_occupati_numeri`.
 Quando l'interruttore è chiuso il dialogo dichiara la conseguenza: «Senza posto letto la persona entra in lista d'attesa e comparirà in Candidature, non in Residenti.»
 
-### 5. Controllo email
+### 6. Controllo email
 Al `blur` del campo email, ricerca esatta su `studenti`. Se esiste, blocco della conferma e collegamento "Apri la scheda" verso `/admin/studenti/:id`.
 
-### 6. Avviso fisso sotto il campo email
+### 7. Avviso fisso sotto il campo email
 "Questa persona non potrà più candidarsi dal form pubblico con questa email: le candidature con un'email già registrata vengono rifiutate." Non bloccante.
 
-### 7. Conferma
+### 8. Conferma
 Chiamata `supabase.rpc('crea_persona_manuale', { p_studente, p_candidatura, p_assegnazione })`, poi navigazione a `/admin/studenti/{studente_id}`. Gli errori della funzione vengono mostrati testualmente, senza riformularli.
 
+### 9. Documentazione
+Correzione di una frase falsa in `docs/Context.md` §3: afferma che la marcatura "esito da comunicare" alimenta la sezione Task della Dashboard, ma `Dashboard.tsx` non legge mai `esito_email_inviata_il` (verificato). La frase viene corretta indicando i due punti reali in cui la condizione vive: `CandidaturaBadges.tsx` (badge "Esito da comunicare") e `candidaturaActions.ts` (azione `invia_esito`). Aggiunta inoltre la nota sullo stato derivato della funzione, con ancoraggio alla migration del punto 1.
+
 ## Fuori perimetro (dichiarato)
-Nessuna modifica al database: colonna, funzione, permessi ed errori restano come sono. Nessuna email inviata all'inserimento.
+Unica modifica al database: il corpo della funzione (punto 1). Colonna `origine`, permessi ed errori restano come sono. Nessuna email inviata all'inserimento.
