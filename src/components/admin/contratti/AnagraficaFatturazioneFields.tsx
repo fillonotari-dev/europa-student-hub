@@ -52,6 +52,12 @@ export const anaVuota = (): AnaState => ({
   email_recapito: '',
 });
 
+/**
+ * Stato per "intesta a un altro soggetto": i campi identificativi vanno svuotati,
+ * altrimenti i dati della persona precedente finiscono sulla riga del terzo.
+ */
+export const anaTerzoVuota = (): AnaState => ({ ...anaVuota(), tipo: 'soggetto_giuridico', codice_destinatario: '' });
+
 /** Riga di anagrafiche_fatturazione → stato del form. */
 export const anaDaRiga = (r: any): AnaState => ({
   tipo: r?.tipo ?? 'persona_fisica',
