@@ -12,7 +12,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { AlertTriangle } from 'lucide-react';
-import { campiMancantiPerFic, codiceDestinatarioProposto } from '@shared/fic-anagrafica';
+import { campiMancantiPerFattura, codiceDestinatarioProposto } from '@shared/fic-anagrafica';
 
 type Props = {
   open: boolean;
