@@ -28,7 +28,7 @@ Nuova tabella con: `id`, `created_at`, `operazione`, `metodo`, `endpoint`, `http
 
 In `/admin/impostazioni`, nuova sezione sotto Listini con un solo pulsante **Verifica connessione**. Al termine mostra:
 
-- in caso positivo: azienda collegata, partita IVA, chiamate residue nell'ora e nel mese;
+- in caso positivo: nome dell'azienda collegata, chiamate residue nell'ora e nel mese;
 - in caso negativo: il messaggio di errore restituito.
 
 Nessun altro comando in questa sezione.
@@ -39,7 +39,7 @@ Nessuna sincronizzazione delle anagrafiche, nessuna creazione di documenti, ness
 
 ## Dettagli tecnici
 
-- Migration additiva `fic_log` con `GRANT SELECT, INSERT, UPDATE, DELETE ... TO authenticated`, `GRANT ALL ... TO service_role`, `ENABLE ROW LEVEL SECURITY` e la singola policy admin, nell'ordine previsto.
+- Migration additiva `fic_log` con `GRANT SELECT ... TO authenticated`, `GRANT ALL ... TO service_role`, `ENABLE ROW LEVEL SECURITY` e la singola policy `FOR SELECT` admin, nell'ordine previsto.
 - Nuova funzione `supabase/functions/fic-test-connection/index.ts`, CORS incluso; blocco `[functions.fic-test-connection] verify_jwt = true` in `supabase/config.toml`.
 - Scrittura su `fic_log` con client `service_role` interno alla funzione; l'interfaccia legge il registro solo tramite le regole admin.
 - Nuovo componente `src/components/admin/impostazioni/FattureInCloudSection.tsx`, montato in `src/pages/admin/Impostazioni.tsx` dopo `ListiniSection`, che invoca la funzione con `supabase.functions.invoke`.
