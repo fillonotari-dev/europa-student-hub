@@ -62,6 +62,10 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
   const [listino, setListino] = useState<{ importo: number; valido_dal: string } | null>(null);
   const [listinoCercato, setListinoCercato] = useState(false);
   const [ultimoProposto, setUltimoProposto] = useState<string | null>(null);
+  const scomp = Number.isFinite(Number(canone)) && canone.trim() !== '' && Number(canone) >= 0
+    ? scomposizione(Number(canone), Number(aliquota) || 0)
+    : null;
+
   const [origine, setOrigine] = useState<{ strutturaId: string; tipoCamera: string } | null>(null);
   const [note, setNote] = useState('');
 
