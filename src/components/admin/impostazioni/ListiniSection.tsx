@@ -105,9 +105,14 @@ export function ListiniSection() {
         <div>
           <h2 className="text-base font-semibold">Listini</h2>
           <p className="text-[12px] text-muted-foreground mt-1">
+            I prezzi di listino si esprimono <strong>IVA inclusa</strong>: è l'importo concordato con lo studente.
+            Il sistema conserva l'imponibile e lo calcola al momento del contratto.
+          </p>
+          <p className="text-[12px] text-muted-foreground mt-1">
             I prezzi non si modificano: si succedono nel tempo. Per cambiare un canone si apre un nuovo prezzo
             con una nuova data di decorrenza, e quello in vigore viene chiuso il giorno prima.
           </p>
+
         </div>
 
         <div className="border rounded-lg overflow-hidden">
