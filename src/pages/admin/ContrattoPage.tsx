@@ -18,7 +18,7 @@ import {
 import { generaScadenzario, totaleRiga } from '@/lib/scadenzario';
 import { imponibilePersonalizzato, partizionaMensilitaPerCambioCanone } from '@/lib/canoniRicalcolo';
 import { eliminaContrattoBozza } from '@/lib/contrattoDelete';
-import { scomposizione, imponibileDaLordo, lordoDaImponibile } from '@/lib/iva';
+import { scomposizione, lordoDaImponibile } from '@/lib/iva';
 import { fmtEuro, fmtIt, STATO_CONTRATTO_COLORS } from './Contratti';
 import { cn } from '@/lib/utils';
 import { AlertTriangle, Check, FileUp, FileText, Info, Pencil, Repeat, Trash2, Undo2, X } from 'lucide-react';
