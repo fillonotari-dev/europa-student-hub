@@ -202,6 +202,6 @@ export function AnagraficaFatturazioneFields({
           </p>
         </div>
       )}
-    </>
+    </fieldset>
   );
 }
