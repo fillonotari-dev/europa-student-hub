@@ -361,12 +361,17 @@ export function useCandidaturaActions(options: Options = {}) {
 
       let candidaturaIdPerAssegnazione = v.c.id;
 
-      // Nuovo soggiorno: creo una candidatura "interna" collegata allo studente.
+      // Nuovo soggiorno: creo una candidatura creata dall'amministrazione,
+      // collegata allo studente. origine = 'inserimento_manuale' cosi' eredita
+      // le stesse guardie del percorso manuale (niente badge/azione esito,
+      // niente email, ritorno in in_attesa_posto se l'assegnazione viene annullata).
       if (v.mode === 'nuovo') {
         const { data: newCand, error: newErr } = await supabase.from('candidature').insert({
           studente_id: v.studente_id,
           stato: 'accolta',
-          versione_form: 'interna',
+          origine: 'inserimento_manuale',
+          versione_form: 'pre_screening',
+
           periodo_inizio: v.data_inizio,
           periodo_fine: v.data_fine,
           note_admin: v.nota_esito || null,
