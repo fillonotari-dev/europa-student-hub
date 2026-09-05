@@ -422,6 +422,7 @@ export type Database = {
           competenza: string
           contratto_id: string
           created_at: string
+          fattura_id: string | null
           id: string
           imponibile: number
           note: string | null
@@ -435,6 +436,7 @@ export type Database = {
           competenza: string
           contratto_id: string
           created_at?: string
+          fattura_id?: string | null
           id?: string
           imponibile: number
           note?: string | null
@@ -448,6 +450,7 @@ export type Database = {
           competenza?: string
           contratto_id?: string
           created_at?: string
+          fattura_id?: string | null
           id?: string
           imponibile?: number
           note?: string | null
@@ -463,6 +466,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "contratti"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "canoni_fattura_stesso_contratto_fkey"
+            columns: ["fattura_id", "contratto_id"]
+            isOneToOne: false
+            referencedRelation: "fatture"
+            referencedColumns: ["id", "contratto_id"]
           },
         ]
       }
@@ -764,6 +774,68 @@ export type Database = {
         }
         Relationships: []
       }
+      fatture: {
+        Row: {
+          contratto_id: string
+          created_at: string
+          data: string | null
+          ei_status: string | null
+          fic_document_id: number | null
+          id: string
+          imponibile: number
+          iva: number
+          messaggio_errore: string | null
+          numerazione: string | null
+          numero: number | null
+          stato: string
+          totale: number
+          updated_at: string
+          url_documento: string | null
+        }
+        Insert: {
+          contratto_id: string
+          created_at?: string
+          data?: string | null
+          ei_status?: string | null
+          fic_document_id?: number | null
+          id?: string
+          imponibile: number
+          iva: number
+          messaggio_errore?: string | null
+          numerazione?: string | null
+          numero?: number | null
+          stato: string
+          totale: number
+          updated_at?: string
+          url_documento?: string | null
+        }
+        Update: {
+          contratto_id?: string
+          created_at?: string
+          data?: string | null
+          ei_status?: string | null
+          fic_document_id?: number | null
+          id?: string
+          imponibile?: number
+          iva?: number
+          messaggio_errore?: string | null
+          numerazione?: string | null
+          numero?: number | null
+          stato?: string
+          totale?: number
+          updated_at?: string
+          url_documento?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fatture_contratto_id_fkey"
+            columns: ["contratto_id"]
+            isOneToOne: false
+            referencedRelation: "contratti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fic_log: {
         Row: {
           created_at: string
@@ -806,6 +878,11 @@ export type Database = {
           contatto_orari: string | null
           contatto_telefono: string | null
           contatto_whatsapp: string | null
+          fic_giorni_scadenza: number | null
+          fic_giorno_emissione: number | null
+          fic_iban: string | null
+          fic_metodo_pagamento: string | null
+          fic_numerazione: string | null
           id: number
           notifica_email: string | null
           updated_at: string
@@ -815,6 +892,11 @@ export type Database = {
           contatto_orari?: string | null
           contatto_telefono?: string | null
           contatto_whatsapp?: string | null
+          fic_giorni_scadenza?: number | null
+          fic_giorno_emissione?: number | null
+          fic_iban?: string | null
+          fic_metodo_pagamento?: string | null
+          fic_numerazione?: string | null
           id?: number
           notifica_email?: string | null
           updated_at?: string
@@ -824,6 +906,11 @@ export type Database = {
           contatto_orari?: string | null
           contatto_telefono?: string | null
           contatto_whatsapp?: string | null
+          fic_giorni_scadenza?: number | null
+          fic_giorno_emissione?: number | null
+          fic_iban?: string | null
+          fic_metodo_pagamento?: string | null
+          fic_numerazione?: string | null
           id?: number
           notifica_email?: string | null
           updated_at?: string
