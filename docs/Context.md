@@ -99,7 +99,7 @@ Al candidato approvato viene poi assegnato un posto in una camera specifica. Nas
 | `strutture` | Le due sedi. Unica tabella con lettura pubblica (solo se `attiva = true`) |
 | `camere` | Camere per struttura: numero, piano, tipo, posti, stato manuale (`disponibile` / `manutenzione` / `non_disponibile`) |
 | `studenti` | Anagrafica della persona, separata dalla candidatura. Email univoca. Include l'anagrafica fiscale strutturata (`indirizzo_via`, `indirizzo_civico`, `indirizzo_cap`, `indirizzo_comune`, `indirizzo_provincia`, `indirizzo_nazione` con default `IT`) e il flag `cf_non_disponibile` per i candidati senza codice fiscale italiano |
-| `candidature` | La richiesta: stato, preferenze, dati accademici in snapshot, dichiarazioni, token di completamento, campi di gestione email. `priorita` ordina la lista d'attesa (`in_attesa_posto`) |
+| `candidature` | La richiesta: stato, preferenze, dati accademici in snapshot, dichiarazioni, token di completamento, campi di gestione email. `priorita` ordina la lista d'attesa (`in_attesa_posto`). La colonna `origine` (migration `20260905122830`) distingue `form_pubblico` (candidatura arrivata dal sito) da `inserimento_manuale` (persona registrata dall'amministrazione via `crea_persona_manuale`); vincolo `candidature_origine_chk` |
 | `assegnazioni` | Il soggiorno: studente, candidatura, camera, posto (1 o 2), `data_inizio` (`NOT NULL`), `data_fine`, `stato` (`attiva` / `conclusa`), `motivo_chiusura` |
 | `documenti` | Metadati dei file caricati, con riferimento al path in storage |
 | `log_stato_candidature` | Traccia automatica di ogni cambio di stato |
@@ -172,7 +172,7 @@ Questa è la scelta architetturale più importante del sistema, e va rispettata:
 Le righe di `log_stato_candidature` sono di due tipi:
 
 - **Righe di transizione** (`stato_precedente` ≠ `stato_nuovo`): scritte **esclusivamente** dal trigger `candidature_log_stato` a ogni `UPDATE` di `candidature.stato`. Il codice applicativo non deve mai inserire righe di transizione: farebbe duplicati e/o incoerenze rispetto allo stato reale della candidatura.
-- **Righe di evento** (`stato_precedente = stato_nuovo`, con `note`): scritte dalle funzioni server per lasciare traccia di azioni che non cambiano lo stato ma sono rilevanti nella cronologia. Oggi l'unico caso è `complete-candidatura`, che inserisce una riga di evento con nota "Form completo inviato dallo studente" quando il candidato invia la fase 2.
+- **Righe di evento** (`stato_precedente = stato_nuovo`, con `note`): scritte dalle funzioni server per lasciare traccia di azioni che non cambiano lo stato ma sono rilevanti nella cronologia. Oggi l'unico caso è `complete-candidatura`, che inserisce una riga di evento con nota "Form completo inviato dallo studente" quando il candidato invia la fase 2. Caso a parte la riga di **creazione**: all'inserimento della candidatura (`submit-candidatura`, `crea_persona_manuale`) viene scritta una riga con `stato_precedente` nullo e `stato_nuovo` pari allo stato iniziale, perché non esiste uno stato precedente.
 
 La scheda persona (§ Area amministrativa) presenta le due categorie in una timeline narrativa unica.
 
