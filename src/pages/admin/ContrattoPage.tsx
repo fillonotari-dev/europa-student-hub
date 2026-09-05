@@ -19,7 +19,7 @@ import { generaScadenzario, totaleRiga } from '@/lib/scadenzario';
 import { eliminaContrattoBozza } from '@/lib/contrattoDelete';
 import { fmtEuro, fmtIt, STATO_CONTRATTO_COLORS } from './Contratti';
 import { cn } from '@/lib/utils';
-import { Check, FileUp, FileText, Pencil, Repeat, Trash2, Undo2, X } from 'lucide-react';
+import { AlertTriangle, Check, FileUp, FileText, Pencil, Repeat, Trash2, Undo2, X } from 'lucide-react';
 
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
 const oggiPrimoDelMese = () => `${new Date().toISOString().slice(0, 7)}-01`;
