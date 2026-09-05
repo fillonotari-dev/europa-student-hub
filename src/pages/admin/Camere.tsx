@@ -281,9 +281,6 @@ export default function Camere() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={openCreate} size="sm">
-            <Plus className="w-4 h-4 mr-1" /> Nuova camera
-          </Button>
           <ExportButton
             filename="camere"
             getRows={() => filteredCamere.map((c: any) => ({
@@ -297,6 +294,9 @@ export default function Camere() {
               'Note': c.note ?? '',
             }))}
           />
+          <Button onClick={openCreate} size="sm">
+            <Plus className="w-4 h-4 mr-1" /> Nuova camera
+          </Button>
         </div>
       </div>
 
