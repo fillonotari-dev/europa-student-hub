@@ -281,6 +281,7 @@ export type Database = {
           note_admin: string | null
           orari: string | null
           ordine_pulizia: string | null
+          origine: string
           periodo_fine: string | null
           periodo_inizio: string | null
           personalita: string | null
@@ -326,6 +327,7 @@ export type Database = {
           note_admin?: string | null
           orari?: string | null
           ordine_pulizia?: string | null
+          origine?: string
           periodo_fine?: string | null
           periodo_inizio?: string | null
           personalita?: string | null
@@ -371,6 +373,7 @@ export type Database = {
           note_admin?: string | null
           orari?: string | null
           ordine_pulizia?: string | null
+          origine?: string
           periodo_fine?: string | null
           periodo_inizio?: string | null
           personalita?: string | null
@@ -1093,6 +1096,10 @@ export type Database = {
       consume_candidatura_upload_slot: {
         Args: { p_temp_id: string }
         Returns: boolean
+      }
+      crea_persona_manuale: {
+        Args: { p_assegnazione?: Json; p_candidatura: Json; p_studente: Json }
+        Returns: Json
       }
       delete_email: {
         Args: { message_id: number; queue_name: string }
