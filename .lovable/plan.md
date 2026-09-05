@@ -8,10 +8,12 @@ Fatture in Cloud rifiuta con 422 (`must be a string`) qualunque proprietà strin
 
 ### 1. `supabase/functions/_shared/fic-anagrafica.ts` — mappatura
 
-- `ClientePayloadFic`: i campi oggi `string | null` (`first_name`, `last_name`, `tax_code`, `vat_number`, `address_street`, `address_postal_code`, `address_city`, `address_province`, `certified_email`, `email`) diventano `string`. Restano `string` non nulli anche `type`, `name`, `country_iso`, `ei_code` (già sempre valorizzati).
+- `ClientePayloadFic`: i campi oggi `string | null` (`first_name`, `last_name`, `tax_code`, `vat_number`, `address_street`, `address_postal_code`, `address_city`, `address_province`, `certified_email`, `email`) diventano `string`. Restano `string` anche `type`, `name`, `country_iso`, `ei_code`.
 - In `mappaAnagraficaPerFic` la funzione `nz` viene sostituita dalla normalizzazione a stringa vuota: valore assente → `""`, mai `null`. I valori speciali restano invariati: `tax_code = ""` per l'estero, CAP `00000`, provincia `EE`, `vat_number = TAX_ID_EXTRA_UE` per Extra-UE, `vat_number = ""` per UE senza identificativo.
+- **`ei_code`**: oggi è `(nz(codice_destinatario) ?? codiceDestinatarioProposto(nazione))`, e `??` ricade solo su `null`/`undefined`. Con la nuova normalizzazione la stringa vuota passerebbe il `??` e si spedirebbe un `ei_code` vuoto, non ammesso sulla fattura elettronica. Il ripiego diventa sul **valore vuoto** (`||` o controllo esplicito sulla stringa non vuota). Verificato con `grep '??'` sul modulo: `ei_code` è l'**unica** occorrenza dello schema `x ?? fallback`; l'altro fallback presente, `s(a.indirizzo_nazione) || 'IT'` in `nazioneDi`, usa già `||` e resta corretto.
 - Commento nel modulo che fissa la regola: nessun `null` esplicito verso FIC; `""` svuota il campo anche in PUT. Se in futuro FIC rifiutasse `""` su un campo specifico, per quel campo si ripiega sull'omissione della chiave dichiarandolo nel commento.
 - Le soglie (`baseCampiMancantiPerFic`) leggono l'anagrafica DB, non il payload: invariate.
+
 
 ### 2. Test — `src/test/fic-anagrafica.test.ts`
 
