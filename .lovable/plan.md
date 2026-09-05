@@ -1,6 +1,6 @@
 # Inserimento manuale di una persona: il percorso in area admin
 
-Obiettivo: dare all'amministrazione un modo per registrare a mano una persona mai passata dal form pubblico, chiamando la funzione di database `crea_persona_manuale` già esistente e verificata.
+Obiettivo: dare all'amministrazione un modo per registrare a mano una persona mai passata dal form pubblico, appoggiandosi alla funzione `crea_persona_manuale`, che in questo giro viene corretta: lo stato della candidatura non è più costante ma derivato dalla presenza dell'assegnazione.
 
 ## Verifiche fatte prima di scrivere il piano
 
@@ -14,33 +14,43 @@ Obiettivo: dare all'amministrazione un modo per registrare a mano una persona ma
 
 ## Cosa faremo
 
-### 1. Esiti da comunicare: esclusione degli inserimenti manuali
+### 1. Correzione della funzione `crea_persona_manuale` (migration)
+Lo stato della candidatura non è più costante `accolta`: la funzione lo deriva — `accolta` se `p_assegnazione` non è nullo, `in_attesa_posto` se è nullo. Mai preso dal payload.
+Motivo verificabile: `v_studenti_stadio` classifica come `archiviato` qualsiasi candidatura il cui stato non sia fra `da_valutare`, `in_attesa_studente`, `da_decidere`, `in_attesa_posto` e che non abbia un'assegnazione attiva — una persona inserita senza posto letto sparirebbe da entrambe le liste.
+Conseguenze:
+- La riga in `log_stato_candidature` deve riportare lo stato effettivamente scritto (`stato_nuovo` uguale allo stato derivato, `stato_precedente` nullo, nota invariata).
+- Il posto "Fuori perimetro: nessuna modifica al database" non vale più: questa correzione richiede una migration che aggiorna solo il corpo della funzione. Permessi, `SECURITY INVOKER`, `SET search_path`, controlli ed errori tradotti restano invariati.
+
+### 2. Esiti da comunicare: esclusione degli inserimenti manuali
 Poiché il conteggio in Dashboard non esiste, applichiamo l'esclusione dove la condizione vive davvero, così una persona inserita a mano non risulta mai "esito da comunicare":
 - `studentiQuery.ts`: aggiungere `origine` alle colonne lette e al tipo `StadioRow`.
 - `CandidaturaBadges.tsx`: il badge "Esito da comunicare" non compare quando `origine === 'inserimento_manuale'`.
 - `candidaturaActions.ts`: l'azione "Invia esito" non viene proposta per le candidature manuali (resta disponibile tutto il resto).
 
-Se invece si vuole *anche* una nuova voce "Esiti da comunicare" nella Dashboard, la aggiungiamo già filtrata con `.neq('origine','inserimento_manuale')` — ditelo e la includo.
+Nessuna nuova voce "Esiti da comunicare" nella Dashboard: tema a sé, non di questo intervento.
 
-### 2. Pulsante "Aggiungi persona"
+### 3. Pulsante "Aggiungi persona"
 Nella toolbar di `/admin/residenti`, accanto al pulsante di esportazione. Nessun pulsante in `/admin/candidature`.
 
-### 3. Dialogo — sezione anagrafica
-Nuovo componente a livello di modulo (mai definito dentro un altro componente) `src/components/admin/AggiungiPersonaDialog.tsx`.
-Campi, gli stessi che `submit-candidatura` scrive su `studenti`: nome, cognome, email, telefono, data di nascita, nazionalità, codice fiscale con la casella "codice fiscale non disponibile", indirizzo (via, civico, CAP, comune, provincia, nazione con default `IT`).
+### 4. Dialogo — sezione anagrafica
+...
 Obbligatori solo nome, cognome, email. Codice fiscale validato, se compilato, con `validateCodiceFiscale` da `@shared/codice-fiscale`; salvato in forma normalizzata.
 
-### 4. Dialogo — sezione posto letto (facoltativa)
+### 5. Dialogo — sezione posto letto (facoltativa)
 Interruttore che apre: sede, data inizio (obbligatoria quando la sezione è attiva), data fine (facoltativa), camera e posto. L'elenco viene solo da `camere_disponibilita`; se la data fine è vuota si interroga con un orizzonte esplicito a partire dalla data inizio, e i posti già occupati arrivano da `posti_occupati_numeri`.
+Quando l'interruttore è chiuso il dialogo dichiara la conseguenza: «Senza posto letto la persona entra in lista d'attesa e comparirà in Candidature, non in Residenti.»
 
-### 5. Controllo email
+### 6. Controllo email
 Al `blur` del campo email, ricerca esatta su `studenti`. Se esiste, blocco della conferma e collegamento "Apri la scheda" verso `/admin/studenti/:id`.
 
-### 6. Avviso fisso sotto il campo email
+### 7. Avviso fisso sotto il campo email
 "Questa persona non potrà più candidarsi dal form pubblico con questa email: le candidature con un'email già registrata vengono rifiutate." Non bloccante.
 
-### 7. Conferma
+### 8. Conferma
 Chiamata `supabase.rpc('crea_persona_manuale', { p_studente, p_candidatura, p_assegnazione })`, poi navigazione a `/admin/studenti/{studente_id}`. Gli errori della funzione vengono mostrati testualmente, senza riformularli.
 
+### 9. Documentazione
+Correzione di una frase falsa in `docs/Context.md` §3: afferma che la marcatura "esito da comunicare" alimenta la sezione Task della Dashboard, ma `Dashboard.tsx` non legge mai `esito_email_inviata_il` (verificato). La frase viene corretta indicando i due punti reali in cui la condizione vive: `CandidaturaBadges.tsx` (badge "Esito da comunicare") e `candidaturaActions.ts` (azione `invia_esito`). Aggiunta inoltre la nota sullo stato derivato della funzione, con ancoraggio alla migration del punto 1.
+
 ## Fuori perimetro (dichiarato)
-Nessuna modifica al database: colonna, funzione, permessi ed errori restano come sono. Nessuna email inviata all'inserimento.
+Unica modifica al database: il corpo della funzione (punto 1). Colonna `origine`, permessi ed errori restano come sono. Nessuna email inviata all'inserimento.
