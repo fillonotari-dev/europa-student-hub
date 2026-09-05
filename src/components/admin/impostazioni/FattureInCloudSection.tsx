@@ -54,7 +54,7 @@ export function FattureInCloudSection() {
         {esito?.ok === true && (
           <div className="rounded-md border p-4 space-y-1.5">
             <div className="flex items-center gap-2 text-sm font-medium">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 text-success" />
               Connessione attiva
             </div>
             <p className="text-[13px]">
