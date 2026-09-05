@@ -395,20 +395,21 @@ export function useCandidaturaActions(options: Options = {}) {
         }
       }
 
-      // 3. Email esito (solo assegna). Rinnova/nuovo non mandano email.
-      if (v.mode === 'assegna') {
+      // 3. Email esito (solo assegna, e solo se non e' un inserimento manuale).
+      // Per inserimenti manuali non viene inviata alcuna email: l'operatore lo sa gia' dal dialogo.
+      if (deveInviareEsito(v.mode, v.c.origine)) {
         try {
           const { error: mailErr } = await supabase.functions.invoke('send-esito-email', {
             body: { candidatura_id: v.c.id, nota: v.nota_esito || null },
           });
           if (mailErr) throw mailErr;
-          return { emailInviata: true };
+          return { emailInviata: true, invioPrevisto: true };
         } catch (e: any) {
           console.warn('assegna: invio esito fallito', e);
-          return { emailInviata: false };
+          return { emailInviata: false, invioPrevisto: true };
         }
       }
-      return { emailInviata: false };
+      return { emailInviata: false, invioPrevisto: false };
     },
     onSuccess: (res, vars) => {
       invalidateAll();
@@ -416,9 +417,11 @@ export function useCandidaturaActions(options: Options = {}) {
         assegna: 'Posto assegnato', rinnova: 'Soggiorno rinnovato', nuovo: 'Nuovo soggiorno creato',
       };
       const desc = vars.mode === 'assegna'
-        ? (res.emailInviata ? 'Email di esito inviata.' : 'Invio esito non riuscito: riprova da "Reinvia esito".')
+        ? (res.invioPrevisto
+            ? (res.emailInviata ? 'Email di esito inviata.' : 'Invio esito non riuscito: riprova da "Reinvia esito".')
+            : 'Nessuna email inviata: la persona e\' stata inserita dall\'amministrazione.')
         : undefined;
-      toast({ title: titles[vars.mode], description: desc, variant: vars.mode === 'assegna' && !res.emailInviata ? 'destructive' : undefined });
+      toast({ title: titles[vars.mode], description: desc, variant: vars.mode === 'assegna' && res.invioPrevisto && !res.emailInviata ? 'destructive' : undefined });
       closeAssign();
     },
     onError: (e: any) => toast({ title: 'Errore', description: e?.message, variant: 'destructive' }),
