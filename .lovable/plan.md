@@ -45,11 +45,16 @@ Mappatura dei campi (riportata anche nel resoconto finale):
 | `email` | `email_recapito` |
 | `ei_code` | `codice_destinatario`, altrimenti il proposto del punto 1 |
 
-## 3. Campi obbligatori: cosa dice davvero la fonte
+## 3. Campi obbligatori: cosa dice davvero la fonte, e guardia distinta per nazione
 
-Verificato lo schema ufficiale `models/schemas/Client.yaml` del repository OpenAPI di Fatture in Cloud (`fattureincloud/openapi-fattureincloud`), referenziato da `CreateClientRequest`: **non contiene alcuna lista `required` e ogni proprietà è `nullable`**. Quindi non esiste, nell'API Reference, un elenco di campi obbligatori da citare: l'API accetterebbe anche un cliente quasi vuoto.
+Verificato lo schema ufficiale `models/schemas/Client.yaml` del repository OpenAPI di Fatture in Cloud (`fattureincloud/openapi-fattureincloud`), referenziato da `CreateClientRequest`: **non contiene alcuna lista `required` e ogni proprietà è `nullable`**. Non esiste quindi, nell'API Reference, un elenco di campi obbligatori da citare: la guardia è *nostra* e sarà dichiarata come tale nel codice e in `docs/Context.md`.
 
-Di conseguenza la guardia non può appoggiarsi allo schema, e sarà una guardia *nostra*, dichiarata come tale nel codice e in `docs/Context.md`: blocca l'invio quando manca ciò che serve a emettere una fattura (nome o denominazione; via; comune; CAP; nazione; provincia per l'Italia; almeno un identificativo fiscale fra codice fiscale e partita IVA). Se preferisci una lista diversa, dimmelo e la cambio: non la sto spacciando per un vincolo dell'API.
+Guardia sdoppiata per nazione:
+- `indirizzo_nazione = 'IT'`: nome o denominazione, via, comune, CAP, provincia, e almeno un identificativo fra codice fiscale e partita IVA.
+- estero: solo nome o denominazione, via, comune, nazione. Nessun identificativo fiscale, nessun CAP, nessuna provincia — la mappatura invia comunque `00000` ed `EE`, e con il campo P.IVA vuoto Fatture in Cloud scrive da sé codice ISO del paese e la parola ESTERO. In produzione 6 studenti su 12 non hanno codice fiscale e hanno indirizzo estero: una lista unica li bloccherebbe tutti. È anche coerente con `ContrattoDialog`, dove quei campi non impediscono la creazione del contratto.
+
+Nessuna seconda implementazione: `ContrattoDialog.tsx:318-324` calcola già `datiFiscaliMancanti` per l'avviso non bloccante. Quella logica viene spostata nel modulo condiviso come `campiMancantiPerFic(anagrafica)` — con la distinzione per nazione sopra — e usata sia dall'avviso del dialogo sia dalla guardia dell'edge function, così le due strade non possono divergere. Il dialogo continua ad avvisare senza bloccare; l'edge function blocca.
+
 
 ## 4. Interfaccia in `/admin/contratti/:id`
 
