@@ -219,7 +219,19 @@ Uno scanner di sicurezza segnalerà a ripetizione che "gli studenti non possono 
 
 ### Perimetro pubblico
 
-Cinque edge function sono raggiungibili senza autenticazione: `submit-candidatura`, `complete-candidatura`, `get-completion-form`, `upload-candidatura-doc`, e il webhook `auth-email-hook`.
+**Attenzione: `supabase/config.toml` non è la fonte di verità completa del perimetro pubblico.** Il file contiene solo le funzioni con un'impostazione esplicita di `verify_jwt`; le funzioni assenti dal file non ricevono il controllo JWT del gateway e risultano raggiungibili senza autenticazione (è il caso in produzione di `submit-candidatura`, `complete-candidatura`, `get-completion-form`, `upload-candidatura-doc`). L'elenco completo delle funzioni pubbliche è quello qui sotto, non quello di `config.toml`.
+
+Nove edge function sono raggiungibili senza autenticazione JWT. Per ciascuna, il meccanismo che la protegge:
+
+- `submit-candidatura` — pubblica per default del gateway (assente da `config.toml`); valida server-side ogni campo e richiede una sessione candidatura attiva (`supabase/functions/submit-candidatura/index.ts`).
+- `complete-candidatura` — default del gateway; richiede un token di completamento valido, confrontato con l'hash salvato sulla candidatura (`complete-candidatura/index.ts`).
+- `get-completion-form` — default del gateway; stessa validazione del token di completamento (`get-completion-form/index.ts`).
+- `upload-candidatura-doc` — default del gateway; richiede una sessione attiva e consuma uno slot di upload in modo atomico via RPC `consume_candidatura_upload_slot` (`upload-candidatura-doc/index.ts`).
+- `auth-email-hook` — `verify_jwt = false` in `config.toml`; webhook che accetta solo richieste firmate HMAC verificate con `verifyWebhookRequest` e `LOVABLE_API_KEY` (`auth-email-hook/index.ts`).
+- `open-candidatura-sessione` — `verify_jwt = false`; richiede un token Cloudflare Turnstile valido **oppure** un token di completamento valido, e rifiuta un `temp_id` già esistente con "Sessione già esistente" (`open-candidatura-sessione/index.ts`, righe 51–58).
+- `preview-transactional-email` — `verify_jwt = false`; protetta da bearer check su `LOVABLE_API_KEY`, chiamata solo dall'API Go interna per le anteprime dei template (`preview-transactional-email/index.ts`, righe 27–35).
+- `handle-email-unsubscribe` — `verify_jwt = false`; richiede un token monouso di `email_unsubscribe_tokens`. **GET valida soltanto il token senza consumarlo; POST lo consuma con check-and-update atomico** (`.update({ used_at }).eq('token', token).is('used_at', null)`, righe 89–95). I due metodi sono separati perché i filtri antispam precaricano i link nelle email: se anche GET consumasse il token, gli studenti verrebbero disiscritti dalla sola apertura del messaggio.
+- `handle-email-suppression` — `verify_jwt = false`; webhook che accetta solo richieste firmate HMAC con `LOVABLE_API_KEY` via `verifyWebhookRequest` di `@lovable.dev/webhooks-js` (righe 49–56), con rifiuto di firma invalida e timestamp stale.
 
 Tutte validano server-side: tipi, lunghezze massime, regex su email e date, formato UUID, formato dei path di storage. La validazione lato client esiste per l'esperienza d'uso, non per la sicurezza.
 

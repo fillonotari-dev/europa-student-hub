@@ -1,0 +1,1 @@
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.fic_log FROM anon, authenticated;
