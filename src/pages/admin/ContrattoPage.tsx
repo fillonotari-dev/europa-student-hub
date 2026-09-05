@@ -691,11 +691,15 @@ export default function ContrattoPage() {
             <AlertDialogTitle>Ricalcolare le mensilità?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm">
-                <p>Verranno portate a {fmtEuro(Number(nuovoCanone))} {daRicalcolare.length} mensilità da fatturare con competenza corrente o futura.</p>
-                {personalizzate.length > 0 && (
+                {daRicalcolare.length > 0 ? (
+                  <p>Verranno portate a {fmtEuro(Number(nuovoCanone))} {daRicalcolare.length} mensilità da fatturare con competenza corrente o futura.</p>
+                ) : (
+                  <p>Nessuna mensilità verrà ricalcolata: non ci sono righe da fatturare con competenza corrente o futura ancora allineate al canone attuale.</p>
+                )}
+                {partizione.protette.length > 0 && (
                   <p className="text-muted-foreground">
-                    {personalizzate.length} {personalizzate.length === 1 ? 'mensilità ha' : 'mensilità hanno'} un importo personalizzato e non
-                    {personalizzate.length === 1 ? ' verrà toccata' : ' verranno toccate'}: se serve, correggile a mano dalla tabella dello scadenzario.
+                    {partizione.protette.length} {partizione.protette.length === 1 ? 'mensilità ha' : 'mensilità hanno'} un importo personalizzato e non
+                    {partizione.protette.length === 1 ? ' verrà toccata' : ' verranno toccate'}: se serve, correggile a mano dalla tabella dello scadenzario.
                   </p>
                 )}
                 {intoccabili.length > 0 && (
