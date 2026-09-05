@@ -182,9 +182,7 @@ Deno.serve(async (req) => {
 
     const ridotto: Record<string, unknown> = { quota_ora: hourly, quota_mese: monthly }
     if (lastStatus === 400 || lastStatus === 422) {
-      ridotto.fic_diagnostica = undefined // placeholder rimosso sotto
       Object.assign(ridotto, estraiDiagnosticaFic(lastBody))
-      delete ridotto.fic_diagnostica
     }
 
     await logFic(admin, {
