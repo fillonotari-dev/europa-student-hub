@@ -82,3 +82,26 @@ describe("deveInviareEsito", () => {
     expect(deveInviareEsito("nuovo", "inserimento_manuale")).toBe(false);
   });
 });
+
+describe("candidatura creata da nuovo soggiorno", () => {
+  // Le righe create dal ramo mode === 'nuovo' nascono accolta + inserimento_manuale + pre_screening.
+  const nuovoSoggiorno = cand("in_casa", {
+    stato: "accolta",
+    origine: "inserimento_manuale",
+    versione_form: "pre_screening",
+    assegnazione_id: "a1",
+  });
+
+  it("non offre invia_esito", () => {
+    expect(ids(nuovoSoggiorno)).not.toContain("invia_esito");
+  });
+
+  it("la stessa riga con origine form_pubblico offre invia_esito (controprova)", () => {
+    expect(ids({ ...nuovoSoggiorno, origine: "form_pubblico" })).toContain("invia_esito");
+  });
+
+  it("non e' trattata come form completo dal ramo da_valutare", () => {
+    const daValutare = ids({ ...nuovoSoggiorno, stadio: "da_valutare", stato: "da_valutare", assegnazione_id: undefined });
+    expect(daValutare).toContain("invia_form_completo");
+  });
+});
