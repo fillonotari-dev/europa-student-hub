@@ -180,11 +180,18 @@ Deno.serve(async (req) => {
     else if (lastStatus === 404) msg = 'Azienda non trovata: verifica l\'ID azienda configurato.'
     else msg = `Fatture in Cloud ha risposto con errore ${lastStatus}.`
 
+    const ridotto: Record<string, unknown> = { quota_ora: hourly, quota_mese: monthly }
+    if (lastStatus === 400 || lastStatus === 422) {
+      ridotto.fic_diagnostica = undefined // placeholder rimosso sotto
+      Object.assign(ridotto, estraiDiagnosticaFic(lastBody))
+      delete ridotto.fic_diagnostica
+    }
+
     await logFic(admin, {
       http_status: lastStatus,
       esito: 'errore',
       messaggio: msg,
-      payload_ridotto: { quota_ora: hourly, quota_mese: monthly },
+      payload_ridotto: ridotto,
     })
     return jsonResponse(200, { ok: false, message: msg })
   }
