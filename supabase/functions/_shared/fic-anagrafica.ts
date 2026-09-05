@@ -31,7 +31,19 @@ export const EU_COUNTRY_CODES: string[] = [
 export const TAX_ID_EXTRA_UE = 'OO99999999999';
 
 const s = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
-const nz = (v: unknown): string | null => (s(v) === '' ? null : s(v));
+
+/**
+ * Normalizzazione verso il payload di Fatture in Cloud: MAI null esplicito.
+ * FIC risponde 422 "must be a string" a qualunque proprietà stringa inviata
+ * come null (verificato su certified_email e vat_number). La stringa vuota
+ * soddisfa il validatore e su un PUT svuota il campo remoto — a differenza
+ * dell'omissione della chiave, che significherebbe "lascia com'era" e non
+ * permetterebbe mai di svuotare (es. tax_code delle anagrafiche estere).
+ * Se in futuro FIC rifiutasse "" su un campo specifico, per quel campo si
+ * ripiega sull'omissione della chiave, dichiarandolo qui.
+ */
+const fv = (v: unknown): string => s(v);
+
 
 export const nazioneDi = (a: AnagraficaFic): string => (s(a.indirizzo_nazione) || 'IT').toUpperCase();
 export const isEstera = (a: AnagraficaFic): boolean => nazioneDi(a) !== 'IT';
@@ -98,17 +110,17 @@ export function campiMancantiPerFattura(a: AnagraficaFic): string[] {
 export type ClientePayloadFic = {
   type: 'person' | 'company';
   name: string;
-  first_name: string | null;
-  last_name: string | null;
-  tax_code: string | null;
-  vat_number: string | null;
-  address_street: string | null;
-  address_postal_code: string | null;
-  address_city: string | null;
-  address_province: string | null;
+  first_name: string;
+  last_name: string;
+  tax_code: string;
+  vat_number: string;
+  address_street: string;
+  address_postal_code: string;
+  address_city: string;
+  address_province: string;
   country_iso: string;
-  certified_email: string | null;
-  email: string | null;
+  certified_email: string;
+  email: string;
   ei_code: string;
 };
 
@@ -126,14 +138,14 @@ export function mappaAnagraficaPerFic(a: AnagraficaFic): MappaturaFic {
   const trasformazioni: string[] = [];
 
   let via = [s(a.indirizzo_via), s(a.indirizzo_civico)].filter(Boolean).join(' ');
-  let cap = nz(a.indirizzo_cap);
-  let provincia = nz(a.indirizzo_provincia);
-  let taxCode = nz(a.codice_fiscale);
-  let vat = nz(a.partita_iva);
+  let cap = fv(a.indirizzo_cap);
+  let provincia = fv(a.indirizzo_provincia);
+  let taxCode = fv(a.codice_fiscale);
+  let vat = fv(a.partita_iva);
 
   if (estera) {
     if (taxCode) trasformazioni.push('codice fiscale non inviato (anagrafica estera)');
-    taxCode = null;
+    taxCode = '';
 
     const capReale = s(a.indirizzo_cap);
     if (capReale) {
@@ -165,18 +177,21 @@ export function mappaAnagraficaPerFic(a: AnagraficaFic): MappaturaFic {
     data: {
       type: persona ? 'person' : 'company',
       name: nomeCompleto(a),
-      first_name: persona ? nz(a.nome) : null,
-      last_name: persona ? nz(a.cognome) : null,
+      first_name: persona ? fv(a.nome) : '',
+      last_name: persona ? fv(a.cognome) : '',
       tax_code: taxCode,
       vat_number: vat,
-      address_street: nz(via),
+      address_street: fv(via),
       address_postal_code: cap,
-      address_city: nz(a.indirizzo_comune),
+      address_city: fv(a.indirizzo_comune),
       address_province: provincia,
       country_iso: nazione,
-      certified_email: nz(a.pec),
-      email: nz(a.email_recapito),
-      ei_code: (nz(a.codice_destinatario) ?? codiceDestinatarioProposto(nazione)).toUpperCase(),
+      certified_email: fv(a.pec),
+      email: fv(a.email_recapito),
+      // Il ripiego è sul valore VUOTO (||), non sul nullo (??): con la
+      // normalizzazione a "" un ?? lascerebbe passare la stringa vuota e
+      // spedirebbe un ei_code vuoto, non ammesso sulla fattura elettronica.
+      ei_code: (fv(a.codice_destinatario) || codiceDestinatarioProposto(nazione)).toUpperCase(),
     },
   };
 }
