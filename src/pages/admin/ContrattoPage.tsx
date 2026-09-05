@@ -436,7 +436,7 @@ export default function ContrattoPage() {
         <section className="bg-card border border-border/50 rounded-lg p-5 space-y-2">
           <h2 className="text-sm font-semibold mb-2">Contratto</h2>
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground min-w-[170px]">Canone mensile</span>
+            <span className="text-muted-foreground min-w-[170px]">Canone mensile (IVA incl.)</span>
             {editCanone ? (
               <>
                 <Input className="h-8 w-32" type="number" step="0.01" value={nuovoCanone} onChange={e => setNuovoCanone(e.target.value)} />

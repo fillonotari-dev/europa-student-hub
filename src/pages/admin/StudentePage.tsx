@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { lordoDaImponibile } from '@/lib/iva';
 import { usePageTitle, usePageBack } from '@/hooks/usePageTitle';
 import { useCandidaturaActions, CandidaturaActionsContext } from '@/hooks/useCandidaturaActions';
 import { CandidaturaActions } from '@/components/admin/CandidaturaActions';
@@ -236,7 +237,7 @@ export default function StudentePage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('contratti')
-        .select('id, stato, data_inizio, data_fine, canone_mensile, strutture(nome)')
+        .select('id, stato, data_inizio, data_fine, canone_mensile, aliquota_iva, strutture(nome)')
         .eq('studente_id', studenteId)
         .order('data_inizio', { ascending: false });
       return data ?? [];
@@ -593,7 +594,7 @@ export default function StudentePage() {
                     {[
                       k.strutture?.nome,
                       `${fmtIt(k.data_inizio)} → ${fmtIt(k.data_fine)}`,
-                      `${Number(k.canone_mensile).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}/mese`,
+                      `${lordoDaImponibile(Number(k.canone_mensile), Number(k.aliquota_iva) || 0).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}/mese`,
                     ].filter(Boolean).join(' · ')}
                   </span>
                   <span className="flex items-center gap-3 shrink-0">
