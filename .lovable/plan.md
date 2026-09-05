@@ -18,12 +18,15 @@ Fatture in Cloud rifiuta con 422 (`must be a string`) qualunque proprietà strin
 ### 2. Test — `src/test/fic-anagrafica.test.ts`
 
 - Adeguare le asserzioni esistenti che oggi attendono `toBeNull()`: `tax_code` estera → `toBe('')`, `vat_number` UE senza identificativo → `toBe('')`.
-- Nuovo test di invariante (una sola asserzione che chiude l'intera classe): per un'anagrafica italiana, una estera e una di società, **nessuna proprietà del payload restituito è `null`**:
+- Due test su `ei_code` senza codice destinatario: `0000000` per l'Italia, `XXXXXXX` per l'estero.
+- Nuovo test di invariante (una sola asserzione che chiude l'intera classe): per un'anagrafica italiana, una estera e una di società, **nessuna proprietà del payload è `null` né `undefined`** — `undefined` va escluso perché `JSON.stringify` elimina quelle proprietà, reintroducendo di nascosto l'omissione della chiave (e quindi il "lascia com'era" su PUT) mentre l'invariante passerebbe:
   ```ts
   for (const a of [baseItalia, baseEstera, baseSocieta]) {
-    expect(Object.values(mappaAnagraficaPerFic(a).data)).not.toContain(null);
+    const { data } = mappaAnagraficaPerFic(a);
+    expect(Object.values(data).some(v => v == null)).toBe(false);
   }
   ```
+
 
 ### 3. Documentazione — `docs/Context.md`
 
