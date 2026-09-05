@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ContrattoDialog } from '@/components/admin/contratti/ContrattoDialog';
+import { IntestazioneFatturaDialog } from '@/components/admin/contratti/IntestazioneFatturaDialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -18,7 +19,7 @@ import { generaScadenzario, totaleRiga } from '@/lib/scadenzario';
 import { eliminaContrattoBozza } from '@/lib/contrattoDelete';
 import { fmtEuro, fmtIt, STATO_CONTRATTO_COLORS } from './Contratti';
 import { cn } from '@/lib/utils';
-import { Check, FileUp, FileText, Pencil, Repeat, Trash2, Undo2, X } from 'lucide-react';
+import { AlertTriangle, Check, FileUp, FileText, Pencil, Repeat, Trash2, Undo2, X } from 'lucide-react';
 
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
 const oggiPrimoDelMese = () => `${new Date().toISOString().slice(0, 7)}-01`;
@@ -110,6 +111,13 @@ export default function ContrattoPage() {
     () => (canoni ?? []).filter((c: any) => c.stato === 'da_fatturare' && c.competenza > primoDelMeseDi(chiudiData)),
     [canoni, chiudiData],
   );
+
+  const [intestazioneOpen, setIntestazioneOpen] = useState(false);
+  // Comodità, non presidio: sparisce al ricaricamento della pagina. La garanzia
+  // di allineamento arriva in D2, dove l'emissione risincronizza prima di creare
+  // il documento (altrimenti la fattura uscirebbe con l'intestazione memorizzata
+  // su Fatture in Cloud, correggibile solo con nota di credito).
+  const [daRisincronizzare, setDaRisincronizzare] = useState(false);
 
   const depositoIncassato = !!contratto?.deposito_stato && contratto.deposito_stato !== 'atteso';
   const puoTornareInBozza = intoccabili.length === 0 && !depositoIncassato;
@@ -463,7 +471,10 @@ export default function ContrattoPage() {
             const ana: any = contratto.anagrafiche_fatturazione;
             return (
               <>
-                <h2 className="text-sm font-semibold mb-2">Intestazione fattura</h2>
+                <div className="flex items-center justify-between mb-2 gap-3">
+                  <h2 className="text-sm font-semibold">Intestazione fattura</h2>
+                  <Button size="sm" variant="outline" onClick={() => setIntestazioneOpen(true)}>Modifica</Button>
+                </div>
                 <Riga k="Intestatario" v={ana?.tipo === 'soggetto_giuridico' ? ana?.denominazione : `${ana?.nome ?? ''} ${ana?.cognome ?? ''}`.trim()} />
                 <Riga k="Codice fiscale" v={ana?.codice_fiscale} />
                 <Riga k="Partita IVA" v={ana?.partita_iva} />
@@ -471,9 +482,20 @@ export default function ContrattoPage() {
                 <Riga k="Codice destinatario" v={ana?.codice_destinatario} />
                 <Riga k="PEC" v={ana?.pec} />
                 <Riga k="Email di recapito" v={ana?.email_recapito} />
+                {daRisincronizzare && (
+                  <div className="mt-4 flex gap-2 rounded-lg border border-border/60 bg-muted/40 p-3 text-sm">
+                    <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />
+                    <p className="text-muted-foreground">
+                      Dati modificati dopo l'ultimo collegamento a Fatture in Cloud: risincronizza per allineare il cliente.
+                    </p>
+                  </div>
+                )}
                 <FicSyncAnagrafica
                   anagrafica={ana}
-                  onSynced={() => qc.invalidateQueries({ queryKey: ['contratti', id] })}
+                  onSynced={() => {
+                    setDaRisincronizzare(false);
+                    qc.invalidateQueries({ queryKey: ['contratti', id] });
+                  }}
                 />
               </>
             );
@@ -717,6 +739,17 @@ export default function ContrattoPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <IntestazioneFatturaDialog
+        open={intestazioneOpen}
+        onOpenChange={setIntestazioneOpen}
+        contratto={contratto}
+        haFattureEmesse={intoccabili.length > 0}
+        onSaved={({ eraCollegataFic }) => {
+          if (eraCollegataFic) setDaRisincronizzare(true);
+          qc.invalidateQueries({ queryKey: ['contratti', id] });
+        }}
+      />
 
       <ContrattoDialog
         open={sostituisciOpen}
