@@ -15,6 +15,16 @@ describe('rigaDestinazioneAnagrafica', () => {
     ).toEqual({ azione: 'aggiorna', id: 'ana-studente' });
   });
 
+  it('studente, id non ancora caricato, anagrafica corrente dello studente: aggiorna quella riga', () => {
+    expect(
+      rigaDestinazioneAnagrafica({
+        modalita: 'studente',
+        anagraficaStudenteId: null,
+        anaCorrente: { id: 'ana-studente', studente_id: 'stu-1' },
+      }),
+    ).toEqual({ azione: 'aggiorna', id: 'ana-studente' });
+  });
+
   it('studente senza anagrafica: crea una riga nuova', () => {
     expect(
       rigaDestinazioneAnagrafica({
