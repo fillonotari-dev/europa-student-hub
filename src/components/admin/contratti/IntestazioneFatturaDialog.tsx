@@ -197,16 +197,17 @@ export function IntestazioneFatturaDialog({ open, onOpenChange, contratto, haFat
 
           <AnagraficaFatturazioneFields
             modalita={modalita}
-            onModalitaChange={setModalita}
+            onModalitaChange={cambiaModalita}
             ana={ana}
             onAnaChange={setAna}
-            mostraNotaAnagraficaEsistente={modalita === 'studente'}
+            mostraNotaAnagraficaEsistente={modalita === 'studente' && !!anagraficaStudenteId}
+            disabilitato={caricando}
           />
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Annulla</Button>
-          <Button onClick={salva} disabled={saving}>{saving ? 'Salvataggio…' : 'Salva intestazione'}</Button>
+          <Button onClick={salva} disabled={saving || caricando}>{saving ? 'Salvataggio…' : 'Salva intestazione'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
