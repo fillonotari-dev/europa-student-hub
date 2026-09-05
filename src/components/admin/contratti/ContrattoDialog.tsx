@@ -471,9 +471,20 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
                   </SelectContent>
                 </Select>
               </F>
-              <F label="Canone mensile (€) *">
+              <F label="Canone mensile IVA inclusa (€) *">
                 <Input type="number" min="0" step="0.01" className="mt-1.5" value={canone}
                   onChange={e => setCanone(e.target.value)} />
+                {scomp && (
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Imponibile {fmtE(scomp.imponibile)} + IVA {fmtE(scomp.iva)} = totale in fattura{' '}
+                    <strong className="text-foreground">{fmtE(scomp.totale)}</strong>
+                  </div>
+                )}
+                {scomp && Math.abs(scomp.totale - Number(canone)) >= 0.005 && (
+                  <p className="text-xs text-destructive mt-1">
+                    Per via dell'arrotondamento, in fattura finirà {fmtE(scomp.totale)} invece di {fmtE(Number(canone))}.
+                  </p>
+                )}
                 {!strutturaId || !tipoCamera ? (
                   <p className="text-xs text-muted-foreground mt-1">
                     Seleziona struttura e tipo camera per vedere il canone di listino.
@@ -485,7 +496,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
                 ) : listino ? (
                   <div className="mt-1 space-y-1">
                     <p className="text-xs text-muted-foreground">
-                      Listino: {listino.importo.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })} — {nomeStruttura} · camera {tipoCamera} · dal {new Date(`${listino.valido_dal}T00:00:00`).toLocaleDateString('it-IT')}
+                      Listino (IVA inclusa): {fmtE(listino.importo)} — {nomeStruttura} · camera {tipoCamera} · dal {new Date(`${listino.valido_dal}T00:00:00`).toLocaleDateString('it-IT')}
                     </p>
                     {sostituisce && String(listino.importo) !== canone && (
                       <Button
@@ -499,7 +510,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
                           setUltimoProposto(v);
                         }}
                       >
-                        Usa il prezzo di listino ({listino.importo.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })})
+                        Usa il prezzo di listino ({fmtE(listino.importo)})
                       </Button>
                     )}
                     {sostituisce && condizioniCambiate && (
@@ -510,6 +521,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
                   </div>
                 ) : null}
               </F>
+
               <F label="Aliquota IVA (%)">
                 <Input type="number" min="0" step="0.01" className="mt-1.5" value={aliquota}
                   onChange={e => setAliquota(e.target.value)} />
