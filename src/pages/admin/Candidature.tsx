@@ -31,6 +31,7 @@ function toCandidaturaLike(r: StadioRow) {
     stato: r.candidatura_stato,
     stadio: r.stadio,
     versione_form: r.versione_form,
+    origine: r.origine,
     esito_email_inviata_il: r.esito_email_inviata_il,
     token_scade_il: r.token_scade_il,
     completata_il: r.completata_il,
