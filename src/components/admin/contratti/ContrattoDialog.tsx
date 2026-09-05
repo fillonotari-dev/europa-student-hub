@@ -538,70 +538,15 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
 
           <section className="space-y-3">
             <h3 className="text-sm font-semibold">Intestazione della fattura</h3>
-            <Select
-              value={modalita}
-              onValueChange={(v: Modalita) => {
-                setModalita(v);
-                if (v === 'terzo') setAna(prev => ({ ...prev, tipo: 'soggetto_giuridico' }));
-                else setAna(prev => ({ ...prev, tipo: 'persona_fisica' }));
-              }}
-            >
-              <SelectTrigger className="w-full sm:w-[320px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="studente">Intesta allo studente</SelectItem>
-                <SelectItem value="terzo">Intesta a un altro soggetto</SelectItem>
-              </SelectContent>
-            </Select>
-            {modalita === 'studente' && anagraficaEsistenteId && (
-              <p className="text-xs text-muted-foreground">
-                Esiste già un'anagrafica di fatturazione per questa persona: verrà aggiornata con i dati qui sotto.
-              </p>
-            )}
-
-            {modalita === 'terzo' && (
-              <F label="Tipo soggetto">
-                <Select value={ana.tipo} onValueChange={v => setAna(a => ({ ...a, tipo: v }))}>
-                  <SelectTrigger className="mt-1.5 w-full sm:w-[320px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="soggetto_giuridico">Società o ente</SelectItem>
-                    <SelectItem value="persona_fisica">Persona fisica</SelectItem>
-                  </SelectContent>
-                </Select>
-              </F>
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {ana.tipo === 'soggetto_giuridico' ? (
-                <F label="Denominazione *"><Input className="mt-1.5" value={ana.denominazione} onChange={e => setAna(a => ({ ...a, denominazione: e.target.value }))} /></F>
-              ) : (
-                <>
-                  <F label="Nome *"><Input className="mt-1.5" value={ana.nome} onChange={e => setAna(a => ({ ...a, nome: e.target.value }))} /></F>
-                  <F label="Cognome *"><Input className="mt-1.5" value={ana.cognome} onChange={e => setAna(a => ({ ...a, cognome: e.target.value }))} /></F>
-                </>
-              )}
-              <F label="Codice fiscale"><Input className="mt-1.5" value={ana.codice_fiscale} onChange={e => setAna(a => ({ ...a, codice_fiscale: e.target.value.toUpperCase() }))} /></F>
-              <F label="Partita IVA"><Input className="mt-1.5" value={ana.partita_iva} onChange={e => setAna(a => ({ ...a, partita_iva: e.target.value }))} /></F>
-              <F label="Via"><Input className="mt-1.5" value={ana.indirizzo_via} onChange={e => setAna(a => ({ ...a, indirizzo_via: e.target.value }))} /></F>
-              <F label="Civico"><Input className="mt-1.5" value={ana.indirizzo_civico} onChange={e => setAna(a => ({ ...a, indirizzo_civico: e.target.value }))} /></F>
-              <F label="CAP"><Input className="mt-1.5" value={ana.indirizzo_cap} onChange={e => setAna(a => ({ ...a, indirizzo_cap: e.target.value }))} /></F>
-              <F label="Comune"><Input className="mt-1.5" value={ana.indirizzo_comune} onChange={e => setAna(a => ({ ...a, indirizzo_comune: e.target.value }))} /></F>
-              <F label="Provincia"><Input className="mt-1.5" maxLength={2} value={ana.indirizzo_provincia} onChange={e => setAna(a => ({ ...a, indirizzo_provincia: e.target.value.toUpperCase() }))} /></F>
-              <F label="Nazione"><Input className="mt-1.5" maxLength={2} value={ana.indirizzo_nazione} onChange={e => setAna(a => ({ ...a, indirizzo_nazione: e.target.value.toUpperCase() }))} /></F>
-              <F label="Codice destinatario"><Input className="mt-1.5" maxLength={7} value={ana.codice_destinatario} onChange={e => setAna(a => ({ ...a, codice_destinatario: e.target.value.toUpperCase() }))} /></F>
-              <F label="PEC"><Input className="mt-1.5" value={ana.pec} onChange={e => setAna(a => ({ ...a, pec: e.target.value }))} /></F>
-              <F label="Email di recapito"><Input className="mt-1.5" value={ana.email_recapito} onChange={e => setAna(a => ({ ...a, email_recapito: e.target.value }))} /></F>
-            </div>
-
-            {datiFiscaliMancanti.length > 0 && (
-              <div className="flex gap-2 rounded-lg border border-border/60 bg-muted/40 p-3 text-sm">
-                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />
-                <p className="text-muted-foreground">
-                  Dati fiscali mancanti: {datiFiscaliMancanti.join(', ')}. Il contratto si può creare lo stesso,
-                  ma serviranno al momento della fattura.
-                </p>
-              </div>
-            )}
+            <AnagraficaFatturazioneFields
+              modalita={modalita}
+              onModalitaChange={setModalita}
+              ana={ana}
+              onAnaChange={setAna}
+              mostraNotaAnagraficaEsistente={!!anagraficaEsistenteId}
+            />
           </section>
+
 
           <F label="Note interne">
             <Textarea className="mt-1.5" value={note} onChange={e => setNote(e.target.value)} />
