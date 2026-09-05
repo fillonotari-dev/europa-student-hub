@@ -99,9 +99,20 @@ export default function ContrattoPage() {
     });
   }, [contratto]);
 
+  // Il criterio vive in src/lib/canoniRicalcolo.ts e rispecchia la condizione
+  // della funzione database aggiorna_canone_contratto: il conteggio mostrato
+  // nel dialogo coincide con ciò che la RPC farà davvero.
   const daRicalcolare = useMemo(
-    () => (canoni ?? []).filter((c: any) => c.stato === 'da_fatturare' && c.competenza >= oggiPrimoDelMese()),
-    [canoni],
+    () => (contratto
+      ? partizionaMensilitaPerCambioCanone(canoni ?? [], Number(contratto.canone_mensile), todayIso()).aggiornate
+      : []),
+    [canoni, contratto],
+  );
+  const personalizzate = useMemo(
+    () => (contratto
+      ? (canoni ?? []).filter((c: any) => imponibilePersonalizzato(c, Number(contratto.canone_mensile)))
+      : []),
+    [canoni, contratto],
   );
   const intoccabili = useMemo(
     () => (canoni ?? []).filter((c: any) => c.stato === 'fatturato' || c.stato === 'incassato'),
