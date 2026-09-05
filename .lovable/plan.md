@@ -27,6 +27,7 @@ Comportamento:
 - se mancano campi obbligatori: **non chiama l'API**, registra l'esito in `fic_log` e restituisce l'elenco esatto;
 - se `fic_entity_id` è nullo: `POST /c/{company_id}/entities/clients`, poi scrive l'`id` ricevuto in `fic_entity_id`;
 - se è valorizzato: `PUT /c/{company_id}/entities/clients/{client_id}`. Mai una seconda creazione per la stessa anagrafica.
+- se il `PUT` risponde 404 (cliente cancellato su Fatture in Cloud): `fic_entity_id` viene azzerato, l'evento registrato in `fic_log`, e la risposta lo dichiara esplicitamente all'operatore, che potrà rilanciare la sincronizzazione ottenendo una creazione. Nessuna ricreazione automatica nella stessa chiamata.
 
 Mappatura dei campi (riportata anche nel resoconto finale):
 
