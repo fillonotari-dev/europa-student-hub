@@ -17,12 +17,18 @@ Nel ramo `!res.ok` per status 400/422, fare il parse di `lastBody` (in
 
 che vengono aggiunti al `payload_ridotto` scritto in `fic_log`, insieme a:
 
-- `campi_inviati`: l'elenco delle **chiavi** del payload spedito
-  (`Object.keys(mappatura.data)` nella sync; assente nella test-connection,
-  che è una GET senza body) — solo nomi, mai valori.
+- `campi_inviati`: i nomi dei campi **valorizzati** nel payload spedito
+  (valore non nullo e non vuoto; le quattordici chiavi non valorizzate sono
+  `null` e vengono escluse). È ciò che distingue un tentativo dall'altro e che
+  spiega un 422; nella sync deriva da `mappatura.data`, assente nella
+  test-connection che è una GET senza body.
 
-Non viene mai copiato il corpo grezzo della risposta né il payload inviato:
-contengono dati personali dell'intestatario. Il messaggio mostrato
+Se il parse di `lastBody` fallisce (corpo non-JSON), non restare senza niente:
+conserva i primi 500 caratteri del corpo in `fic_error_raw`. Un 422 con corpo
+non-JSON è proprio il caso in cui altrimenti si tornerebbe a indovinare.
+
+Non viene mai copiato il corpo grezzo integrale né il payload inviato con i
+valori: contengono dati personali dell'intestatario. Il messaggio mostrato
 all'operatore resta generico come oggi; la spiegazione vive solo nel registro.
 
 ### Struttura del payload_ridotto nel ramo 400/422
@@ -30,14 +36,16 @@ all'operatore resta generico come oggi; la spiegazione vive solo nel registro.
 ```json
 {
   "anagrafica_id": "...",
-  "campi_inviati": ["type", "name", "tax_code", "address_street", "..."],
+  "campi_inviati": ["type", "name", "tax_code", "address_street"],
   "fic_error_message": "...",
   "fic_validation_result": { "...": "..." },
+  "fic_error_raw": "...(solo se il parse fallisce, max 500 caratteri)...",
   "quota_ora": "...", "quota_mese": "..."
 }
 ```
 
-Chiavi assenti se il parse fallisce o i campi non esistono nella risposta.
+`fic_error_message` / `fic_validation_result` assenti se il parse fallisce;
+`fic_error_raw` presente solo in quel caso.
 
 ## File toccati
 
