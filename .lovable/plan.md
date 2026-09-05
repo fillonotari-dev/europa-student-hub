@@ -52,6 +52,21 @@ Nessuna riga ha oggi `versione_form = 'interna'` né `origine = 'inserimento_man
 
 In `src/test/candidatura-actions.test.ts` si aggiunge il caso "candidatura da nuovo soggiorno non offre invia_esito": candidatura `stato: 'accolta'`, `origine: 'inserimento_manuale'`, `versione_form: 'pre_screening'` — l'elenco azioni non contiene `invia_esito`, e come controprova la stessa riga con `origine: 'form_pubblico'` lo contiene. Riporto l'esito della suite completa.
 
+## 6. Elenco completo dei punti che creano una candidatura
+
+Ricerca esaustiva su tutto il progetto (`insert` su `candidature` nel frontend, negli hook e nelle funzioni server, più gli `INSERT INTO public.candidature` nelle funzioni di database). Le porte sono tre, non di più:
+
+| # | Punto | Quando | `origine` scritta |
+| --- | --- | --- | --- |
+| 1 | `supabase/functions/submit-candidatura/index.ts:298` | invio del form pubblico dal sito | non impostata esplicitamente → default della colonna `form_pubblico` (corretta) |
+| 2 | Funzione di database `crea_persona_manuale` (migration `20260905130521`, riga 80) | "Aggiungi persona" in `/admin/residenti`, via `AggiungiPersonaDialog.tsx:161` | `inserimento_manuale` esplicita (corretta) |
+| 3 | `src/hooks/useCandidaturaActions.tsx:366`, ramo `mode === 'nuovo'` | "Nuovo soggiorno" da scheda persona / liste | oggi nessun valore → eredita il default `form_pubblico`: è la riga da correggere |
+
+Nessun altro punto inserisce in `candidature`. Le altre `insert` trovate riguardano `log_stato_candidature` (`submit-candidatura`, `send-esito-email`, `generate-completion-link`, `complete-candidatura`) e non creano candidature; `complete-candidatura` e `generate-completion-link` fanno solo `update` su righe esistenti.
+
+Causa strutturale delle tre porte trovate una alla volta: la colonna `origine` ha default `'form_pubblico'`, quindi ogni nuova porta che dimentica il campo nasce come pubblica. Non tocchiamo il default in questo giro (nessuna modifica al database), ma resta il punto da sorvegliare per eventuali porte future.
+
 ## Fuori perimetro
+
 
 Nessuna modifica al database, nessuna modifica alle candidature esistenti, nessun intervento su email o assegnazioni.
