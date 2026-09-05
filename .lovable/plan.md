@@ -45,9 +45,11 @@ $function$;
 
 Nota: il controllo di esistenza passa da `SELECT true` a `SELECT canone_mensile`, che è sempre `NOT NULL` sulla tabella, quindi il messaggio `contratto_inesistente` resta esatto.
 
-## 2. Conteggi nella pagina contratto
+## 2. Criterio estratto in una funzione pura
 
-In `ContrattoPage.tsx`, `daRicalcolare` conta solo le righe `da_fatturare` con competenza corrente o futura **e** imponibile uguale al `canone_mensile` attuale. Una seconda lista `personalizzate` raccoglie, con gli stessi filtri di stato e competenza, quelle con imponibile diverso.
+Il criterio che distingue le mensilità toccate da quelle intatte non vive nel componente: una funzione pura nuova in `src/lib/` (sul modello di `src/lib/candidaturaActions.ts`) riceve l'elenco delle mensilità, il canone attuale del contratto e la data odierna, e restituisce le due partizioni: quelle che un cambio di canone aggiornerebbe (stato `da_fatturare`, competenza corrente o futura, imponibile uguale al canone) e quelle che lascerebbe intatte. `ContrattoPage.tsx` la usa per i conteggi `daRicalcolare` e `personalizzate` e per il segno in tabella, senza filtri propri.
+
+File di test nuovo con almeno: riga allineata e competenza futura (aggiornata), riga con importo diverso (intatta), riga di un mese passato (intatta), riga già `fatturato` (intatta), nessuna riga aggiornabile. Esito della suite riportato nel resoconto.
 
 ## 3. Dialogo di conferma
 
