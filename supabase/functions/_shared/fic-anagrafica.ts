@@ -45,7 +45,8 @@ export const nomeCompleto = (a: AnagraficaFic): string =>
   a.tipo === 'soggetto_giuridico' ? s(a.denominazione) : `${s(a.nome)} ${s(a.cognome)}`.trim();
 
 /**
- * Campi mancanti prima di poter inviare l'anagrafica a Fatture in Cloud.
+ * Logica comune alle due soglie: i campi necessari a identificare il soggetto
+ * su Fatture in Cloud, indipendentemente dal contesto d'uso.
  * La lista è NOSTRA: lo schema ufficiale models/schemas/Client.yaml del
  * repository OpenAPI di Fatture in Cloud non dichiara alcun campo `required`
  * e ogni proprietà è nullable. Serve a evitare fatture inintestabili, non a
@@ -57,7 +58,7 @@ export const nomeCompleto = (a: AnagraficaFic): string =>
  * fiscale (con P.IVA vuota Fatture in Cloud scrive da sé codice ISO ed ESTERO),
  * niente CAP e niente provincia, perché la mappatura invia comunque 00000 ed EE.
  */
-export function campiMancantiPerFic(a: AnagraficaFic): string[] {
+function baseCampiMancantiPerFic(a: AnagraficaFic): string[] {
   const m: string[] = [];
   if (!nomeCompleto(a)) m.push(a.tipo === 'soggetto_giuridico' ? 'denominazione' : 'nome e cognome');
   if (!s(a.indirizzo_via)) m.push('indirizzo (via)');
@@ -69,6 +70,28 @@ export function campiMancantiPerFic(a: AnagraficaFic): string[] {
   if (!s(a.indirizzo_cap)) m.push('CAP');
   if (!s(a.indirizzo_provincia)) m.push('provincia');
   if (!s(a.codice_fiscale) && !s(a.partita_iva)) m.push('codice fiscale o partita IVA');
+  return m;
+}
+
+/**
+ * Soglia per la sincronizzazione anagrafica → cliente (fic-sync-anagrafica):
+ * solo i campi necessari a creare il cliente. L'email di recapito NON è
+ * richiesta: non serve a creare il cliente su Fatture in Cloud.
+ */
+export function campiMancantiPerFicSync(a: AnagraficaFic): string[] {
+  return baseCampiMancantiPerFic(a);
+}
+
+/**
+ * Soglia per l'emissione della fattura: risponde alla domanda "cosa manca per
+ * emettere". Uguale alla sincronizzazione più l'email di recapito: al momento
+ * della fattura serve un recapito, e per gli studenti esteri l'email è l'unico
+ * possibile, dato che lo SDI non consegna all'estero.
+ * Non è legata al dialogo del contratto: in D2 la riusa chi emette il documento.
+ */
+export function campiMancantiPerFattura(a: AnagraficaFic): string[] {
+  const m = baseCampiMancantiPerFic(a);
+  if (!s(a.email_recapito)) m.push('email di recapito');
   return m;
 }
 

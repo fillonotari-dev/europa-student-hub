@@ -12,7 +12,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { AlertTriangle } from 'lucide-react';
-import { campiMancantiPerFic, codiceDestinatarioProposto } from '@shared/fic-anagrafica';
+import { campiMancantiPerFattura, codiceDestinatarioProposto } from '@shared/fic-anagrafica';
 
 type Props = {
   open: boolean;
@@ -316,9 +316,11 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
     );
   }, [proposto]);
 
-  // Unica implementazione, condivisa con l'edge function fic-sync-anagrafica:
-  // qui avvisa senza bloccare, lì blocca l'invio a Fatture in Cloud.
-  const datiFiscaliMancanti = useMemo(() => campiMancantiPerFic(ana), [ana]);
+  // Soglia fattura, non sincronizzazione: qui avvisa senza bloccare su cosa
+  // mancherà per emettere (email di recapito inclusa). La stessa funzione sarà
+  // riusata in D2 prima dell'emissione; fic-sync-anagrafica usa invece
+  // campiMancantiPerFicSync, che non richiede l'email.
+  const datiFiscaliMancanti = useMemo(() => campiMancantiPerFattura(ana), [ana]);
 
   const nomeStruttura = (strutture ?? []).find((s: any) => s.id === strutturaId)?.nome ?? '';
 

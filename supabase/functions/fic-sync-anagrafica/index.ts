@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
-import { campiMancantiPerFic, mappaAnagraficaPerFic } from '../_shared/fic-anagrafica.ts'
+import { campiMancantiPerFicSync, mappaAnagraficaPerFic } from '../_shared/fic-anagrafica.ts'
 
 /**
  * fic-sync-anagrafica — allinea una riga di anagrafiche_fatturazione al
@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
   }
 
   // --- Guardia sui dati incompleti: nessuna chiamata all'API ---
-  const mancanti = campiMancantiPerFic(ana)
+  const mancanti = campiMancantiPerFicSync(ana)
   if (mancanti.length > 0) {
     await logFic(admin, {
       metodo: '-',
