@@ -766,7 +766,11 @@ export function useCandidaturaActions(options: Options = {}) {
             <AlertDialogTitle>Annullare l'assegnazione?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-[13px]">
-                <p>L'assegnazione verra' eliminata e la candidatura torna a <strong>Da decidere</strong>. Eventuale flag "esito comunicato" viene azzerato.</p>
+                {annullaTarget?.origine === 'inserimento_manuale' ? (
+                  <p>L'assegnazione verra' eliminata e la persona torna in <strong>Lista d'attesa</strong> (perche' inserita manualmente). Eventuale flag "esito comunicato" viene azzerato.</p>
+                ) : (
+                  <p>L'assegnazione verra' eliminata e la candidatura torna a <strong>Da decidere</strong>. Eventuale flag "esito comunicato" viene azzerato.</p>
+                )}
                 <p className="text-muted-foreground">Se il soggiorno e' gia' iniziato, dovrai invece <strong>concluderlo</strong> dalla pagina Residenti.</p>
               </div>
             </AlertDialogDescription>
