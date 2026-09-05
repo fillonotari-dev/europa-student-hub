@@ -59,6 +59,21 @@ export function esitoInviato(c: CandidaturaLike): boolean {
   return !!c.esito_email_inviata_il;
 }
 
+/**
+ * Stato in cui torna una candidatura quando viene annullata l'assegnazione.
+ * Le persone inserite manualmente senza posto letto devono tornare in
+ * attesa_posto, non in da_decidere, perché non sono mai passate dal
+ * form pubblico (regola simmetrica alla creazione in crea_persona_manuale).
+ */
+export function statoDopoAnnullamento(origine: string | null | undefined): string {
+  return origine === 'inserimento_manuale' ? 'in_attesa_posto' : 'da_decidere';
+}
+
+/** True se, assegnando un posto in modalità assegna, va inviata l'email di esito. */
+export function deveInviareEsito(mode: 'assegna' | 'rinnova' | 'nuovo', origine: string | null | undefined): boolean {
+  return mode === 'assegna' && origine !== 'inserimento_manuale';
+}
+
 const ACTION_META: Record<CandidaturaActionId, Omit<CandidaturaAction, 'id'>> = {
   invia_form_completo:   { label: 'Invia form completo', icon: Send, group: 'principale' },
   invia_esito:           { label: 'Comunica esito', icon: MailCheck, group: 'principale' },

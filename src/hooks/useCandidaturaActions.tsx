@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { MailCheck, Copy, CheckCircle, Mail, AlertTriangle } from 'lucide-react';
 import {
   type CandidaturaActionId, type CandidaturaLike,
+  statoDopoAnnullamento, deveInviareEsito,
 } from '@/lib/candidaturaActions';
 
 type Ctx = {
@@ -146,14 +147,17 @@ export function useCandidaturaActions(options: Options = {}) {
       }
       const { error: delErr } = await supabase.from('assegnazioni').delete().eq('id', assegnazioneId);
       if (delErr) throw delErr;
+      const nuovoStato = statoDopoAnnullamento(c.origine);
       const { error: updErr } = await supabase.from('candidature')
-        .update({ stato: 'da_decidere', esito_email_inviata_il: null, esito_email_nota: null })
+        .update({ stato: nuovoStato, esito_email_inviata_il: null, esito_email_nota: null })
         .eq('id', c.id);
       if (updErr) throw updErr;
     },
-    onSuccess: () => {
+    onSuccess: (_data, c) => {
       invalidateAll();
-      toast({ title: 'Assegnazione annullata', description: 'La candidatura torna in "Da decidere".' });
+      const nuovoStato = statoDopoAnnullamento(c.origine);
+      const label = nuovoStato === 'in_attesa_posto' ? '"Lista d\'attesa"' : '"Da decidere"';
+      toast({ title: 'Assegnazione annullata', description: `La candidatura torna in ${label}.` });
       setAnnullaTarget(null);
     },
     onError: (e: any) => toast({ title: 'Errore', description: e?.message, variant: 'destructive' }),
@@ -391,20 +395,21 @@ export function useCandidaturaActions(options: Options = {}) {
         }
       }
 
-      // 3. Email esito (solo assegna). Rinnova/nuovo non mandano email.
-      if (v.mode === 'assegna') {
+      // 3. Email esito (solo assegna, e solo se non e' un inserimento manuale).
+      // Per inserimenti manuali non viene inviata alcuna email: l'operatore lo sa gia' dal dialogo.
+      if (deveInviareEsito(v.mode, v.c.origine)) {
         try {
           const { error: mailErr } = await supabase.functions.invoke('send-esito-email', {
             body: { candidatura_id: v.c.id, nota: v.nota_esito || null },
           });
           if (mailErr) throw mailErr;
-          return { emailInviata: true };
+          return { emailInviata: true, invioPrevisto: true };
         } catch (e: any) {
           console.warn('assegna: invio esito fallito', e);
-          return { emailInviata: false };
+          return { emailInviata: false, invioPrevisto: true };
         }
       }
-      return { emailInviata: false };
+      return { emailInviata: false, invioPrevisto: false };
     },
     onSuccess: (res, vars) => {
       invalidateAll();
@@ -412,9 +417,11 @@ export function useCandidaturaActions(options: Options = {}) {
         assegna: 'Posto assegnato', rinnova: 'Soggiorno rinnovato', nuovo: 'Nuovo soggiorno creato',
       };
       const desc = vars.mode === 'assegna'
-        ? (res.emailInviata ? 'Email di esito inviata.' : 'Invio esito non riuscito: riprova da "Reinvia esito".')
+        ? (res.invioPrevisto
+            ? (res.emailInviata ? 'Email di esito inviata.' : 'Invio esito non riuscito: riprova da "Reinvia esito".')
+            : 'Nessuna email inviata: la persona e\' stata inserita dall\'amministrazione.')
         : undefined;
-      toast({ title: titles[vars.mode], description: desc, variant: vars.mode === 'assegna' && !res.emailInviata ? 'destructive' : undefined });
+      toast({ title: titles[vars.mode], description: desc, variant: vars.mode === 'assegna' && res.invioPrevisto && !res.emailInviata ? 'destructive' : undefined });
       closeAssign();
     },
     onError: (e: any) => toast({ title: 'Errore', description: e?.message, variant: 'destructive' }),
@@ -762,7 +769,11 @@ export function useCandidaturaActions(options: Options = {}) {
             <AlertDialogTitle>Annullare l'assegnazione?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-[13px]">
-                <p>L'assegnazione verra' eliminata e la candidatura torna a <strong>Da decidere</strong>. Eventuale flag "esito comunicato" viene azzerato.</p>
+                {annullaTarget?.origine === 'inserimento_manuale' ? (
+                  <p>L'assegnazione verra' eliminata e la persona torna in <strong>Lista d'attesa</strong> (perche' inserita manualmente). Eventuale flag "esito comunicato" viene azzerato.</p>
+                ) : (
+                  <p>L'assegnazione verra' eliminata e la candidatura torna a <strong>Da decidere</strong>. Eventuale flag "esito comunicato" viene azzerato.</p>
+                )}
                 <p className="text-muted-foreground">Se il soggiorno e' gia' iniziato, dovrai invece <strong>concluderlo</strong> dalla pagina Residenti.</p>
               </div>
             </AlertDialogDescription>
@@ -1095,7 +1106,7 @@ export function useCandidaturaActions(options: Options = {}) {
                   </Select>
                 </div>
               )}
-              {assignMode.kind === 'assegna' && (
+              {assignMode.kind === 'assegna' && assignMode.c.origine !== 'inserimento_manuale' && (
                 <div>
                   <Label>Nota email di esito (opzionale)</Label>
                   <Textarea rows={3} maxLength={2000} value={asNota}
@@ -1103,7 +1114,12 @@ export function useCandidaturaActions(options: Options = {}) {
                     placeholder="Aggiungi indicazioni personalizzate per l'accoglienza..." />
                 </div>
               )}
-              {assignMode.kind === 'assegna' && (
+              {assignMode.kind === 'assegna' && assignMode.c.origine === 'inserimento_manuale' && (
+                <p className="text-[11px] text-muted-foreground">
+                  Per gli inserimenti manuali non viene inviata alcuna email di esito.
+                </p>
+              )}
+              {assignMode.kind === 'assegna' && assignMode.c.origine !== 'inserimento_manuale' && (
                 <p className="text-[11px] text-muted-foreground">Alla conferma la candidatura passa in "Accolta" e viene inviata l'email di esito.</p>
               )}
               {assignMode.kind === 'rinnova' && (
