@@ -35,6 +35,24 @@ function isQuotaError(status: number, bodyText: string): boolean {
   return t.includes('quota') || t.includes('rate') || t.includes('limit')
 }
 
+/**
+ * Estrae la spiegazione di un rifiuto 400/422 dal corpo della risposta FIC:
+ * error.message e error.validation_result. Se il corpo non è JSON conserva i
+ * primi 500 caratteri in fic_error_raw: è il caso in cui altrimenti non
+ * resterebbe niente. Mai il corpo integrale.
+ */
+function estraiDiagnosticaFic(bodyText: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(bodyText)
+    const out: Record<string, unknown> = {}
+    if (typeof parsed?.error?.message === 'string') out.fic_error_message = parsed.error.message
+    if (parsed?.error?.validation_result != null) out.fic_validation_result = parsed.error.validation_result
+    return out
+  } catch {
+    return { fic_error_raw: bodyText.slice(0, 500) }
+  }
+}
+
 function retryDelayMs(res: Response, attempt: number): number {
   const ra = res.headers.get('Retry-After')
   const secs = ra ? parseInt(ra, 10) : NaN
