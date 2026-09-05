@@ -473,7 +473,7 @@ export default function ContrattoPage() {
                 <Riga k="Email di recapito" v={ana?.email_recapito} />
                 <FicSyncAnagrafica
                   anagrafica={ana}
-                  onSynced={() => qc.invalidateQueries({ queryKey: ['contratto', id] })}
+                  onSynced={() => qc.invalidateQueries({ queryKey: ['contratti', id] })}
                 />
               </>
             );
