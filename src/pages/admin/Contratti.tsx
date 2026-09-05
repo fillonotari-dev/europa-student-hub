@@ -20,6 +20,7 @@ import {
 import { eliminaContrattoBozza } from '@/lib/contrattoDelete';
 import { FileText, Plus, Search, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { lordoDaImponibile } from '@/lib/iva';
 
 const PAGE_SIZE = 15;
 
@@ -84,7 +85,7 @@ export default function Contratti() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('contratti')
-        .select(`id, stato, data_inizio, data_fine, canone_mensile, struttura_id, file_firmato_path,
+        .select(`id, stato, data_inizio, data_fine, canone_mensile, aliquota_iva, struttura_id, file_firmato_path,
                  deposito_richiesto, deposito_importo, studente_id,
                  studenti(nome, cognome), strutture(nome)`)
         .order('data_inizio', { ascending: false });
@@ -164,7 +165,7 @@ export default function Contratti() {
                 </td>
                 <td className="px-4 py-3">{r.strutture?.nome ?? '—'}</td>
                 <td className="px-4 py-3">{fmtIt(r.data_inizio)} → {fmtIt(r.data_fine)}</td>
-                <td className="px-4 py-3">{fmtEuro(r.canone_mensile)}</td>
+                <td className="px-4 py-3">{fmtEuro(lordoDaImponibile(Number(r.canone_mensile), Number(r.aliquota_iva) || 0))}</td>
                 <td className="px-4 py-3">
                   <span className={cn('text-[11px] uppercase tracking-wider px-2 py-0.5 rounded',
                     STATO_CONTRATTO_COLORS[r.stato] ?? 'bg-muted text-muted-foreground')}>{r.stato}</span>
