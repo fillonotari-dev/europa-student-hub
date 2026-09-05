@@ -209,10 +209,19 @@ Deno.serve(async (req) => {
       : 'Il token non ha i permessi necessari per gestire i clienti.'
     else if (lastStatus === 422 || lastStatus === 400) msg = 'Fatture in Cloud ha rifiutato i dati dell\'anagrafica.'
     else msg = `Fatture in Cloud ha risposto con errore ${lastStatus}.`
+    const ridotto: Record<string, unknown> = { anagrafica_id: anagraficaId, ...quota }
+    if (lastStatus === 400 || lastStatus === 422) {
+      // Solo i nomi dei campi valorizzati, mai i valori: il payload contiene
+      // dati personali e non deve finire nel registro.
+      ridotto.campi_inviati = Object.entries(mappatura.data as Record<string, unknown>)
+        .filter(([, v]) => v !== null && v !== undefined && v !== '')
+        .map(([k]) => k)
+      ridotto.fic_diagnostica = estraiDiagnosticaFic(lastBody)
+    }
     await logFic(admin, {
       metodo, endpoint: endpointLabel, http_status: lastStatus, esito: 'errore',
       messaggio: msg,
-      payload_ridotto: { anagrafica_id: anagraficaId, ...quota },
+      payload_ridotto: ridotto,
     })
     return jsonResponse(200, { ok: false, message: msg })
   }
