@@ -23,7 +23,6 @@ import { cn } from '@/lib/utils';
 import { AlertTriangle, Check, FileUp, FileText, Info, Pencil, Repeat, Trash2, Undo2, X } from 'lucide-react';
 
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
-const oggiPrimoDelMese = () => `${new Date().toISOString().slice(0, 7)}-01`;
 const todayIso = () => new Date().toISOString().slice(0, 10);
 const primoDelMeseDi = (iso: string) => (iso ? `${iso.slice(0, 7)}-01` : '');
 
