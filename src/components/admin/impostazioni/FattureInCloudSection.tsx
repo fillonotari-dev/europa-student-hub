@@ -186,6 +186,9 @@ function ImpostazioniFatturazione() {
   );
 }
 
+export function FattureInCloudSection() {
+  const [loading, setLoading] = useState(false);
+  const [esito, setEsito] = useState<Esito | null>(null);
 
   const verifica = async () => {
     setLoading(true);
