@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
   }
 
   // --- Guardia sui dati incompleti: nessuna chiamata all'API ---
-  const mancanti = campiMancantiPerFic(ana)
+  const mancanti = campiMancantiPerFicSync(ana)
   if (mancanti.length > 0) {
     await logFic(admin, {
       metodo: '-',
