@@ -117,7 +117,7 @@ function ImpostazioniFatturazione() {
       return;
     }
     setSaving(true);
-    const patch: Record<string, unknown> = {
+    const patch = {
       fic_giorni_scadenza: giorniScadenza,
       fic_giorno_emissione: giornoEmissione,
       fic_iban: form.fic_iban.trim() || null,
@@ -125,8 +125,9 @@ function ImpostazioniFatturazione() {
       fic_metodo_pagamento_id: form.fic_metodo_pagamento_id === '' ? null : Number(form.fic_metodo_pagamento_id),
       fic_vat_id: form.fic_vat_id === '' ? null : Number(form.fic_vat_id),
       fic_vat_valore: form.fic_vat_valore === '' ? null : Number(form.fic_vat_valore),
+      ...(numerazioneBloccata ? {} : { fic_numerazione: form.fic_numerazione.trim() || null }),
     };
-    if (!numerazioneBloccata) patch.fic_numerazione = form.fic_numerazione.trim() || null;
+
     const { error } = await supabase.from('impostazioni').update(patch).eq('id', 1);
     setSaving(false);
     if (error) toast({ title: 'Errore', description: error.message, variant: 'destructive' });
