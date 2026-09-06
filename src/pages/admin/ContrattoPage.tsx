@@ -834,6 +834,17 @@ export default function ContrattoPage() {
         }}
       />
 
+      <EmettiFatturaDialog
+        canoneId={emettiCanoneId}
+        onOpenChange={(o) => { if (!o) setEmettiCanoneId(null); }}
+        onEmessa={() => {
+          qc.invalidateQueries({ queryKey: ['canoni', id] });
+          qc.invalidateQueries({ queryKey: ['fatture', id] });
+        }}
+      />
+
+
+
       <ContrattoDialog
         open={sostituisciOpen}
         onOpenChange={setSostituisciOpen}
