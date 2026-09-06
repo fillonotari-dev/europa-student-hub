@@ -92,6 +92,7 @@ export function costruisciPayloadFattura(d: DatiFattura): PayloadFattura {
   // management" per poter poi trasmettere il documento allo SDI. Ha senso solo
   // su una fattura: su una proforma non è un documento fiscale e la richiesta
   // può essere rifiutata.
+  // (stessa condizione delle scritture locali: entrambe valgono solo su 'invoice')
   if (SCRITTURE_LOCALI_ATTIVE) data.e_invoice = true;
 
   return { data };
