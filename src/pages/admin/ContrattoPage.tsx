@@ -88,6 +88,26 @@ export default function ContrattoPage() {
     },
   });
 
+  // Numero e data delle fatture già emesse: le mensilità fatturate li mostrano
+  // al posto dell'azione di emissione.
+  const { data: fatture } = useQuery({
+    queryKey: ['fatture', id],
+    enabled: !!id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('fatture')
+        .select('id, numero, numerazione, data, stato')
+        .eq('contratto_id', id!);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const fatturePerId = useMemo(
+    () => Object.fromEntries((fatture ?? []).map((f: any) => [f.id, f])),
+    [fatture],
+  );
+
   usePageTitle(contratto ? `Contratto — ${contratto.studenti?.cognome ?? ''} ${contratto.studenti?.nome ?? ''}` : 'Contratto');
 
   const anteprima = useMemo(() => {
