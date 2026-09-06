@@ -95,7 +95,7 @@ Nessun colore scritto a mano: solo token semantici (regola 9 del §12 di `docs/C
 
 ## 6. Documentazione
 
-`docs/Context.md`: sottosezione sull'emissione — funzione, guardie, due fasi, significato di `in_invio` vs `errore`, costante `TIPO_DOCUMENTO` e cosa cambiare per passare a `invoice`, esito della verifica sul flag di fattura elettronica.
+`docs/Context.md`: sottosezione sull'emissione — funzione, guardie, due fasi, significato di `in_invio` vs `errore`, esito della verifica sul flag di fattura elettronica, e costante `TIPO_DOCUMENTO`. L'elenco di cosa cambia passando a `'invoice'` deve nominare tutto: il tipo del documento, l'attivazione delle scritture locali (riga in `fatture`, collegamento e passaggio a `fatturato` del canone) e l'eventuale flag di fattura elettronica.
 
 ## Fuori perimetro (dichiarato)
 
