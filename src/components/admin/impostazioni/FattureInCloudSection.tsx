@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2, XCircle, Loader2, AlertTriangle } from 'lucide-react';
 
@@ -12,12 +13,18 @@ type Esito =
   | { ok: true; azienda: string; quotaOra: string | null; quotaMese: string | null }
   | { ok: false; messaggio: string };
 
+type MetodoFic = { id: number; name: string };
+type AliquotaFic = { id: number; value: number; description: string };
+
 type ImpostazioniFic = {
   fic_numerazione: string;
   fic_giorni_scadenza: string;
   fic_giorno_emissione: string;
   fic_iban: string;
   fic_metodo_pagamento: string;
+  fic_metodo_pagamento_id: string;
+  fic_vat_id: string;
+  fic_vat_valore: string;
 };
 
 const VUOTE: ImpostazioniFic = {
@@ -26,6 +33,9 @@ const VUOTE: ImpostazioniFic = {
   fic_giorno_emissione: '',
   fic_iban: '',
   fic_metodo_pagamento: '',
+  fic_metodo_pagamento_id: '',
+  fic_vat_id: '',
+  fic_vat_valore: '',
 };
 
 function ImpostazioniFatturazione() {
@@ -34,13 +44,16 @@ function ImpostazioniFatturazione() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [numerazioneBloccata, setNumerazioneBloccata] = useState(false);
+  const [caricandoRegistri, setCaricandoRegistri] = useState(false);
+  const [metodi, setMetodi] = useState<MetodoFic[] | null>(null);
+  const [aliquote, setAliquote] = useState<AliquotaFic[] | null>(null);
 
   useEffect(() => {
     (async () => {
       const [imp, emesse] = await Promise.all([
         supabase
           .from('impostazioni')
-          .select('fic_numerazione, fic_giorni_scadenza, fic_giorno_emissione, fic_iban, fic_metodo_pagamento')
+          .select('fic_numerazione, fic_giorni_scadenza, fic_giorno_emissione, fic_iban, fic_metodo_pagamento, fic_metodo_pagamento_id, fic_vat_id, fic_vat_valore')
           .eq('id', 1)
           .maybeSingle(),
         supabase.from('fatture').select('id', { count: 'exact', head: true }).eq('stato', 'emessa'),
@@ -54,6 +67,9 @@ function ImpostazioniFatturazione() {
           fic_giorno_emissione: imp.data.fic_giorno_emissione?.toString() ?? '',
           fic_iban: imp.data.fic_iban ?? '',
           fic_metodo_pagamento: imp.data.fic_metodo_pagamento ?? '',
+          fic_metodo_pagamento_id: imp.data.fic_metodo_pagamento_id?.toString() ?? '',
+          fic_vat_id: imp.data.fic_vat_id?.toString() ?? '',
+          fic_vat_valore: imp.data.fic_vat_valore?.toString() ?? '',
         });
       }
       setNumerazioneBloccata((emesse.count ?? 0) > 0);
@@ -62,6 +78,28 @@ function ImpostazioniFatturazione() {
   }, [toast]);
 
   const setField = (k: keyof ImpostazioniFic, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const caricaRegistri = async () => {
+    setCaricandoRegistri(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('fic-registri');
+      if (error) throw error;
+      if (!data?.ok) {
+        toast({ title: 'Lettura non riuscita', description: data?.message ?? 'Errore sconosciuto.', variant: 'destructive' });
+        return;
+      }
+      setMetodi(data.metodi ?? []);
+      setAliquote(data.aliquote ?? []);
+      toast({
+        title: 'Registri caricati',
+        description: `${(data.metodi ?? []).length} metodi di pagamento, ${(data.aliquote ?? []).length} aliquote IVA.`,
+      });
+    } catch (e: any) {
+      toast({ title: 'Errore', description: e?.message ?? 'Errore di comunicazione con il server.', variant: 'destructive' });
+    } finally {
+      setCaricandoRegistri(false);
+    }
+  };
 
   const salva = async () => {
     const giorniScadenza = Number(form.fic_giorni_scadenza);
@@ -84,6 +122,9 @@ function ImpostazioniFatturazione() {
       fic_giorno_emissione: giornoEmissione,
       fic_iban: form.fic_iban.trim() || null,
       fic_metodo_pagamento: form.fic_metodo_pagamento.trim() || null,
+      fic_metodo_pagamento_id: form.fic_metodo_pagamento_id === '' ? null : Number(form.fic_metodo_pagamento_id),
+      fic_vat_id: form.fic_vat_id === '' ? null : Number(form.fic_vat_id),
+      fic_vat_valore: form.fic_vat_valore === '' ? null : Number(form.fic_vat_valore),
     };
     if (!numerazioneBloccata) patch.fic_numerazione = form.fic_numerazione.trim() || null;
     const { error } = await supabase.from('impostazioni').update(patch).eq('id', 1);
@@ -101,6 +142,81 @@ function ImpostazioniFatturazione() {
         <p className="text-[13px] text-muted-foreground">
           Valori usati per la creazione dei documenti. Non viene emesso nulla da questa pagina.
         </p>
+      </div>
+
+      <div className="rounded-md border p-4 space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium">Metodo di pagamento e aliquota IVA</p>
+            <p className="text-[12px] text-muted-foreground">
+              Fatture in Cloud accetta solo gli identificativi presenti nel registro dell'azienda:
+              vanno letti dall'account, non scritti a mano.
+            </p>
+          </div>
+          <Button variant="outline" onClick={caricaRegistri} disabled={caricandoRegistri}>
+            {caricandoRegistri && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            {caricandoRegistri ? 'Lettura...' : 'Carica dall\'account'}
+          </Button>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label>Metodo di pagamento</Label>
+            {metodi ? (
+              <Select
+                value={form.fic_metodo_pagamento_id}
+                onValueChange={(v) => {
+                  const m = metodi.find((x) => String(x.id) === v);
+                  setForm((f) => ({ ...f, fic_metodo_pagamento_id: v, fic_metodo_pagamento: m?.name ?? f.fic_metodo_pagamento }));
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="Scegli un metodo" /></SelectTrigger>
+                <SelectContent>
+                  {metodi.map((m) => (
+                    <SelectItem key={m.id} value={String(m.id)}>{m.name || `Metodo ${m.id}`}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="text-[13px] text-muted-foreground">
+                {form.fic_metodo_pagamento_id
+                  ? `${form.fic_metodo_pagamento || 'metodo'} (id ${form.fic_metodo_pagamento_id}) — non ancora verificato sull'account`
+                  : 'Non impostato: carica i registri per sceglierlo.'}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Aliquota IVA</Label>
+            {aliquote ? (
+              <Select
+                value={form.fic_vat_id}
+                onValueChange={(v) => {
+                  const a = aliquote.find((x) => String(x.id) === v);
+                  setForm((f) => ({ ...f, fic_vat_id: v, fic_vat_valore: a ? String(a.value) : f.fic_vat_valore }));
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="Scegli un'aliquota" /></SelectTrigger>
+                <SelectContent>
+                  {aliquote.map((a) => (
+                    <SelectItem key={a.id} value={String(a.id)}>
+                      {a.value}% {a.description ? `— ${a.description}` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="text-[13px] text-muted-foreground">
+                {form.fic_vat_id
+                  ? `${form.fic_vat_valore || '?'}% (id ${form.fic_vat_id}) — non ancora verificato sull'account`
+                  : 'Non impostata: carica i registri per sceglierla.'}
+              </p>
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              Deve coincidere con l'aliquota dei contratti: se differisce, l'emissione si fermerà.
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -126,16 +242,6 @@ function ImpostazioniFatturazione() {
               Non sarà più modificabile dopo la prima fattura emessa.
             </p>
           )}
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="fic_metodo_pagamento">Metodo di pagamento</Label>
-          <Input
-            id="fic_metodo_pagamento"
-            value={form.fic_metodo_pagamento}
-            onChange={(e) => setField('fic_metodo_pagamento', e.target.value)}
-            placeholder="bonifico"
-          />
         </div>
 
         <div className="space-y-1.5">
@@ -165,7 +271,7 @@ function ImpostazioniFatturazione() {
           <p className="text-[11px] text-muted-foreground">Giorno del mese, da 1 a 28.</p>
         </div>
 
-        <div className="space-y-1.5 sm:col-span-2">
+        <div className="space-y-1.5">
           <Label htmlFor="fic_iban">IBAN</Label>
           <Input
             id="fic_iban"
@@ -185,6 +291,7 @@ function ImpostazioniFatturazione() {
     </div>
   );
 }
+
 
 export function FattureInCloudSection() {
   const [loading, setLoading] = useState(false);
