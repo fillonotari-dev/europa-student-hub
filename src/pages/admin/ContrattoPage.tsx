@@ -22,7 +22,7 @@ import { eliminaContrattoBozza } from '@/lib/contrattoDelete';
 import { scomposizione, lordoDaImponibile } from '@/lib/iva';
 import { fmtEuro, fmtIt, STATO_CONTRATTO_COLORS } from './Contratti';
 import { cn } from '@/lib/utils';
-import { AlertTriangle, Check, FileUp, FileText, Info, Pencil, Repeat, Trash2, Undo2, X } from 'lucide-react';
+import { AlertTriangle, Check, FileUp, FileText, Info, Pencil, Receipt, Repeat, Trash2, Undo2, X } from 'lucide-react';
 
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
 const todayIso = () => new Date().toISOString().slice(0, 10);
