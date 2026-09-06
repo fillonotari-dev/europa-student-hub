@@ -657,16 +657,29 @@ export default function ContrattoPage() {
                       onChange={e => setBozzaRiga(b => ({ ...b, note: e.target.value }))} /> : (c.note ?? '—')}
                   </td>
                   <td className="px-4 py-2 text-right">
+                    {!modificabile && c.fattura_id && fatturePerId[c.fattura_id] && (
+                      <span className="text-xs text-muted-foreground">
+                        Fattura {fatturePerId[c.fattura_id].numero ?? '—'}
+                        {fatturePerId[c.fattura_id].numerazione ?? ''}
+                        {fatturePerId[c.fattura_id].data ? ` del ${fmtIt(fatturePerId[c.fattura_id].data)}` : ''}
+                      </span>
+                    )}
                     {modificabile && (inEdit ? (
                       <div className="flex gap-1 justify-end">
                         <Button size="icon" variant="ghost" className="h-8 w-8" disabled={busy} onClick={() => salvaRiga(c)}><Check className="w-4 h-4" /></Button>
                         <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setRigaEdit(null)}><X className="w-4 h-4" /></Button>
                       </div>
                     ) : (
-                      <Button size="icon" variant="ghost" className="h-8 w-8"
-                        onClick={() => { setRigaEdit(c.id); setBozzaRiga({ imponibile: String(lordoDaImponibile(Number(c.imponibile), Number(c.aliquota_iva) || 0)), scadenza: c.scadenza, note: c.note ?? '' }); }}>
-                        <Pencil className="w-3.5 h-3.5" />
-                      </Button>
+                      <div className="flex gap-1 justify-end items-center">
+                        <Button size="sm" variant="outline" className="h-8"
+                          onClick={() => setEmettiCanoneId(c.id)}>
+                          <Receipt className="w-3.5 h-3.5 mr-1.5" />Emetti fattura
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8"
+                          onClick={() => { setRigaEdit(c.id); setBozzaRiga({ imponibile: String(lordoDaImponibile(Number(c.imponibile), Number(c.aliquota_iva) || 0)), scadenza: c.scadenza, note: c.note ?? '' }); }}>
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
                     ))}
                   </td>
                 </tr>
