@@ -62,6 +62,7 @@ export default function ContrattoPage() {
   const [chiudiMotivo, setChiudiMotivo] = useState('');
   const [bozzaOpen, setBozzaOpen] = useState(false);
   const [sostituisciOpen, setSostituisciOpen] = useState(false);
+  const [emettiCanoneId, setEmettiCanoneId] = useState<string | null>(null);
 
   const { data: contratto, isLoading } = useQuery({
     queryKey: ['contratti', id],
