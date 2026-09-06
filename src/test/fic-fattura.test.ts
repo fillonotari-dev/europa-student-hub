@@ -80,11 +80,11 @@ describe('costruisciPayloadFattura', () => {
   });
 
   it('imposta il flag di fattura elettronica solo sul tipo invoice', () => {
-    if (TIPO_DOCUMENTO === 'invoice') expect(data.e_invoice).toBe(true);
+    if (SCRITTURE_LOCALI_ATTIVE) expect(data.e_invoice).toBe(true);
     else expect('e_invoice' in data).toBe(false);
   });
 
   it('attiva le scritture locali solo sul tipo invoice', () => {
-    expect(SCRITTURE_LOCALI_ATTIVE).toBe(TIPO_DOCUMENTO === 'invoice');
+    expect(SCRITTURE_LOCALI_ATTIVE).toBe((TIPO_DOCUMENTO as string) === 'invoice');
   });
 });

@@ -24,7 +24,7 @@ export const TIPO_DOCUMENTO: 'proforma' | 'invoice' = 'proforma';
  * 'incassato', vieta la cancellazione della riga, e riporta_contratto_in_bozza
  * rifiuta un contratto con canoni fatturati.
  */
-export const SCRITTURE_LOCALI_ATTIVE = TIPO_DOCUMENTO === 'invoice';
+export const SCRITTURE_LOCALI_ATTIVE: boolean = (TIPO_DOCUMENTO as string) === 'invoice';
 
 const MESI_IT = [
   'gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
@@ -92,7 +92,7 @@ export function costruisciPayloadFattura(d: DatiFattura): PayloadFattura {
   // management" per poter poi trasmettere il documento allo SDI. Ha senso solo
   // su una fattura: su una proforma non è un documento fiscale e la richiesta
   // può essere rifiutata.
-  if (TIPO_DOCUMENTO === 'invoice') data.e_invoice = true;
+  if (SCRITTURE_LOCALI_ATTIVE) data.e_invoice = true;
 
   return { data };
 }

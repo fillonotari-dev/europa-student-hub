@@ -6,7 +6,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { AlertTriangle, Loader2 } from 'lucide-react';
-import { TIPO_DOCUMENTO } from '@shared/fic-fattura';
+import { TIPO_DOCUMENTO, SCRITTURE_LOCALI_ATTIVE } from '@shared/fic-fattura';
 import { fmtEuro, fmtIt } from '@/pages/admin/Contratti';
 
 type Anteprima = {
@@ -88,7 +88,7 @@ export function EmettiFatturaDialog({ canoneId, onOpenChange, onEmessa }: Props)
       if (esito?.ok) {
         const saltati: string[] = esito.passi_saltati ?? [];
         toast({
-          title: TIPO_DOCUMENTO === 'invoice' ? 'Fattura emessa' : 'Documento di prova creato',
+          title: SCRITTURE_LOCALI_ATTIVE ? 'Fattura emessa' : 'Documento di prova creato',
           description: saltati.length > 0 ? `${esito.message} ${saltati.join('; ')}.` : esito.message,
         });
         onEmessa();
@@ -111,7 +111,7 @@ export function EmettiFatturaDialog({ canoneId, onOpenChange, onEmessa }: Props)
     }
   };
 
-  const avviso = TIPO_DOCUMENTO === 'invoice'
+  const avviso = SCRITTURE_LOCALI_ATTIVE
     ? 'La fattura esisterà su Fatture in Cloud con il suo numero e non sarà più cancellabile né modificabile nell\'importo.'
     : 'Verrà creato un documento proforma di prova: non è un documento fiscale, non consuma il numero del sezionale ed è cancellabile. La mensilità resta da fatturare e nel gestionale non viene registrata alcuna fattura.';
 
