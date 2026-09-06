@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ContrattoDialog } from '@/components/admin/contratti/ContrattoDialog';
 import { IntestazioneFatturaDialog } from '@/components/admin/contratti/IntestazioneFatturaDialog';
+import { EmettiFatturaDialog } from '@/components/admin/contratti/EmettiFatturaDialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
