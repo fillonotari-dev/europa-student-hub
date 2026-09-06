@@ -31,7 +31,7 @@ Funzione pura `costruisciPayloadFattura(...)` che restituisce esattamente:
 
 `number` omesso (progressivo assegnato da Fatture in Cloud). Mese in italiano derivato da `canoni.competenza`. Nessun import esterno, così il modulo è importabile sia da Deno sia dai test Vitest (stesso schema di `_shared/fic-anagrafica.ts`, già incluso in `tsconfig.app.json`; il nuovo file va aggiunto allo stesso elenco `include`).
 
-Prima di scrivere il payload definitivo: verifica sulla documentazione ufficiale Fatture in Cloud se il documento debba nascere con il flag di fattura elettronica attivo (`e_invoice`) perché Daniela possa trasmetterlo allo SDI dalla propria interfaccia. Riporto la fonte e imposto il campo solo se la documentazione lo richiede; se non lo richiede lo dichiaro e non lo imposto.
+Prima di scrivere il payload definitivo: verifica sulla documentazione ufficiale Fatture in Cloud se il documento debba nascere con il flag di fattura elettronica attivo (`e_invoice`) perché Daniela possa trasmetterlo allo SDI dalla propria interfaccia. Riporto la fonte e imposto il campo solo se la documentazione lo richiede; se non lo richiede lo dichiaro e non lo imposto. In ogni caso il flag viene impostato **solo quando `TIPO_DOCUMENTO === 'invoice'`**: su una proforma non ha significato e può far rifiutare la richiesta.
 
 ## 2. Test `src/test/fic-fattura.test.ts`
 
