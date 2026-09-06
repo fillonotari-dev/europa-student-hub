@@ -882,7 +882,10 @@ export type Database = {
           fic_giorno_emissione: number | null
           fic_iban: string | null
           fic_metodo_pagamento: string | null
+          fic_metodo_pagamento_id: number | null
           fic_numerazione: string | null
+          fic_vat_id: number | null
+          fic_vat_valore: number | null
           id: number
           notifica_email: string | null
           updated_at: string
@@ -896,7 +899,10 @@ export type Database = {
           fic_giorno_emissione?: number | null
           fic_iban?: string | null
           fic_metodo_pagamento?: string | null
+          fic_metodo_pagamento_id?: number | null
           fic_numerazione?: string | null
+          fic_vat_id?: number | null
+          fic_vat_valore?: number | null
           id?: number
           notifica_email?: string | null
           updated_at?: string
@@ -910,7 +916,10 @@ export type Database = {
           fic_giorno_emissione?: number | null
           fic_iban?: string | null
           fic_metodo_pagamento?: string | null
+          fic_metodo_pagamento_id?: number | null
           fic_numerazione?: string | null
+          fic_vat_id?: number | null
+          fic_vat_valore?: number | null
           id?: number
           notifica_email?: string | null
           updated_at?: string
