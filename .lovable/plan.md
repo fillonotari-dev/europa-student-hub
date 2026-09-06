@@ -60,7 +60,11 @@ f. `canoni.aliquota_iva` uguale a `impostazioni.fic_vat_valore`.
 
 Prima di creare il documento, PUT idempotente su `/c/{company_id}/entities/clients/{fic_entity_id}` con `mappaAnagraficaPerFic`, stessa mappatura di `fic-sync-anagrafica`. `fic-sync-anagrafica` non viene toccata (unificazione rinviata di proposito, come dichiarato nel commento in testa a `_shared/fic-client.ts`). Se la risincronizzazione fallisce non si crea niente e l'esito lo dichiara; un PUT 404 azzera `fic_entity_id` e ferma l'emissione con il messaggio già previsto.
 
-### Scrittura in due fasi
+### Scrittura in due fasi — solo con `TIPO_DOCUMENTO === 'invoice'`
+
+Con `'proforma'` la funzione esegue guardie, risincronizzazione e chiamata a Fatture in Cloud, registra tutto in `fic_log` e restituisce l'id del documento creato, ma **non scrive nulla in `fatture` e non tocca `canoni`**. Una proforma non fattura un mese: marcare il canone come `fatturato` sarebbe sbagliato nel merito e irreversibile — `canoni_protect_fatturati` da `fatturato` ammette solo `incassato`, vieta la cancellazione della riga, e `riporta_contratto_in_bozza` rifiuta un contratto con canoni fatturati. Il collaudo lascerebbe una mensilità marcata per sempre contro un documento che non è una fattura.
+
+Il codice della scrittura in due fasi va comunque scritto per intero in questo intervento: viene semplicemente eseguito la prima volta con la prima fattura vera, dove lo stato `in_invio` è la rete pensata per quel momento.
 
 1. INSERT in `fatture` con `contratto_id`, importi coerenti col CHECK `totale = imponibile + iva`, `stato = 'in_invio'`;
 2. chiamata a Fatture in Cloud;
@@ -68,6 +72,10 @@ Prima di creare il documento, PUT idempotente su `/c/{company_id}/entities/clien
 4. solo dopo, **un'unica** UPDATE su `canoni` che scrive `fattura_id` e `stato = 'fatturato'` insieme: scritti separatamente, il secondo aggiornamento troverebbe `OLD.stato = 'fatturato'` e verrebbe rifiutato dal trigger `canoni_protect_fatturati`.
 
 Su rifiuto definitivo (4xx di validazione: il documento sicuramente non esiste) la riga passa a `errore` con `messaggio_errore`. Su timeout o errore di rete resta `in_invio`, perché il documento potrebbe esistere. In entrambi i casi il canone resta `da_fatturare`.
+
+### Esito parlante
+
+Ogni esito restituito dichiara esplicitamente quali passi sono stati **saltati per via del valore della costante** (registrazione in `fatture`, collegamento del canone), così una prova riuscita non può essere scambiata per un'emissione completa. Lo stesso vale per il resoconto finale dell'intervento.
 
 ## 4. Migration additiva: congelare `stato` dopo `emessa`
 
