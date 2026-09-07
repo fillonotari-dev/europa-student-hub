@@ -80,6 +80,22 @@ describe('costruisciPayloadFattura', () => {
     expect((data.payments_list as any[])[0].amount).toBe(300);
   });
 
+  it('manda entity con id e name valorizzati', () => {
+    expect(data.entity).toEqual({ id: 123456, name: 'Mario Rossi' });
+  });
+
+  it('compone entity.name per una persona fisica con nomeCompleto', () => {
+    const nome = nomeCompleto({ tipo: 'persona_fisica', nome: 'Mario', cognome: 'Rossi' });
+    const { data: d } = costruisciPayloadFattura({ ...base, nomeCliente: nome });
+    expect((d.entity as any).name).toBe('Mario Rossi');
+  });
+
+  it('compone entity.name per un soggetto giuridico con la denominazione', () => {
+    const nome = nomeCompleto({ tipo: 'soggetto_giuridico', denominazione: 'Navona SRL', nome: 'Ignorato', cognome: 'Ignorato' });
+    const { data: d } = costruisciPayloadFattura({ ...base, nomeCliente: nome });
+    expect((d.entity as any).name).toBe('Navona SRL');
+  });
+
   it('imposta il flag di fattura elettronica solo sul tipo invoice', () => {
     if (SCRITTURE_LOCALI_ATTIVE) expect(data.e_invoice).toBe(true);
     else expect('e_invoice' in data).toBe(false);
