@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertTriangle, CheckCircle2, Loader2, Receipt, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, Loader2, Receipt, X } from 'lucide-react';
 import { fmtEuro, fmtIt } from '@/pages/admin/Contratti';
 import { EmettiFatturaDialog, type Anteprima, type RigaDaEmettere } from '@/components/admin/contratti/EmettiFatturaDialog';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { cn } from '@/lib/utils';
 
 /** L'anteprima non chiama Fatture in Cloud: può permettersi gruppi ampi. */
 const GRUPPO_ANTEPRIMA = 50;
@@ -69,11 +72,22 @@ const chunk = <T,>(arr: T[], n: number): T[][] => {
 export default function Fatturazione() {
   usePageTitle('Fatturazione');
   const qc = useQueryClient();
-  const [mese, setMese] = useState<string>(meseCorrente());
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selezione, setSelezione] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [riepilogo, setRiepilogo] = useState<Riepilogo | null>(null);
+  const [archivioOpen, setArchivioOpen] = useState(false);
+
+  const mese = searchParams.get('mese') || meseCorrente();
+
+  const patchParams = (patch: Record<string, string | null>) => {
+    const next = new URLSearchParams(searchParams);
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === null || v === '') next.delete(k); else next.set(k, v);
+    }
+    setSearchParams(next, { replace: true });
+  };
 
   // --- Mensilità del mese scelto ---
   const { data: righe, isLoading } = useQuery({
@@ -240,8 +254,8 @@ export default function Fatturazione() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        <Select value={mese} onValueChange={setMese}>
+      <div className="flex items-center gap-3 flex-wrap">
+        <Select value={mese} onValueChange={v => patchParams({ mese: v })}>
           <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
           <SelectContent className="max-h-[320px]">
             {opzioniMese.map(m => (
@@ -259,7 +273,7 @@ export default function Fatturazione() {
             {arretrati!.length === 1 ? 'mensilità arretrata' : 'mensilità arretrate'} da fatturare,
             la più vecchia di {etichettaMese(meseArretratoPiuVecchio)}.
           </span>
-          <Button size="sm" variant="outline" onClick={() => setMese(meseArretratoPiuVecchio)}>
+          <Button size="sm" variant="outline" onClick={() => patchParams({ mese: meseArretratoPiuVecchio })}>
             Vai a {etichettaMese(meseArretratoPiuVecchio)}
           </Button>
         </div>
@@ -297,25 +311,47 @@ export default function Fatturazione() {
       )}
 
       <section className="bg-card border border-border/50 rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
+        {emettibili.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/50 bg-muted/30 px-4 py-3">
+            <div className="flex items-center gap-3 text-sm">
+              <Checkbox
+                checked={selezionate.length > 0 && selezionate.length === emettibili.length}
+                onCheckedChange={(v) => setSelezione(v ? new Set(emettibili.map(r => r.id)) : new Set())}
+                aria-label="Seleziona tutte le emettibili"
+              />
+              <span>Seleziona tutte ({emettibili.length})</span>
+            </div>
+            <div className="flex items-center gap-4 text-sm">
+              <span>
+                {selezionate.length} {selezionate.length === 1 ? 'mensilità' : 'mensilità'} — totale{' '}
+                <strong>{fmtEuro(totaleSelezione)}</strong>
+              </span>
+              <Button disabled={selezionate.length === 0} onClick={() => setDialogOpen(true)}>
+                <Receipt className="w-4 h-4 mr-2" />Emetti le fatture selezionate
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <table className="w-full">
           <thead>
             <tr className="bg-muted/70 text-xs uppercase tracking-wider text-muted-foreground">
               <th className="w-10 px-4 py-3" />
               <th className="text-left px-4 py-3 font-semibold">Studente</th>
               <th className="text-left px-4 py-3 font-semibold">Struttura</th>
-              <th className="text-right px-4 py-3 font-semibold">Imponibile</th>
-              <th className="text-right px-4 py-3 font-semibold">IVA</th>
-              <th className="text-right px-4 py-3 font-semibold">Totale</th>
+              <th className="text-left px-4 py-3 font-semibold">Imponibile</th>
+              <th className="text-left px-4 py-3 font-semibold">IVA</th>
+              <th className="text-left px-4 py-3 font-semibold">Totale</th>
               <th className="text-left px-4 py-3 font-semibold">Scadenza</th>
               <th className="text-left px-4 py-3 font-semibold">Stato</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="text-sm">
             {isLoading && (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Caricamento…</td></tr>
+              <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">Caricamento…</td></tr>
             )}
             {!isLoading && (righe ?? []).length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+              <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">
                 Nessuna mensilità da fatturare in {etichettaMese(mese)}.
               </td></tr>
             )}
@@ -323,8 +359,8 @@ export default function Fatturazione() {
               const esito = esiti?.[r.id];
               const emettibile = !!esito?.ok;
               return (
-                <tr key={r.id} className="border-t border-border/50">
-                  <td className="px-4 py-2">
+                <tr key={r.id} className="border-t border-border/50 hover:bg-muted/50">
+                  <td className="px-4 py-3">
                     <Checkbox
                       checked={selezione.has(r.id)}
                       disabled={!emettibile}
@@ -332,13 +368,13 @@ export default function Fatturazione() {
                       aria-label={`Seleziona ${r.studente}`}
                     />
                   </td>
-                  <td className="px-4 py-2">{r.studente}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{r.struttura}</td>
-                  <td className="px-4 py-2 text-right">{fmtEuro(r.imponibile)}</td>
-                  <td className="px-4 py-2 text-right">{fmtEuro(Math.round((r.totale - r.imponibile) * 100) / 100)}</td>
-                  <td className="px-4 py-2 text-right">{fmtEuro(r.totale)}</td>
-                  <td className="px-4 py-2">{fmtIt(r.scadenza)}</td>
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-3">{r.studente}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{r.struttura}</td>
+                  <td className="px-4 py-3">{fmtEuro(r.imponibile)}</td>
+                  <td className="px-4 py-3">{fmtEuro(Math.round((r.totale - r.imponibile) * 100) / 100)}</td>
+                  <td className="px-4 py-3">{fmtEuro(r.totale)}</td>
+                  <td className="px-4 py-3">{fmtIt(r.scadenza)}</td>
+                  <td className="px-4 py-3">
                     {valutazione && !esito && (
                       <span className="inline-flex items-center gap-1.5 text-muted-foreground">
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />Controllo…
@@ -354,28 +390,6 @@ export default function Fatturazione() {
             })}
           </tbody>
         </table>
-
-        {emettibili.length > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/50 bg-muted/30 px-4 py-3">
-            <div className="flex items-center gap-3 text-sm">
-              <Checkbox
-                checked={selezionate.length > 0 && selezionate.length === emettibili.length}
-                onCheckedChange={(v) => setSelezione(v ? new Set(emettibili.map(r => r.id)) : new Set())}
-                aria-label="Seleziona tutte le emettibili"
-              />
-              <span>Seleziona tutte le emettibili ({emettibili.length})</span>
-            </div>
-            <div className="flex items-center gap-4 text-sm">
-              <span>
-                {selezionate.length} {selezionate.length === 1 ? 'mensilità' : 'mensilità'} — totale{' '}
-                <strong>{fmtEuro(totaleSelezione)}</strong>
-              </span>
-              <Button disabled={selezionate.length === 0} onClick={() => setDialogOpen(true)}>
-                <Receipt className="w-4 h-4 mr-2" />Emetti le fatture selezionate
-              </Button>
-            </div>
-          </div>
-        )}
       </section>
 
       {daRiconciliare.length > 0 && (
@@ -387,24 +401,24 @@ export default function Fatturazione() {
               il gestionale e Fatture in Cloud possono divergere. Sola lettura.
             </p>
           </div>
-          <table className="w-full text-sm">
+          <table className="w-full">
             <thead>
               <tr className="bg-muted/70 text-xs uppercase tracking-wider text-muted-foreground">
                 <th className="text-left px-4 py-3 font-semibold">Studente</th>
-                <th className="text-right px-4 py-3 font-semibold">Totale</th>
+                <th className="text-left px-4 py-3 font-semibold">Totale</th>
                 <th className="text-left px-4 py-3 font-semibold">Stato</th>
                 <th className="text-left px-4 py-3 font-semibold">Messaggio</th>
                 <th className="text-left px-4 py-3 font-semibold">Data</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="text-sm">
               {daRiconciliare.map((f: any) => (
-                <tr key={f.id} className="border-t border-border/50">
-                  <td className="px-4 py-2">{nomeStudente(f)}</td>
-                  <td className="px-4 py-2 text-right">{fmtEuro(f.totale)}</td>
-                  <td className="px-4 py-2">{f.stato}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{f.messaggio_errore ?? '—'}</td>
-                  <td className="px-4 py-2">{fmtIt(f.data) !== '—' ? fmtIt(f.data) : new Date(f.created_at).toLocaleDateString('it-IT')}</td>
+                <tr key={f.id} className="border-t border-border/50 hover:bg-muted/50">
+                  <td className="px-4 py-3">{nomeStudente(f)}</td>
+                  <td className="px-4 py-3">{fmtEuro(f.totale)}</td>
+                  <td className="px-4 py-3">{f.stato}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{f.messaggio_errore ?? '—'}</td>
+                  <td className="px-4 py-3">{fmtIt(f.data) !== '—' ? fmtIt(f.data) : new Date(f.created_at).toLocaleDateString('it-IT')}</td>
                 </tr>
               ))}
             </tbody>
@@ -412,44 +426,51 @@ export default function Fatturazione() {
         </section>
       )}
 
-      <section className="bg-card border border-border/50 rounded-lg overflow-hidden">
-        <div className="px-5 py-4 border-b border-border/50">
-          <h2 className="text-sm font-semibold">Archivio</h2>
-        </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-muted/70 text-xs uppercase tracking-wider text-muted-foreground">
-              <th className="text-left px-4 py-3 font-semibold">Studente</th>
-              <th className="text-left px-4 py-3 font-semibold">Competenza</th>
-              <th className="text-left px-4 py-3 font-semibold">Numero</th>
-              <th className="text-left px-4 py-3 font-semibold">Sezionale</th>
-              <th className="text-left px-4 py-3 font-semibold">Data</th>
-              <th className="text-right px-4 py-3 font-semibold">Totale</th>
-              <th className="text-left px-4 py-3 font-semibold">Invio elettronico</th>
-            </tr>
-          </thead>
-          <tbody>
-            {archivio.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
-                Nessuna fattura emessa.
-              </td></tr>
-            )}
-            {archivio.map((f: any) => (
-              <tr key={f.id} className="border-t border-border/50">
-                <td className="px-4 py-2">{nomeStudente(f)}</td>
-                <td className="px-4 py-2">
-                  {competenzaPerFattura[f.id] ? etichettaMese(competenzaPerFattura[f.id].slice(0, 7)) : '—'}
-                </td>
-                <td className="px-4 py-2">{f.numero ?? '—'}</td>
-                <td className="px-4 py-2 text-muted-foreground">{f.numerazione || '—'}</td>
-                <td className="px-4 py-2">{fmtIt(f.data)}</td>
-                <td className="px-4 py-2 text-right">{fmtEuro(f.totale)}</td>
-                <td className="px-4 py-2 text-muted-foreground">{f.ei_status ?? '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+      <Collapsible open={archivioOpen} onOpenChange={setArchivioOpen}>
+        <section className="bg-card border border-border/50 rounded-lg overflow-hidden">
+          <CollapsibleTrigger asChild>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 cursor-pointer">
+              <h2 className="text-sm font-semibold">Archivio ({archivio.length})</h2>
+              <ChevronDown className={cn('w-4 h-4 text-muted-foreground transition-transform', archivioOpen && 'rotate-180')} />
+            </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <table className="w-full">
+              <thead>
+                <tr className="bg-muted/70 text-xs uppercase tracking-wider text-muted-foreground">
+                  <th className="text-left px-4 py-3 font-semibold">Studente</th>
+                  <th className="text-left px-4 py-3 font-semibold">Competenza</th>
+                  <th className="text-left px-4 py-3 font-semibold">Numero</th>
+                  <th className="text-left px-4 py-3 font-semibold">Sezionale</th>
+                  <th className="text-left px-4 py-3 font-semibold">Data</th>
+                  <th className="text-left px-4 py-3 font-semibold">Totale</th>
+                  <th className="text-left px-4 py-3 font-semibold">Invio elettronico</th>
+                </tr>
+              </thead>
+              <tbody className="text-sm">
+                {archivio.length === 0 && (
+                  <tr><td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
+                    Nessuna fattura emessa.
+                  </td></tr>
+                )}
+                {archivio.map((f: any) => (
+                  <tr key={f.id} className="border-t border-border/50 hover:bg-muted/50">
+                    <td className="px-4 py-3">{nomeStudente(f)}</td>
+                    <td className="px-4 py-3">
+                      {competenzaPerFattura[f.id] ? etichettaMese(competenzaPerFattura[f.id].slice(0, 7)) : '—'}
+                    </td>
+                    <td className="px-4 py-3">{f.numero ?? '—'}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{f.numerazione || '—'}</td>
+                    <td className="px-4 py-3">{fmtIt(f.data)}</td>
+                    <td className="px-4 py-3">{fmtEuro(f.totale)}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{f.ei_status ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CollapsibleContent>
+        </section>
+      </Collapsible>
 
       <EmettiFatturaDialog
         open={dialogOpen}
