@@ -240,7 +240,8 @@ export default function Fatturazione() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-end gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-bold">Da emettere — {etichettaMese(mese)}</h1>
         <Select value={mese} onValueChange={setMese}>
           <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
           <SelectContent className="max-h-[320px]">
