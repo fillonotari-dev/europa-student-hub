@@ -4,7 +4,7 @@ Tutto in `src/pages/admin/Fatturazione.tsx`. Nessuna modifica a logica, query, E
 
 ## 1. Filtri in testa, mese nella URL
 
-- Il contenitore del selettore diventa `flex items-center gap-3 flex-wrap`, selettore allineato a sinistra (via `justify-end`), come in `Contratti.tsx` (riga 114).
+- Il contenitore del selettore diventa `flex items-center gap-3 flex-wrap`, nessun `justify-end`: il selettore rimane a sinistra, come in `Contratti.tsx` (riga 114).
 - Il mese passa da `useState` a `useSearchParams` con l'helper `patchParams` copiato dal pattern di `Contratti.tsx` (righe 69-76): parametro `mese`, default `meseCorrente()` quando assente.
 - Il pulsante "Vai a …" dell'avviso arretrati chiama `patchParams({ mese: meseArretratoPiuVecchio })` invece di `setMese`.
 - L'`useEffect` che azzera la selezione al cambio mese resta, ora dipendente dal parametro URL.
@@ -12,7 +12,7 @@ Tutto in `src/pages/admin/Fatturazione.tsx`. Nessuna modifica a logica, query, E
 ## 2. Barra di selezione sopra la tabella
 
 - Il blocco con "Seleziona tutte le emettibili", riepilogo e pulsante "Emetti le fatture selezionate" si sposta dalla parte bassa della section a sopra il `<table>`, come prima fascia della card (border-b invece di border-t).
-- Layout invariato: a sinistra la casella con l'etichetta, a destra riepilogo e pulsante. Resta visibile solo se ci sono emettibili.
+- Layout invariato: a sinistra la casella con l'etichetta "Seleziona tutte", a destra riepilogo e pulsante. Resta visibile solo se ci sono emettibili.
 
 ## 3. Archivio chiuso di default con Collapsible
 
