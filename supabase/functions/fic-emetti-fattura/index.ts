@@ -2,7 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { z } from 'npm:zod@3'
 import { FIC_BASE, ficFetch, estraiDiagnosticaFic, isQuotaError } from '../_shared/fic-client.ts'
-import { campiMancantiPerFattura, mappaAnagraficaPerFic } from '../_shared/fic-anagrafica.ts'
+import { campiMancantiPerFattura, mappaAnagraficaPerFic, nomeCompleto } from '../_shared/fic-anagrafica.ts'
 import {
   TIPO_DOCUMENTO,
   SCRITTURE_LOCALI_ATTIVE,
@@ -200,6 +200,7 @@ Deno.serve(async (req) => {
 
     const payload = costruisciPayloadFattura({
       ficEntityId: Number(ana.fic_entity_id),
+      nomeCliente: nomeCompleto(ana),
       competenza: canone.competenza,
       imponibile,
       totale,
