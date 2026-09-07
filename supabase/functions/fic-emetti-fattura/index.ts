@@ -4,11 +4,12 @@ import { z } from 'npm:zod@3'
 import { FIC_BASE, ficFetch, estraiDiagnosticaFic, isQuotaError } from '../_shared/fic-client.ts'
 import { campiMancantiPerFattura, mappaAnagraficaPerFic, nomeCompleto } from '../_shared/fic-anagrafica.ts'
 import {
-  TIPO_DOCUMENTO,
-  SCRITTURE_LOCALI_ATTIVE,
   costruisciPayloadFattura,
   descrizioneCanone,
-  aggiungiGiorni,
+  scadenzaDocumento,
+  scrittureLocaliAttive,
+  tipoDocumentoDa,
+  type TipoDocumento,
 } from '../_shared/fic-fattura.ts'
 
 /**
@@ -19,8 +20,10 @@ import {
  *   esterna e non scrive nulla: esegue le guardie, costruisce il payload e lo
  *   restituisce. È il primo tempo dell'anteprima, non una modalità esposta.
  * - I canoni si elaborano uno alla volta: un fallimento non ferma gli altri.
+ * - Il tipo del documento viene dall'impostazione impostazioni.fic_emette_fatture:
+ *   spenta -> proforma, accesa -> invoice. Non esiste più una costante nel codice.
  * - Le scritture locali (fatture, canoni) avvengono SOLO con
- *   TIPO_DOCUMENTO === 'invoice'; con 'proforma' il documento viene creato su
+ *   tipo === 'invoice'; con 'proforma' il documento viene creato su
  *   Fatture in Cloud e registrato in fic_log, ma il gestionale non lo registra
  *   e non tocca il canone. Ogni esito dichiara i passi saltati.
  * - Il gestionale NON trasmette allo SDI: resta un'azione manuale.
@@ -73,12 +76,12 @@ const campiValorizzati = (o: Record<string, unknown>) =>
 
 const arrotonda2 = (n: number) => Math.round(n * 100) / 100
 
-/** Passi che il valore della costante fa saltare: dichiarati in ogni esito. */
-const passiSaltati = (): string[] =>
-  SCRITTURE_LOCALI_ATTIVE
+/** Passi che il modo scelto fa saltare: dichiarati in ogni esito. */
+const passiSaltati = (tipo: TipoDocumento): string[] =>
+  scrittureLocaliAttive(tipo)
     ? []
     : [
-      `documento creato con tipo "${TIPO_DOCUMENTO}": nessuna riga registrata in fatture`,
+      `documento creato con tipo "${tipo}": nessuna riga registrata in fatture`,
       'il canone resta da_fatturare e non viene collegato ad alcuna fattura',
     ]
 
@@ -122,9 +125,13 @@ Deno.serve(async (req) => {
 
   const { data: imp } = await admin
     .from('impostazioni')
-    .select('fic_numerazione, fic_giorni_scadenza, fic_metodo_pagamento_id, fic_vat_id, fic_vat_valore, fic_metodo_pagamento')
+    .select('fic_numerazione, fic_giorni_scadenza, fic_metodo_pagamento_id, fic_vat_id, fic_vat_valore, fic_metodo_pagamento, fic_emette_fatture')
     .eq('id', 1)
     .maybeSingle()
+
+  // Unica fonte di verità del modo: l'impostazione, non una costante.
+  const TIPO: TipoDocumento = tipoDocumentoDa(imp?.fic_emette_fatture === true)
+  const SCRITTURE = scrittureLocaliAttive(TIPO)
 
   const oggi = new Date().toISOString().slice(0, 10)
   const esiti: Record<string, unknown>[] = []
@@ -137,7 +144,7 @@ Deno.serve(async (req) => {
     // --- (a) canone esistente e da_fatturare ---
     const { data: canone } = await admin
       .from('canoni')
-      .select('id, contratto_id, competenza, imponibile, aliquota_iva, totale, stato')
+      .select('id, contratto_id, competenza, imponibile, aliquota_iva, totale, scadenza, stato')
       .eq('id', canoneId)
       .maybeSingle()
     if (!canone) { fallisci('Mensilità non trovata.', { guardia: 'canone' }); continue }
@@ -198,13 +205,17 @@ Deno.serve(async (req) => {
     const numerazione = imp.fic_numerazione ?? ''
     const giorniScadenza = Number(imp.fic_giorni_scadenza ?? 30)
 
+    const scadenzaDoc = scadenzaDocumento(oggi, canone.scadenza, giorniScadenza)
+
     const payload = costruisciPayloadFattura({
+      tipo: TIPO,
       ficEntityId: Number(ana.fic_entity_id),
       nomeCliente: nomeCompleto(ana),
       competenza: canone.competenza,
       imponibile,
       totale,
       dataEmissione: oggi,
+      scadenza: canone.scadenza,
       numerazione,
       giorniScadenza,
       metodoPagamentoId: Number(imp.fic_metodo_pagamento_id),
@@ -221,20 +232,20 @@ Deno.serve(async (req) => {
       totale,
       aliquota: Number(canone.aliquota_iva),
       data_emissione: oggi,
-      scadenza: aggiungiGiorni(oggi, giorniScadenza),
+      scadenza: scadenzaDoc,
       numerazione,
       metodo_pagamento_id: Number(imp.fic_metodo_pagamento_id),
       metodo_pagamento_nome: imp.fic_metodo_pagamento ?? '',
       vat_id: Number(imp.fic_vat_id),
       vat_valore: Number(imp.fic_vat_valore),
-      tipo_documento: TIPO_DOCUMENTO,
+      tipo_documento: TIPO,
     }
 
     // --- Primo tempo dell'anteprima: nessuna chiamata esterna, nessuna scrittura ---
     if (!conferma) {
       esiti.push({
         canone_id: canoneId, ok: true, anteprima: true,
-        dati: anteprima, payload, passi_saltati: passiSaltati(),
+        dati: anteprima, payload, passi_saltati: passiSaltati(TIPO),
       })
       continue
     }
@@ -299,11 +310,11 @@ Deno.serve(async (req) => {
     })
 
     // --- Scrittura in due fasi: prima la riga in_invio, poi la chiamata. ---
-    // Con TIPO_DOCUMENTO = 'proforma' la fase locale è deliberatamente saltata
+    // Con tipo 'proforma' la fase locale è deliberatamente saltata
     // (vedi _shared/fic-fattura.ts): il codice resta scritto per intero e verrà
     // eseguito la prima volta con la prima fattura vera.
     let fatturaId: string | null = null
-    if (SCRITTURE_LOCALI_ATTIVE) {
+    if (SCRITTURE) {
       const { data: riga, error: insErr } = await admin
         .from('fatture')
         .insert({
@@ -333,10 +344,10 @@ Deno.serve(async (req) => {
         payload_ridotto: { canone_id: canoneId, fattura_id: fatturaId, campi_inviati: campiValorizzati(payload.data) },
       })
       fallisci(
-        SCRITTURE_LOCALI_ATTIVE
+        SCRITTURE
           ? 'Connessione persa durante la creazione: la fattura resta in stato "in invio" perché il documento potrebbe esistere su Fatture in Cloud. Verificare prima di riprovare.'
           : 'Connessione persa durante la creazione: il documento potrebbe esistere su Fatture in Cloud. Verificare prima di riprovare.',
-        { passi_saltati: passiSaltati() },
+        { passi_saltati: passiSaltati(TIPO) },
       )
       continue
     }
@@ -358,7 +369,7 @@ Deno.serve(async (req) => {
       if (fatturaId && definitivo) {
         await admin.from('fatture').update({ stato: 'errore', messaggio_errore: msg }).eq('id', fatturaId)
       }
-      fallisci(msg, { passi_saltati: passiSaltati() })
+      fallisci(msg, { passi_saltati: passiSaltati(TIPO) })
       continue
     }
 
@@ -370,18 +381,18 @@ Deno.serve(async (req) => {
     await logFic(admin, {
       metodo: 'POST', endpoint: '/c/{company_id}/issued_documents',
       http_status: doc.status, esito: 'ok',
-      messaggio: `Documento ${TIPO_DOCUMENTO} creato su Fatture in Cloud${docId != null ? ` (ID ${docId})` : ''}.`,
+      messaggio: `Documento ${TIPO} creato su Fatture in Cloud${docId != null ? ` (ID ${docId})` : ''}.`,
       payload_ridotto: {
         canone_id: canoneId, fattura_id: fatturaId, fic_document_id: docId,
-        tipo_documento: TIPO_DOCUMENTO, scritture_locali: SCRITTURE_LOCALI_ATTIVE, ...doc.quota,
+        tipo_documento: TIPO, scritture_locali: SCRITTURE, ...doc.quota,
       },
     })
 
-    if (!SCRITTURE_LOCALI_ATTIVE) {
+    if (!SCRITTURE) {
       esiti.push({
-        canone_id: canoneId, ok: true, fic_document_id: docId, tipo_documento: TIPO_DOCUMENTO,
-        message: `Documento ${TIPO_DOCUMENTO} creato su Fatture in Cloud${docId != null ? ` (ID ${docId})` : ''}. Non è una fattura: il gestionale non l'ha registrato.`,
-        passi_saltati: passiSaltati(),
+        canone_id: canoneId, ok: true, fic_document_id: docId, tipo_documento: TIPO,
+        message: `Documento ${TIPO} creato su Fatture in Cloud${docId != null ? ` (ID ${docId})` : ''}. Non è una fattura: il gestionale non l'ha registrato.`,
+        passi_saltati: passiSaltati(TIPO),
       })
       continue
     }
@@ -418,7 +429,7 @@ Deno.serve(async (req) => {
     esiti.push({
       canone_id: canoneId, ok: true, fattura_id: fatturaId, fic_document_id: docId,
       numero: typeof d?.number === 'number' ? d.number : null,
-      tipo_documento: TIPO_DOCUMENTO,
+      tipo_documento: TIPO,
       message: `Fattura emessa su Fatture in Cloud${docId != null ? ` (ID ${docId})` : ''}. La trasmissione allo SDI resta un'azione manuale.`,
       passi_saltati: [],
     })
@@ -426,9 +437,9 @@ Deno.serve(async (req) => {
 
   return jsonResponse(200, {
     ok: esiti.every((e) => e.ok),
-    tipo_documento: TIPO_DOCUMENTO,
-    scritture_locali: SCRITTURE_LOCALI_ATTIVE,
-    passi_saltati: passiSaltati(),
+    tipo_documento: TIPO,
+    scritture_locali: SCRITTURE,
+    passi_saltati: passiSaltati(TIPO),
     esiti,
   })
 })
