@@ -51,6 +51,11 @@ export function descrizioneCanone(competenzaIso: string): string {
 
 export type DatiFattura = {
   ficEntityId: number;
+  // Nome del cliente così come composto da nomeCompleto in fic-anagrafica.ts:
+  // lo passa il chiamante, così questo modulo resta puro e il nome sul
+  // documento non può divergere da quello dell'anagrafica remota. Fatture in
+  // Cloud rifiuta con 422 un entity senza name.
+  nomeCliente: string;
   competenza: string;
   imponibile: number;
   totale: number;
@@ -70,7 +75,7 @@ export function costruisciPayloadFattura(d: DatiFattura): PayloadFattura {
     // `number` è deliberatamente OMESSO: il progressivo del sezionale lo
     // assegna Fatture in Cloud.
     type: TIPO_DOCUMENTO,
-    entity: { id: d.ficEntityId },
+    entity: { id: d.ficEntityId, name: d.nomeCliente },
     date: d.dataEmissione,
     numeration: d.numerazione,
     payment_method: { id: d.metodoPagamentoId },

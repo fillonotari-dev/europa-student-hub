@@ -8,6 +8,7 @@ import {
   meseAnnoIt,
   type DatiFattura,
 } from '../../supabase/functions/_shared/fic-fattura';
+import { nomeCompleto } from '../../supabase/functions/_shared/fic-anagrafica';
 
 // La forma del payload viene dalla guida ufficiale "Invoice creation" di
 // Fatture in Cloud e non si ricostruisce a memoria: se regredisce, il sintomo
@@ -15,6 +16,7 @@ import {
 
 const base: DatiFattura = {
   ficEntityId: 123456,
+  nomeCliente: 'Mario Rossi',
   competenza: '2026-03-01',
   imponibile: 272.73,
   totale: 300,
@@ -77,6 +79,22 @@ describe('costruisciPayloadFattura', () => {
 
   it('manda amount uguale al totale del canone', () => {
     expect((data.payments_list as any[])[0].amount).toBe(300);
+  });
+
+  it('manda entity con id e name valorizzati', () => {
+    expect(data.entity).toEqual({ id: 123456, name: 'Mario Rossi' });
+  });
+
+  it('compone entity.name per una persona fisica con nomeCompleto', () => {
+    const nome = nomeCompleto({ tipo: 'persona_fisica', nome: 'Mario', cognome: 'Rossi' });
+    const { data: d } = costruisciPayloadFattura({ ...base, nomeCliente: nome });
+    expect((d.entity as any).name).toBe('Mario Rossi');
+  });
+
+  it('compone entity.name per un soggetto giuridico con la denominazione', () => {
+    const nome = nomeCompleto({ tipo: 'soggetto_giuridico', denominazione: 'Navona SRL', nome: 'Ignorato', cognome: 'Ignorato' });
+    const { data: d } = costruisciPayloadFattura({ ...base, nomeCliente: nome });
+    expect((d.entity as any).name).toBe('Navona SRL');
   });
 
   it('imposta il flag di fattura elettronica solo sul tipo invoice', () => {
