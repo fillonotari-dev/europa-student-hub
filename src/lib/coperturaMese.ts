@@ -26,13 +26,11 @@ const giorno = (iso: string) => Date.UTC(
 
 const GIORNO_MS = 86_400_000;
 
-/** Giorni del mese a cui appartiene la competenza. */
+/** Giorni del mese a cui appartiene la competenza: il giorno 0 del mese dopo. */
 export function giorniDelMese(competenzaIso: string): number {
   const a = Number(competenzaIso.slice(0, 4));
   const m = Number(competenzaIso.slice(5, 7));
-  return new Date(Date.UTC(m === 12 ? a + 1 : a, m === 12 ? 0 : m, 1)).getUTCDate() === 1
-    ? Math.round((Date.UTC(m === 12 ? a + 1 : a, m === 12 ? 0 : m, 1) - Date.UTC(a, m - 1, 1)) / GIORNO_MS)
-    : 30;
+  return new Date(Date.UTC(a, m, 0)).getUTCDate();
 }
 
 /**
