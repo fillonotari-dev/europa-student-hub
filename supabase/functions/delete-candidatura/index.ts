@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
         .from("documenti_studenti").remove(validPaths);
       if (rmErr) {
         console.error("delete-candidatura: storage.remove error", rmErr);
-        return json(500, { error: "storage_cleanup_failed", details: rmErr.message });
+        return json(500, { error: "storage_cleanup_failed" });
       }
       const removedSet = new Set((removed ?? []).map((r: any) => r.name ?? r));
       const notReported = validPaths.filter((p) => !removedSet.has(p));
@@ -155,6 +155,6 @@ Deno.serve(async (req) => {
     return json(200, { ok: true, studente_eliminato: studenteEliminato });
   } catch (e: any) {
     console.error("delete-candidatura: unexpected error", e);
-    return json(500, { error: "errore_interno", details: e?.message });
+    return json(500, { error: "errore_interno" });
   }
 });
