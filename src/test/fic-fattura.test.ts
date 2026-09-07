@@ -15,6 +15,7 @@ import {
 
 const base: DatiFattura = {
   ficEntityId: 123456,
+  nomeCliente: 'Mario Rossi',
   competenza: '2026-03-01',
   imponibile: 272.73,
   totale: 300,
