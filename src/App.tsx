@@ -17,6 +17,8 @@ import Residenti from "./pages/admin/Residenti";
 import Camere from "./pages/admin/Camere";
 import Contratti from "./pages/admin/Contratti";
 import ContrattoPage from "./pages/admin/ContrattoPage";
+import Fatturazione from "./pages/admin/Fatturazione";
+
 import Strutture from "./pages/admin/Strutture";
 import StudentePage from "./pages/admin/StudentePage";
 import Impostazioni from "./pages/admin/Impostazioni";
@@ -43,7 +45,9 @@ const App = () => (
             <Route path="residenti" element={<Residenti />} />
             <Route path="contratti" element={<Contratti />} />
             <Route path="contratti/:id" element={<ContrattoPage />} />
+            <Route path="fatturazione" element={<Fatturazione />} />
             <Route path="studenti/:id" element={<StudentePage />} />
+
             <Route path="camere" element={<Camere />} />
             <Route path="strutture" element={<Strutture />} />
             <Route path="impostazioni" element={<Impostazioni />} />

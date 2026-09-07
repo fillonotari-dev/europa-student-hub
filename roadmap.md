@@ -13,5 +13,5 @@
 - [x] Avvisi: mensilità già fatturate, intestazione condivisa da altri contratti, invito a risincronizzare
 - [x] Cambio modalità intestazione: ricarica campi, conteggio sulla riga di destinazione (rigaDestinazioneAnagrafica + test), nota legata all'esito reale
 - [ ] D2: fic-emetti-fattura deve risincronizzare l'anagrafica (PUT idempotente) prima di creare il documento
-- [ ] Prossimo giro FIC: pagina /admin/fatturazione con voce di sidebar (parte operativa)
+- [x] Pagina /admin/fatturazione: lotto mensile con conferma umana, avviso arretrati, archivio, riconciliazione; emissione rimossa dalla scheda contratto
 - [x] Importi personalizzati protetti dal cambio canone (aggiorna_canone_contratto + ContrattoPage + funzione pura testata)
