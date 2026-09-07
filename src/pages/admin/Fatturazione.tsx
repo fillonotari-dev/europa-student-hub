@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertTriangle, CheckCircle2, Loader2, Receipt, X } from 'lucide-react';
 import { fmtEuro, fmtIt } from '@/pages/admin/Contratti';
 import { EmettiFatturaDialog, type Anteprima, type RigaDaEmettere } from '@/components/admin/contratti/EmettiFatturaDialog';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 /** L'anteprima non chiama Fatture in Cloud: può permettersi gruppi ampi. */
 const GRUPPO_ANTEPRIMA = 50;
@@ -66,6 +67,7 @@ const chunk = <T,>(arr: T[], n: number): T[][] => {
 };
 
 export default function Fatturazione() {
+  usePageTitle('Fatturazione');
   const qc = useQueryClient();
   const [mese, setMese] = useState<string>(meseCorrente());
   const [selezione, setSelezione] = useState<Set<string>>(new Set());
