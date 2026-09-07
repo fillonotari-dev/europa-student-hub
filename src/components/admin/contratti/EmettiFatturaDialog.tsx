@@ -3,7 +3,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { AlertTriangle, Loader2 } from 'lucide-react';
-import { SCRITTURE_LOCALI_ATTIVE } from '@shared/fic-fattura';
+import type { TipoDocumento } from '@shared/fic-fattura';
 import { fmtEuro, fmtIt } from '@/pages/admin/Contratti';
 
 export type Anteprima = {
@@ -20,6 +20,7 @@ export type Anteprima = {
   metodo_pagamento_nome: string;
   vat_id: number;
   vat_valore: number;
+  tipo_documento?: TipoDocumento;
 };
 
 export type RigaDaEmettere = {
@@ -32,6 +33,8 @@ type Props = {
   open: boolean;
   righe: RigaDaEmettere[];
   busy: boolean;
+  /** Modo in vigore, letto dalle impostazioni: mai un testo scritto a mano. */
+  tipoDocumento: TipoDocumento;
   onOpenChange: (open: boolean) => void;
   onConferma: () => void;
 };
@@ -41,15 +44,17 @@ type Props = {
  * dalla pagina le anteprime già ottenute al caricamento dell'elenco, così
  * lista e dialogo non possono mostrare numeri diversi. Le guardie vengono
  * comunque rivalutate dalla funzione alla conferma: quella è la verifica che
- * conta. L'avviso si adegua da solo al valore di TIPO_DOCUMENTO.
+ * conta. L'avviso e il pulsante dichiarano il modo in vigore, letto dalle
+ * impostazioni: chi preme deve sapere se sta creando una proforma o una fattura.
  */
-export function EmettiFatturaDialog({ open, righe, busy, onOpenChange, onConferma }: Props) {
+export function EmettiFatturaDialog({ open, righe, busy, tipoDocumento, onOpenChange, onConferma }: Props) {
+  const fatture = tipoDocumento === 'invoice';
   const prima = righe[0]?.dati;
   const totale = righe.reduce((s, r) => s + Number(r.dati.totale), 0);
   const imponibile = righe.reduce((s, r) => s + Number(r.dati.imponibile), 0);
   const iva = righe.reduce((s, r) => s + Number(r.dati.iva), 0);
 
-  const avviso = SCRITTURE_LOCALI_ATTIVE
+  const avviso = fatture
     ? `${righe.length === 1 ? 'La fattura esisterà' : 'Le fatture esisteranno'} su Fatture in Cloud con il proprio numero e non ${righe.length === 1 ? 'sarà' : 'saranno'} più cancellabili né modificabili nell'importo.`
     : 'Verranno creati documenti proforma di prova: non sono documenti fiscali, non consumano il numero del sezionale e sono cancellabili. Le mensilità restano da fatturare e nel gestionale non viene registrata alcuna fattura.';
 
@@ -58,10 +63,13 @@ export function EmettiFatturaDialog({ open, righe, busy, onOpenChange, onConferm
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>
-            {righe.length === 1 ? 'Emetti fattura' : `Emetti ${righe.length} fatture`}
+            {fatture
+              ? (righe.length === 1 ? 'Emetti 1 fattura' : `Emetti ${righe.length} fatture`)
+              : (righe.length === 1 ? 'Crea 1 proforma' : `Crea ${righe.length} proforma`)}
           </DialogTitle>
           <DialogDescription>
-            Controlla i dati prima di creare {righe.length === 1 ? 'il documento' : 'i documenti'} su Fatture in Cloud.
+            Controlla i dati prima di creare {righe.length === 1 ? 'il documento' : 'i documenti'} su Fatture in Cloud.{' '}
+            Modo in vigore: <strong>{fatture ? 'fatture reali' : 'proforma di prova'}</strong>.
           </DialogDescription>
         </DialogHeader>
 
@@ -130,7 +138,8 @@ export function EmettiFatturaDialog({ open, righe, busy, onOpenChange, onConferm
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>Annulla</Button>
           <Button onClick={onConferma} disabled={busy || righe.length === 0}>
-            {busy && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Conferma ed emetti
+            {busy && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            {fatture ? 'Conferma ed emetti le fatture' : 'Conferma e crea le proforma'}
           </Button>
         </DialogFooter>
       </DialogContent>
