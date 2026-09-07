@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2, XCircle, Loader2, AlertTriangle } from 'lucide-react';
@@ -25,6 +26,7 @@ type ImpostazioniFic = {
   fic_metodo_pagamento_id: string;
   fic_vat_id: string;
   fic_vat_valore: string;
+  fic_emette_fatture: boolean;
 };
 
 const VUOTE: ImpostazioniFic = {
@@ -36,6 +38,7 @@ const VUOTE: ImpostazioniFic = {
   fic_metodo_pagamento_id: '',
   fic_vat_id: '',
   fic_vat_valore: '',
+  fic_emette_fatture: false,
 };
 
 function ImpostazioniFatturazione() {
@@ -53,7 +56,7 @@ function ImpostazioniFatturazione() {
       const [imp, emesse] = await Promise.all([
         supabase
           .from('impostazioni')
-          .select('fic_numerazione, fic_giorni_scadenza, fic_giorno_emissione, fic_iban, fic_metodo_pagamento, fic_metodo_pagamento_id, fic_vat_id, fic_vat_valore')
+          .select('fic_numerazione, fic_giorni_scadenza, fic_giorno_emissione, fic_iban, fic_metodo_pagamento, fic_metodo_pagamento_id, fic_vat_id, fic_vat_valore, fic_emette_fatture')
           .eq('id', 1)
           .maybeSingle(),
         supabase.from('fatture').select('id', { count: 'exact', head: true }).eq('stato', 'emessa'),
@@ -70,6 +73,7 @@ function ImpostazioniFatturazione() {
           fic_metodo_pagamento_id: imp.data.fic_metodo_pagamento_id?.toString() ?? '',
           fic_vat_id: imp.data.fic_vat_id?.toString() ?? '',
           fic_vat_valore: imp.data.fic_vat_valore?.toString() ?? '',
+          fic_emette_fatture: imp.data.fic_emette_fatture === true,
         });
       }
       setNumerazioneBloccata((emesse.count ?? 0) > 0);
@@ -125,6 +129,7 @@ function ImpostazioniFatturazione() {
       fic_metodo_pagamento_id: form.fic_metodo_pagamento_id === '' ? null : Number(form.fic_metodo_pagamento_id),
       fic_vat_id: form.fic_vat_id === '' ? null : Number(form.fic_vat_id),
       fic_vat_valore: form.fic_vat_valore === '' ? null : Number(form.fic_vat_valore),
+      fic_emette_fatture: form.fic_emette_fatture,
       ...(numerazioneBloccata ? {} : { fic_numerazione: form.fic_numerazione.trim() || null }),
     };
 
@@ -217,6 +222,27 @@ function ImpostazioniFatturazione() {
               Deve coincidere con l'aliquota dei contratti: se differisce, l'emissione si fermerà.
             </p>
           </div>
+        </div>
+      </div>
+
+      <div className="rounded-md border p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <Label htmlFor="fic_emette_fatture" className="text-sm font-medium">Emetti fatture reali</Label>
+            <p className="text-[12px] text-muted-foreground">
+              Spento, il sistema crea documenti proforma di prova: non sono fiscali, non consumano il
+              numero del sezionale, sono cancellabili e le mensilità restano da fatturare.
+              Acceso, crea documenti fiscali con il numero del sezionale: non sono cancellabili,
+              si correggono solo con nota di credito, e ogni mensilità emessa viene registrata e
+              bloccata nell'importo. Spegnerlo di nuovo cambia solo i documenti futuri e non annulla
+              nulla di ciò che è già stato emesso.
+            </p>
+          </div>
+          <Switch
+            id="fic_emette_fatture"
+            checked={form.fic_emette_fatture}
+            onCheckedChange={(v) => setForm((f) => ({ ...f, fic_emette_fatture: v }))}
+          />
         </div>
       </div>
 
