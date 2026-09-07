@@ -16,3 +16,14 @@
 - [x] Pagina /admin/fatturazione: lotto mensile con conferma umana, avviso arretrati, archivio, riconciliazione; emissione rimossa dalla scheda contratto
 - [x] Interfaccia Fatturazione allineata a Contratti: filtri in URL, barra selezione sopra, archivio collassabile, tabelle uniformi
 - [x] Importi personalizzati protetti dal cambio canone (aggiorna_canone_contratto + ContrattoPage + funzione pura testata)
+- [x] due_date del documento da canoni.scadenza (ripiego fic_giorni_scadenza, arretrato = data di emissione) + 3 casi di test
+- [x] Segnalazione mesi parzialmente coperti in /admin/fatturazione (src/lib/coperturaMese.ts + test)
+- [x] totaleRiga delega a lordoDaImponibile: una sola implementazione della formula IVA
+- [x] Tipo del documento come impostazione fic_emette_fatture (rimosse TIPO_DOCUMENTO e SCRITTURE_LOCALI_ATTIVE), interruttore in Impostazioni, modo dichiarato in pagina e nel dialogo
+- [x] Ciclo di fatturazione chiuso e collaudato in proforma (550829694); docs/Context.md aggiornato con debiti dichiarati
+
+Debiti aperti dichiarati:
+- [ ] Componente tabella condiviso (e allineamento a destra degli importi) fra Contratti e Fatturazione
+- [ ] fic-sync-anagrafica su _shared/fic-client.ts
+- [ ] Azioni di risoluzione nel pannello di riconciliazione (oggi sola lettura)
+- [ ] Email di trasmissione della fattura allo studente; trasmissione allo SDI resta manuale

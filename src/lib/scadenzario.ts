@@ -10,6 +10,8 @@
  * funzione non lo produce mai, anche se i tipi generati lo espongono.
  */
 
+import { lordoDaImponibile } from '@/lib/iva';
+
 export type RigaScadenzario = {
   competenza: string;
   imponibile: number;
@@ -60,7 +62,11 @@ export function generaScadenzario(p: ParametriScadenzario): RigaScadenzario[] {
   return righe;
 }
 
-/** Totale ivato di una riga, calcolato solo per l'anteprima: non va scritto. */
+/**
+ * Totale ivato di una riga, calcolato solo per l'anteprima: non va scritto.
+ * Delega a src/lib/iva.ts, che calcola su centesimi interi replicando la
+ * colonna generata canoni.totale: la formula esiste in un posto solo.
+ */
 export function totaleRiga(r: { imponibile: number; aliquota_iva: number }): number {
-  return Math.round(r.imponibile * (1 + r.aliquota_iva / 100) * 100) / 100;
+  return lordoDaImponibile(r.imponibile, r.aliquota_iva);
 }
