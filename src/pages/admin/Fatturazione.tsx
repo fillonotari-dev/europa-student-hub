@@ -263,6 +263,18 @@ export default function Fatturazione() {
             ))}
           </SelectContent>
         </Select>
+
+        {emettibili.length > 0 && (
+          <div className="ml-auto flex items-center gap-4 text-sm">
+            <span>
+              {selezionate.length} {selezionate.length === 1 ? 'mensilità' : 'mensilità'} — totale{' '}
+              <strong>{fmtEuro(totaleSelezione)}</strong>
+            </span>
+            <Button disabled={selezionate.length === 0} onClick={() => setDialogOpen(true)}>
+              <Receipt className="w-4 h-4 mr-2" />Emetti le fatture selezionate
+            </Button>
+          </div>
+        )}
       </div>
 
       {(arretrati ?? []).length > 0 && meseArretratoPiuVecchio && (
@@ -312,7 +324,7 @@ export default function Fatturazione() {
 
       <section className="bg-card border border-border/50 rounded-lg overflow-hidden">
         {emettibili.length > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/50 bg-muted/30 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-3 border-b border-border/50 bg-muted/30 px-4 py-3">
             <div className="flex items-center gap-3 text-sm">
               <Checkbox
                 checked={selezionate.length > 0 && selezionate.length === emettibili.length}
@@ -320,15 +332,6 @@ export default function Fatturazione() {
                 aria-label="Seleziona tutte le emettibili"
               />
               <span>Seleziona tutte ({emettibili.length})</span>
-            </div>
-            <div className="flex items-center gap-4 text-sm">
-              <span>
-                {selezionate.length} {selezionate.length === 1 ? 'mensilità' : 'mensilità'} — totale{' '}
-                <strong>{fmtEuro(totaleSelezione)}</strong>
-              </span>
-              <Button disabled={selezionate.length === 0} onClick={() => setDialogOpen(true)}>
-                <Receipt className="w-4 h-4 mr-2" />Emetti le fatture selezionate
-              </Button>
             </div>
           </div>
         )}
