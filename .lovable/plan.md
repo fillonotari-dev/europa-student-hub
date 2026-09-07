@@ -7,35 +7,47 @@ L'emissione lascia la scheda contratto e diventa un processo mensile con una por
 - `src/App.tsx`: rotta `fatturazione` sotto `AdminLayout` (stessa protezione admin delle altre).
 - `src/components/admin/AdminSidebar.tsx`: voce "Fatturazione" subito sotto "Contratti", icona `Receipt`.
 
-## 2. Elenco delle mensilità da fatturare
+## 2. Un mese per volta
 
-Nuova pagina `src/pages/admin/Fatturazione.tsx`. Query: `canoni` in stato `da_fatturare` con join sul contratto (`contratti!inner(stato, studenti(nome, cognome), strutture(nome))`), filtrata sui contratti `attivo`.
+Nuova pagina `src/pages/admin/Fatturazione.tsx`. In testa un selettore del mese di competenza, preselezionato sul mese corrente. L'elenco contiene solo le mensilità `da_fatturare` di contratti `attivo` con competenza in quel mese. Scegliere un mese successivo è anche il modo per vedere ed emettere i mesi futuri: nessuna sezione separata.
 
-Colonne: mese di competenza, studente, struttura, imponibile, IVA (totale − imponibile), totale, scadenza. Ordinamento per competenza crescente, poi cognome.
+Titolo esplicito: «Da emettere — giugno 2026», perché tutto ciò che segue dipende da quel valore.
 
-Nessun filtro attivo all'apertura: gli arretrati restano visibili. Un select "mese di competenza" è disponibile ma parte su "tutti".
+Colonne: studente, struttura, imponibile, IVA (totale − imponibile), totale, scadenza. Ordinamento per cognome.
 
-## 3. Guardie: le decide la funzione, non la pagina
+Dati: `canoni` con join `contratti!inner(stato, studenti(nome, cognome), strutture(nome))`.
 
-All'apertura la pagina chiama `fic-emetti-fattura` con tutti i `canone_ids` dell'elenco e `conferma: false`, e usa gli esiti per marcare ogni riga.
+## 3. Avviso arretrati
 
-- Esito `ok` → riga emettibile e selezionabile.
-- Esito con `message` → riga bloccata, non selezionabile, con il motivo mostrato in chiaro (intestazione non collegata, campi mancanti elencati, aliquota diversa, mensilità non più in `da_fatturare`, contratto non attivo).
+Sopra l'elenco, visibile solo se esistono mensilità `da_fatturare` di contratti attivi con competenza **precedente** al mese scelto: dice quante sono, qual è il mese più vecchio, e con un clic sposta il selettore su quel mese. Non si mescolano al lavoro del mese, ma non possono passare inosservate.
 
-La funzione accetta al massimo 50 `canone_ids` per chiamata (`Body` in `supabase/functions/fic-emetti-fattura/index.ts`): la pagina spezza sia l'anteprima sia l'emissione in gruppi da 50 in sequenza e unisce gli esiti. Nessun criterio di blocco viene riscritto lato interfaccia.
+## 4. Guardie: le decide la funzione, non la pagina
 
-## 4. Selezione, riepilogo, conferma, esito che resta
+Al caricamento dell'elenco la pagina chiama `fic-emetti-fattura` con i `canone_ids` del mese e `conferma: false`, e usa gli esiti per marcare ogni riga.
+
+- Esito `ok` → riga emettibile e selezionabile; i dati dell'anteprima restano in memoria nella pagina.
+- Esito con `message` → riga bloccata, non selezionabile, con il motivo in chiaro (intestazione non collegata, campi mancanti elencati, aliquota diversa, mensilità non più in `da_fatturare`, contratto non attivo).
+
+Nessun criterio di blocco viene riscritto lato interfaccia.
+
+## 5. Selezione, conferma, esito che resta
 
 - Casella di selezione sulle sole righe emettibili, più "seleziona tutte le emettibili".
 - Barra in fondo: "N mensilità — totale X €" e pulsante **Emetti le fatture selezionate**.
-- `EmettiFatturaDialog` generalizzato da un canone a molti: accetta `canoneIds: string[]`, mostra in anteprima l'elenco delle righe con importi e totale complessivo, lo stesso avviso che si adegua a `TIPO_DOCUMENTO` e la stessa nota che la trasmissione allo SDI resta manuale. Resta un componente a livello di modulo.
-- Al ritorno **nessun toast come unico esito**: la pagina mostra un pannello di riepilogo che resta a schermo — quante riuscite, e per ogni fallita la mensilità (studente + mese) e il motivo. Il pannello si chiude solo esplicitamente. Vengono riportati anche i `passi_saltati` dichiarati dalla funzione quando `TIPO_DOCUMENTO` è `proforma`.
+- `EmettiFatturaDialog` generalizzato da uno a molti e **senza più la chiamata di anteprima**: riceve dalla pagina le anteprime già ottenute al caricamento, così lista e dialogo non possono mostrare numeri diversi. Mostra l'elenco delle righe con importi e totale complessivo, l'avviso che si adegua a `TIPO_DOCUMENTO` e la nota che la trasmissione allo SDI resta manuale. Le guardie vengono comunque rivalutate dalla funzione alla conferma: quella è la verifica che conta. Resta un componente a livello di modulo.
+- Emissione a **gruppi di dieci** canoni per chiamata (non cinquanta): ogni canone comporta due chiamate esterne — risincronizzazione dell'intestazione e creazione del documento — e cinquanta canoni sarebbero cento chiamate in sequenza in una sola richiesta.
+- Se una chiamata di gruppo fallisce o va in timeout la pagina **non invita a riprovare**: ricarica l'elenco e dichiara che alcuni documenti potrebbero essere stati creati e vanno verificati nel pannello di riconciliazione prima di qualunque nuovo tentativo.
+- Al ritorno **nessun toast come unico esito**: un pannello di riepilogo resta a schermo — quante riuscite, e per ogni fallita la mensilità (studente + mese) e il motivo — e si chiude solo esplicitamente. Riporta anche i `passi_saltati` dichiarati dalla funzione quando `TIPO_DOCUMENTO` è `proforma`.
 
-## 5. Riconciliazione (sola lettura)
+## 6. Riconciliazione (sola lettura)
 
-In fondo, visibile solo se non vuota: righe di `fatture` in stato `in_invio`, oppure `emessa` ma non referenziate da alcun canone (`canoni.fattura_id`). Per ognuna: contratto (studente), importo, stato, `messaggio_errore`, data. Nessun pulsante di risoluzione in questa versione.
+Visibile solo se non vuota: righe di `fatture` in stato `in_invio`, oppure `emessa` ma non referenziate da alcun canone (`canoni.fattura_id`). Per ognuna: contratto (studente), importo, stato, `messaggio_errore`, data. Nessun pulsante di risoluzione in questa versione.
 
-## 6. Scheda contratto e documentazione
+## 7. Archivio delle fatture emesse
+
+In fondo alla pagina, sola lettura: le fatture già emesse con studente, mese di competenza (dal canone collegato), numero, sezionale, data, totale e stato dell'invio elettronico (`ei_status`), ordinate dalla più recente. Risponde a «questa l'abbiamo già fatta?» senza aprire Fatture in Cloud.
+
+## 8. Scheda contratto e documentazione
 
 - `src/pages/admin/ContrattoPage.tsx`: rimossi l'azione "Emetti fattura", il dialogo e il relativo stato. Lo scadenzario resta e continua a mostrare numero e data della fattura sulle mensilità già fatturate.
 - `docs/Context.md`: registrata la regola — l'emissione vive solo in `/admin/fatturazione`; la scheda contratto racconta cosa è successo senza essere il posto da cui far succedere le cose — e spiegato che la pagina valuta le guardie chiamando `fic-emetti-fattura` senza conferma, così nessuno le riscriva lato interfaccia.
