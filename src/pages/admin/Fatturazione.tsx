@@ -415,7 +415,6 @@ export default function Fatturazione() {
       <section className="bg-card border border-border/50 rounded-lg overflow-hidden">
         <div className="px-5 py-4 border-b border-border/50">
           <h2 className="text-sm font-semibold">Archivio delle fatture emesse</h2>
-          <p className="text-xs text-muted-foreground">Sola lettura, dalla più recente.</p>
         </div>
         <table className="w-full text-sm">
           <thead>
