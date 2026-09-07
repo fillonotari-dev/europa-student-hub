@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertTriangle, CheckCircle2, Loader2, Receipt, X } from 'lucide-react';
-import { usePageTitle } from '@/hooks/usePageTitle';
 import { fmtEuro, fmtIt } from '@/pages/admin/Contratti';
 import { EmettiFatturaDialog, type Anteprima, type RigaDaEmettere } from '@/components/admin/contratti/EmettiFatturaDialog';
 
@@ -67,7 +66,6 @@ const chunk = <T,>(arr: T[], n: number): T[][] => {
 };
 
 export default function Fatturazione() {
-  usePageTitle('Fatturazione');
   const qc = useQueryClient();
   const [mese, setMese] = useState<string>(meseCorrente());
   const [selezione, setSelezione] = useState<Set<string>>(new Set());
@@ -240,8 +238,7 @@ export default function Fatturazione() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Fatturazione</h1>
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <Select value={mese} onValueChange={setMese}>
           <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
           <SelectContent className="max-h-[320px]">
