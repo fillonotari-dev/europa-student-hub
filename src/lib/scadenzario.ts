@@ -10,6 +10,8 @@
  * funzione non lo produce mai, anche se i tipi generati lo espongono.
  */
 
+import { lordoDaImponibile } from '@/lib/iva';
+
 export type RigaScadenzario = {
   competenza: string;
   imponibile: number;
