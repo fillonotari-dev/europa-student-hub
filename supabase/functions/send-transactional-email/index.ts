@@ -25,9 +25,19 @@ function generateToken(): string {
     .join('')
 }
 
-// Auth note: this function uses verify_jwt = true in config.toml, so Supabase's
-// gateway validates the caller's JWT (anon or service_role) before the request
-// reaches this code. No in-function auth check is needed.
+// Auth note: verify_jwt = true in config.toml NON è una barriera di
+// autorizzazione — la anon key è un JWT firmato valido ed è pubblica nel
+// bundle del frontend, quindi chiunque supererebbe il gateway. Il gate qui
+// sotto accetta solo: (a) LOVABLE_API_KEY (pannello "App emails" / Go API,
+// stesso pattern di preview-transactional-email), (b) un JWT service_role,
+// (c) un JWT utente con ruolo admin. Tutto il resto è rifiutato.
+
+function jsonError(status: number, body: Record<string, unknown>) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
+}
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -47,6 +57,48 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     )
+  }
+
+  // --- Authorization gate ---
+  const authHeader = req.headers.get('Authorization')
+  const token = authHeader?.replace(/^Bearer\s+/i, '')
+  if (!authHeader?.startsWith('Bearer ') || !token) {
+    return jsonError(401, { error: 'unauthorized' })
+  }
+
+  const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')
+  if (!lovableApiKey) {
+    console.error('Missing LOVABLE_API_KEY')
+    return jsonError(500, { error: 'Server configuration error' })
+  }
+
+  let authorized = false
+
+  // (a) shared secret: pannello "App emails" di Lovable / Go API
+  if (token === lovableApiKey) {
+    authorized = true
+  } else {
+    // (b) service_role oppure (c) utente admin — schema di delete-candidatura
+    const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: { headers: { Authorization: authHeader } },
+    })
+    const { data: claimsRes, error: claimsErr } = await userClient.auth.getClaims(token)
+    if (!claimsErr && claimsRes?.claims) {
+      if (claimsRes.claims.role === 'service_role') {
+        authorized = true
+      } else if (claimsRes.claims.sub) {
+        const admin = createClient(supabaseUrl, supabaseServiceKey)
+        const { data: isAdmin } = await admin.rpc('has_role', {
+          _user_id: claimsRes.claims.sub,
+          _role: 'admin',
+        })
+        authorized = isAdmin === true
+      }
+    }
+  }
+
+  if (!authorized) {
+    return jsonError(403, { error: 'forbidden' })
   }
 
   // Parse request body
