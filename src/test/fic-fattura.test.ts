@@ -8,6 +8,7 @@ import {
   meseAnnoIt,
   type DatiFattura,
 } from '../../supabase/functions/_shared/fic-fattura';
+import { nomeCompleto } from '../../supabase/functions/_shared/fic-anagrafica';
 
 // La forma del payload viene dalla guida ufficiale "Invoice creation" di
 // Fatture in Cloud e non si ricostruisce a memoria: se regredisce, il sintomo
