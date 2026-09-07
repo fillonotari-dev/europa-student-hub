@@ -11,7 +11,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ContrattoDialog } from '@/components/admin/contratti/ContrattoDialog';
 import { IntestazioneFatturaDialog } from '@/components/admin/contratti/IntestazioneFatturaDialog';
-import { EmettiFatturaDialog } from '@/components/admin/contratti/EmettiFatturaDialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -22,7 +21,7 @@ import { eliminaContrattoBozza } from '@/lib/contrattoDelete';
 import { scomposizione, lordoDaImponibile } from '@/lib/iva';
 import { fmtEuro, fmtIt, STATO_CONTRATTO_COLORS } from './Contratti';
 import { cn } from '@/lib/utils';
-import { AlertTriangle, Check, FileUp, FileText, Info, Pencil, Receipt, Repeat, Trash2, Undo2, X } from 'lucide-react';
+import { AlertTriangle, Check, FileUp, FileText, Info, Pencil, Repeat, Trash2, Undo2, X } from 'lucide-react';
 
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -62,7 +61,6 @@ export default function ContrattoPage() {
   const [chiudiMotivo, setChiudiMotivo] = useState('');
   const [bozzaOpen, setBozzaOpen] = useState(false);
   const [sostituisciOpen, setSostituisciOpen] = useState(false);
-  const [emettiCanoneId, setEmettiCanoneId] = useState<string | null>(null);
 
   const { data: contratto, isLoading } = useQuery({
     queryKey: ['contratti', id],
@@ -671,10 +669,8 @@ export default function ContrattoPage() {
                       </div>
                     ) : (
                       <div className="flex gap-1 justify-end items-center">
-                        <Button size="sm" variant="outline" className="h-8"
-                          onClick={() => setEmettiCanoneId(c.id)}>
-                          <Receipt className="w-3.5 h-3.5 mr-1.5" />Emetti fattura
-                        </Button>
+                        {/* L'emissione vive solo in /admin/fatturazione: qui lo
+                            scadenzario racconta, non fa succedere le cose. */}
                         <Button size="icon" variant="ghost" className="h-8 w-8"
                           onClick={() => { setRigaEdit(c.id); setBozzaRiga({ imponibile: String(lordoDaImponibile(Number(c.imponibile), Number(c.aliquota_iva) || 0)), scadenza: c.scadenza, note: c.note ?? '' }); }}>
                           <Pencil className="w-3.5 h-3.5" />
@@ -834,14 +830,6 @@ export default function ContrattoPage() {
         }}
       />
 
-      <EmettiFatturaDialog
-        canoneId={emettiCanoneId}
-        onOpenChange={(o) => { if (!o) setEmettiCanoneId(null); }}
-        onEmessa={() => {
-          qc.invalidateQueries({ queryKey: ['canoni', id] });
-          qc.invalidateQueries({ queryKey: ['fatture', id] });
-        }}
-      />
 
 
 

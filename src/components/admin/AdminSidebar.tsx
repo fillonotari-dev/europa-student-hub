@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileText, Users, DoorOpen, LogOut, Home, Settings, FileSignature } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, DoorOpen, LogOut, Home, Settings, FileSignature, Receipt } from 'lucide-react';
 import logoStudentato from '@/assets/logo-studentato.svg';
 import { NavLink } from '@/components/NavLink';
 import { useNavigate } from 'react-router-dom';
@@ -13,10 +13,12 @@ const items = [
   { title: 'Candidature', url: '/admin/candidature', icon: FileText },
   { title: 'Residenti', url: '/admin/residenti', icon: Users },
   { title: 'Contratti', url: '/admin/contratti', icon: FileSignature },
+  { title: 'Fatturazione', url: '/admin/fatturazione', icon: Receipt },
   { title: 'Camere', url: '/admin/camere', icon: DoorOpen },
   { title: 'Strutture', url: '/admin/strutture', icon: Home },
   { title: 'Impostazioni', url: '/admin/impostazioni', icon: Settings },
 ];
+
 
 export function AdminSidebar() {
   const { state } = useSidebar();
