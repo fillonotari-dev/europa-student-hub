@@ -10,6 +10,8 @@ import { AlertTriangle, CheckCircle2, ChevronDown, Loader2, Receipt, X } from 'l
 import { fmtEuro, fmtIt } from '@/pages/admin/Contratti';
 import { EmettiFatturaDialog, type Anteprima, type RigaDaEmettere } from '@/components/admin/contratti/EmettiFatturaDialog';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { coperturaMese, etichettaCopertura } from '@/lib/coperturaMese';
+import type { TipoDocumento } from '@shared/fic-fattura';
 import { cn } from '@/lib/utils';
 
 /** L'anteprima non chiama Fatture in Cloud: può permettersi gruppi ampi. */
@@ -52,6 +54,8 @@ type Riga = {
   contratto_id: string;
   studente: string;
   struttura: string;
+  /** "17 giorni su 30" quando il mese non è interamente coperto dal contratto. */
+  copertura: string | null;
 };
 
 type Esito = { canone_id: string; ok: boolean; message?: string; dati?: Anteprima; passi_saltati?: string[] };
@@ -96,7 +100,7 @@ export default function Fatturazione() {
       const { data, error } = await supabase
         .from('canoni')
         .select(`id, competenza, imponibile, totale, aliquota_iva, scadenza, contratto_id,
-                 contratti!inner(stato, studenti(nome, cognome), strutture(nome))`)
+                 contratti!inner(stato, data_inizio, data_fine, studenti(nome, cognome), strutture(nome))`)
         .eq('stato', 'da_fatturare')
         .eq('contratti.stato', 'attivo')
         .gte('competenza', primoDelMese(mese))
@@ -113,10 +117,28 @@ export default function Fatturazione() {
           contratto_id: c.contratto_id,
           studente: `${c.contratti?.studenti?.cognome ?? ''} ${c.contratti?.studenti?.nome ?? ''}`.trim() || '—',
           struttura: c.contratti?.strutture?.nome ?? '—',
+          copertura: etichettaCopertura(
+            coperturaMese(c.competenza, c.contratti?.data_inizio, c.contratti?.data_fine),
+          ),
         }))
         .sort((a, b) => a.studente.localeCompare(b.studente, 'it'));
     },
   });
+
+  // --- Modo in vigore: proforma di prova oppure fatture reali ---
+  const { data: modo } = useQuery({
+    queryKey: ['fatturazione-modo'],
+    queryFn: async (): Promise<TipoDocumento> => {
+      const { data, error } = await supabase
+        .from('impostazioni')
+        .select('fic_emette_fatture')
+        .eq('id', 1)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.fic_emette_fatture ? 'invoice' : 'proforma';
+    },
+  });
+  const tipoDocumento: TipoDocumento = modo ?? 'proforma';
 
   // --- Arretrati: mensilità da fatturare precedenti al mese scelto ---
   const { data: arretrati } = useQuery({
@@ -271,10 +293,22 @@ export default function Fatturazione() {
               <strong>{fmtEuro(totaleSelezione)}</strong>
             </span>
             <Button disabled={selezionate.length === 0} onClick={() => setDialogOpen(true)}>
-              <Receipt className="w-4 h-4 mr-2" />Emetti le fatture selezionate
+              <Receipt className="w-4 h-4 mr-2" />
+              {tipoDocumento === 'invoice' ? 'Emetti le fatture selezionate' : 'Crea le proforma selezionate'}
             </Button>
           </div>
         )}
+      </div>
+
+      <div className={cn(
+        'rounded-lg border p-3 text-sm',
+        tipoDocumento === 'invoice'
+          ? 'border-destructive/40 bg-destructive/5'
+          : 'border-border bg-muted/40 text-muted-foreground',
+      )}>
+        {tipoDocumento === 'invoice'
+          ? 'Modo in vigore: fatture reali. Ogni emissione crea un documento fiscale con il numero del sezionale, non cancellabile e correggibile solo con nota di credito.'
+          : 'Modo in vigore: proforma di prova. I documenti non sono fiscali, non consumano il numero del sezionale e le mensilità restano da fatturare. Si cambia dalle impostazioni.'}
       </div>
 
       {(arretrati ?? []).length > 0 && meseArretratoPiuVecchio && (
@@ -371,7 +405,15 @@ export default function Fatturazione() {
                       aria-label={`Seleziona ${r.studente}`}
                     />
                   </td>
-                  <td className="px-4 py-3">{r.studente}</td>
+                  <td className="px-4 py-3">
+                    {r.studente}
+                    {r.copertura && (
+                      <span className="ml-2 inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                        <AlertTriangle className="w-3 h-3" />
+                        mese parziale: {r.copertura}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-muted-foreground">{r.struttura}</td>
                   <td className="px-4 py-3">{fmtEuro(r.imponibile)}</td>
                   <td className="px-4 py-3">{fmtEuro(Math.round((r.totale - r.imponibile) * 100) / 100)}</td>
@@ -479,6 +521,7 @@ export default function Fatturazione() {
         open={dialogOpen}
         righe={righeDialogo}
         busy={busy}
+        tipoDocumento={tipoDocumento}
         onOpenChange={(o) => { if (!busy) setDialogOpen(o); }}
         onConferma={emetti}
       />
