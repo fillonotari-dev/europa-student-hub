@@ -505,9 +505,11 @@ export default function ContrattoPage() {
               </>
             )}
           </div>
-          {contratto.stato !== 'bozza' && (
-            <p className="text-xs text-muted-foreground">Il giorno di scadenza è modificabile solo finché il contratto è in bozza.</p>
-          )}
+          <p className="text-xs text-muted-foreground">
+            Ogni mensilità scade il giorno {contratto.giorno_scadenza} del mese successivo a quello di competenza:
+            il canone di agosto scade il {contratto.giorno_scadenza} settembre.
+            {contratto.stato !== 'bozza' && ' Il giorno di scadenza è modificabile solo finché il contratto è in bozza.'}
+          </p>
           <Riga k="Nota sul canone" v={contratto.canone_note} />
           <Riga k="Note" v={contratto.note} />
         </section>
@@ -601,6 +603,10 @@ export default function ContrattoPage() {
       <section className="bg-card border border-border/50 rounded-lg overflow-hidden">
         <div className="px-5 py-4 border-b border-border/50">
           <h2 className="text-sm font-semibold">Scadenzario</h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            Scadenza posticipata: ogni mensilità scade il giorno {contratto.giorno_scadenza} del mese successivo
+            a quello di competenza.
+          </p>
         </div>
         <table className="w-full text-sm">
           <thead>
@@ -692,6 +698,8 @@ export default function ContrattoPage() {
             <AlertDialogTitle>Attivare il contratto?</AlertDialogTitle>
             <AlertDialogDescription>
               Verranno create {anteprima.length} mensilità. Dopo l'attivazione il contratto non è più cancellabile.
+              Scadenza posticipata: ogni mensilità scade il giorno {contratto.giorno_scadenza} del mese successivo
+              a quello di competenza.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="max-h-64 overflow-y-auto border border-border/50 rounded-lg">
