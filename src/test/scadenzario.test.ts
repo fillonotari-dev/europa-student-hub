@@ -25,9 +25,27 @@ describe('generaScadenzario', () => {
     expect(r[0].competenza).toBe('2026-09-01');
   });
 
-  it('usa giorno_scadenza per la data di scadenza di ogni mese', () => {
+  it('scade il giorno_scadenza del mese successivo alla competenza', () => {
     const r = generaScadenzario({ ...base, giornoScadenza: 10, dataInizio: '2026-09-01', dataFine: '2026-11-30' });
-    expect(r.map(x => x.scadenza)).toEqual(['2026-09-10', '2026-10-10', '2026-11-10']);
+    expect(r.map(x => x.scadenza)).toEqual(['2026-10-10', '2026-11-10', '2026-12-10']);
+  });
+
+  it('gestisce il passaggio d\'anno: dicembre 2026 scade a gennaio 2027', () => {
+    const r = generaScadenzario({ ...base, giornoScadenza: 5, dataInizio: '2026-12-01', dataFine: '2026-12-31' });
+    expect(r).toHaveLength(1);
+    expect(r[0].competenza).toBe('2026-12-01');
+    expect(r[0].scadenza).toBe('2027-01-05');
+  });
+
+  it('con giorno 28 una competenza di gennaio scade il 28 febbraio', () => {
+    const r = generaScadenzario({ ...base, giornoScadenza: 28, dataInizio: '2027-01-01', dataFine: '2027-01-31' });
+    expect(r[0].scadenza).toBe('2027-02-28');
+  });
+
+  it('un contratto di un solo mese scade nel mese dopo data_fine', () => {
+    const r = generaScadenzario({ ...base, giornoScadenza: 15, dataInizio: '2026-08-10', dataFine: '2026-08-31' });
+    expect(r).toHaveLength(1);
+    expect(r[0].scadenza).toBe('2026-09-15');
   });
 
   it('non restituisce mai il campo totale', () => {

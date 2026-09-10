@@ -538,6 +538,10 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
               <F label="Giorno di scadenza delle mensilità (1-28)">
                 <Input type="number" min="1" max="28" className="mt-1.5" value={giornoScadenza}
                   onChange={e => setGiornoScadenza(e.target.value)} />
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  Ogni mensilità scade questo giorno del mese <strong>successivo</strong> a quello di competenza:
+                  con {Number(giornoScadenza) || 1} il canone di agosto scade il {Number(giornoScadenza) || 1} settembre.
+                </p>
               </F>
               <F label="Nota sul canone">
                 <Input className="mt-1.5" value={canoneNote} onChange={e => setCanoneNote(e.target.value)}
