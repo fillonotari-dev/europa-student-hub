@@ -92,7 +92,7 @@ export default function Fatturazione() {
   const [riepilogo, setRiepilogo] = useState<Riepilogo | null>(null);
   const [archivioOpen, setArchivioOpen] = useState(false);
 
-  const mese = searchParams.get('mese') || meseCorrente();
+  const mese = searchParams.get('mese') || mesePredefinito();
 
   const patchParams = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(searchParams);
