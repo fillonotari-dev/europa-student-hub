@@ -24,7 +24,16 @@ const GRUPPO_ANTEPRIMA = 50;
  */
 const GRUPPO_EMISSIONE = 10;
 
-const meseCorrente = () => new Date().toISOString().slice(0, 7);
+/**
+ * Fatturazione posticipata: il lotto che si emette oggi è quello del mese
+ * scorso, quindi il selettore parte sul mese precedente a quello corrente.
+ */
+const mesePredefinito = () => {
+  const o = new Date();
+  const a = o.getUTCFullYear();
+  const m = o.getUTCMonth(); // 0-11: il mese precedente è m, non m+1
+  return m === 0 ? `${a - 1}-12` : `${a}-${String(m).padStart(2, '0')}`;
+};
 const primoDelMese = (m: string) => `${m}-01`;
 const meseSuccessivo = (m: string) => {
   const [a, mm] = m.split('-').map(Number);
@@ -83,7 +92,7 @@ export default function Fatturazione() {
   const [riepilogo, setRiepilogo] = useState<Riepilogo | null>(null);
   const [archivioOpen, setArchivioOpen] = useState(false);
 
-  const mese = searchParams.get('mese') || meseCorrente();
+  const mese = searchParams.get('mese') || mesePredefinito();
 
   const patchParams = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(searchParams);

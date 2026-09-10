@@ -28,7 +28,7 @@ Una riga di spiegazione, con il giorno effettivo del contratto, sia nell'antepri
 
 ## 5. Mese predefinito in Fatturazione
 
-`src/pages/admin/Fatturazione.tsx` usa oggi `meseCorrente()` come valore di ripiego del parametro `mese`. Con la fatturazione posticipata il lotto che si emette il 1° settembre è quello di agosto: il default diventa il **mese precedente** a quello corrente. La definizione di arretrato (competenza precedente al mese scelto, stato `da_fatturare`) resta intatta.
+`src/pages/admin/Fatturazione.tsx` usa oggi `meseCorrente()` come valore di ripiego del parametro `mese`. Con la fatturazione posticipata il lotto che si emette il 1° settembre è quello di agosto: il default diventa il **mese precedente** a quello corrente. La definizione di arretrato (competenza precedente al mese scelto, stato `da_fatturare`) resta intatta. Attenzione al cambio di anno fra i vari mesi.
 
 ## 6. Documentazione (`docs/Context.md`)
 
