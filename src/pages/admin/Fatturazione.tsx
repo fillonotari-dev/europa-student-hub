@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertTriangle, CheckCircle2, ChevronDown, Loader2, Receipt, X } from 'lucide-react';
 import { fmtEuro, fmtIt } from '@/pages/admin/Contratti';
 import { EmettiFatturaDialog, type Anteprima, type RigaDaEmettere } from '@/components/admin/contratti/EmettiFatturaDialog';
+import { CollegaFatturaDialog, type RigaDaCollegare } from '@/components/admin/fatturazione/CollegaFatturaDialog';
+import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { coperturaMese, etichettaCopertura } from '@/lib/coperturaMese';
 import type { TipoDocumento } from '@shared/fic-fattura';
@@ -91,6 +93,7 @@ export default function Fatturazione() {
   const [busy, setBusy] = useState(false);
   const [riepilogo, setRiepilogo] = useState<Riepilogo | null>(null);
   const [archivioOpen, setArchivioOpen] = useState(false);
+  const [daCollegare, setDaCollegare] = useState<RigaDaCollegare | null>(null);
 
   const mese = searchParams.get('mese') || mesePredefinito();
 
@@ -283,8 +286,18 @@ export default function Fatturazione() {
   const opzioniMese = mesiSelezionabili([mese, ...(arretrati ?? []).map((a: any) => a.competenza.slice(0, 7))]);
   const meseArretratoPiuVecchio = (arretrati ?? [])[0]?.competenza?.slice(0, 7);
 
+  const collegata = (msg: string) => {
+    setDaCollegare(null);
+    toast.success(msg);
+    qc.invalidateQueries({ queryKey: ['fatturazione-canoni'] });
+    qc.invalidateQueries({ queryKey: ['fatturazione-arretrati'] });
+    qc.invalidateQueries({ queryKey: ['fatturazione-fatture'] });
+    qc.invalidateQueries({ queryKey: ['fatturazione-canoni-collegati'] });
+  };
+
   return (
     <div className="space-y-6">
+      <CollegaFatturaDialog riga={daCollegare} onClose={() => setDaCollegare(null)} onCollegata={collegata} />
       <div className="flex items-center gap-3 flex-wrap">
         <Select value={mese} onValueChange={v => patchParams({ mese: v })}>
           <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
@@ -390,14 +403,15 @@ export default function Fatturazione() {
               <th className="text-left px-4 py-3 font-semibold">Totale</th>
               <th className="text-left px-4 py-3 font-semibold">Scadenza</th>
               <th className="text-left px-4 py-3 font-semibold">Stato</th>
+              <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody className="text-sm">
             {isLoading && (
-              <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">Caricamento…</td></tr>
+              <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">Caricamento…</td></tr>
             )}
             {!isLoading && (righe ?? []).length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">
+              <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">
                 Nessuna mensilità da fatturare in {etichettaMese(mese)}.
               </td></tr>
             )}
@@ -438,6 +452,19 @@ export default function Fatturazione() {
                     {esito && !emettibile && (
                       <span className="text-destructive">{esito.message}</span>
                     )}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setDaCollegare({
+                        canoneId: r.id,
+                        etichetta: `${r.studente} — ${etichettaMese(r.competenza.slice(0, 7))}`,
+                        totale: r.totale,
+                      })}
+                    >
+                      Collega fattura già emessa
+                    </Button>
                   </td>
                 </tr>
               );
