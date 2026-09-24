@@ -1278,6 +1278,20 @@ export type Database = {
           read_ct: number
         }[]
       }
+      registra_fattura_esistente: {
+        Args: {
+          p_canone_id: string
+          p_data: string
+          p_ei_status: string
+          p_fic_document_id: number
+          p_imponibile: number
+          p_iva: number
+          p_numerazione: string
+          p_numero: number
+          p_totale: number
+        }
+        Returns: string
+      }
       riporta_contratto_in_bozza: {
         Args: { p_contratto_id: string }
         Returns: undefined
