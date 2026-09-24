@@ -3,6 +3,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { z } from 'npm:zod@3'
 import { FIC_BASE, ficFetch, estraiDiagnosticaFic, isQuotaError } from '../_shared/fic-client.ts'
 import { campiMancantiPerFattura, mappaAnagraficaPerFic, nomeCompleto } from '../_shared/fic-anagrafica.ts'
+import { esisteFatturaDaRiconciliare, MESSAGGIO_DOPPIONE } from '../_shared/fic-collega.ts'
 import {
   costruisciPayloadFattura,
   descrizioneCanone,
@@ -162,6 +163,21 @@ Deno.serve(async (req) => {
     if (!contratto) { fallisci('Contratto non trovato.', { guardia: 'contratto' }); continue }
     if (contratto.stato !== 'attivo') {
       fallisci(`Il contratto è in stato ${contratto.stato}: si fatturano solo i contratti attivi.`, { guardia: 'contratto' })
+      continue
+    }
+
+    // --- (b2) guardia doppioni: fatture in_invio o emesse senza mensilità ---
+    // Valutata anche con conferma: false, prima di qualunque chiamata esterna.
+    const { data: fattContratto } = await admin
+      .from('fatture').select('id, stato').eq('contratto_id', contratto.id).in('stato', ['in_invio', 'emessa'])
+    const idsEmesse = (fattContratto ?? []).filter((f: { stato: string }) => f.stato === 'emessa').map((f: { id: string }) => f.id)
+    const collegate = new Set<string>()
+    if (idsEmesse.length) {
+      const { data: cc } = await admin.from('canoni').select('fattura_id').in('fattura_id', idsEmesse)
+      for (const c of cc ?? []) if (c.fattura_id) collegate.add(c.fattura_id)
+    }
+    if (esisteFatturaDaRiconciliare(fattContratto ?? [], collegate)) {
+      fallisci(MESSAGGIO_DOPPIONE, { guardia: 'doppione' })
       continue
     }
 
