@@ -34,6 +34,8 @@ export function scrittureLocaliAttive(tipo: TipoDocumento): boolean {
   return tipo === 'invoice';
 }
 
+import type { ClientePayloadFic } from './fic-anagrafica.ts';
+
 const MESI_IT = [
   'gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
   'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre',
@@ -72,18 +74,29 @@ export function scadenzaDocumento(
   return scadenza < dataEmissione ? dataEmissione : scadenza;
 }
 
+/** Giorni fra due date ISO, in UTC. Con scadenzaDocumento non è mai negativo. */
+export function giorniFra(daIso: string, aIso: string): number {
+  const a = Date.parse(`${daIso}T00:00:00Z`);
+  const b = Date.parse(`${aIso}T00:00:00Z`);
+  return Math.round((b - a) / 86_400_000);
+}
+
 export function descrizioneCanone(competenzaIso: string): string {
-  return `Canone di ospitalità — ${meseAnnoIt(competenzaIso)}`;
+  return `Canone di ospitalità Studentato Europa, ${meseAnnoIt(competenzaIso)}`;
 }
 
 export type DatiFattura = {
   tipo: TipoDocumento;
   ficEntityId: number;
-  // Nome del cliente così come composto da nomeCompleto in fic-anagrafica.ts:
-  // lo passa il chiamante, così questo modulo resta puro e il nome sul
-  // documento non può divergere da quello dell'anagrafica remota. Fatture in
-  // Cloud rifiuta con 422 un entity senza name.
-  nomeCliente: string;
+  // Cliente già mappato da mappaAnagraficaPerFic (fic-anagrafica.ts): è lo
+  // STESSO oggetto inviato nel PUT del cliente, così documento e anagrafica
+  // remota non divergono. FIC non autocompleta il documento dal cliente
+  // salvato (guida "Invoice creation"): i dati vanno tutti inviati.
+  entity: ClientePayloadFic;
+  /** Codice SDI ModalitaPagamento (es. MP05), per ei_data.payment_method. */
+  eiMetodoPagamento: string;
+  /** IBAN per ei_data.bank_iban: inviato solo se valorizzato. */
+  iban?: string | null;
   competenza: string;
   imponibile: number;
   totale: number;
@@ -101,11 +114,12 @@ export type PayloadFattura = {
 };
 
 export function costruisciPayloadFattura(d: DatiFattura): PayloadFattura {
+  const dueDate = scadenzaDocumento(d.dataEmissione, d.scadenza, d.giorniScadenza);
   const data: Record<string, unknown> = {
     // `number` è deliberatamente OMESSO: il progressivo del sezionale lo
     // assegna Fatture in Cloud.
     type: d.tipo,
-    entity: { id: d.ficEntityId, name: d.nomeCliente },
+    entity: { id: d.ficEntityId, ...d.entity },
     date: d.dataEmissione,
     numeration: d.numerazione,
     payment_method: { id: d.metodoPagamentoId },
@@ -116,8 +130,9 @@ export function costruisciPayloadFattura(d: DatiFattura): PayloadFattura {
       vat: { id: d.vatId },
     }],
     payments_list: [{
-      due_date: scadenzaDocumento(d.dataEmissione, d.scadenza, d.giorniScadenza),
+      due_date: dueDate,
       amount: d.totale,
+      payment_terms: { days: giorniFra(d.dataEmissione, dueDate), type: 'standard' },
       status: 'not_paid',
     }],
   };
@@ -127,7 +142,14 @@ export function costruisciPayloadFattura(d: DatiFattura): PayloadFattura {
   // management" per poter poi trasmettere il documento allo SDI. Ha senso solo
   // su una fattura: su una proforma non è un documento fiscale e la richiesta
   // può essere rifiutata.
-  if (scrittureLocaliAttive(d.tipo)) data.e_invoice = true;
+  // ei_data.payment_method: stringa SDI ModalitaPagamento, obbligatoria sul
+  // documento elettronico (IssuedDocument.yaml). Campo distinto dal
+  // payment_method.id di primo livello. Nessuna chiave null o undefined.
+  if (scrittureLocaliAttive(d.tipo)) {
+    data.e_invoice = true;
+    const iban = typeof d.iban === 'string' ? d.iban.trim() : '';
+    data.ei_data = { payment_method: d.eiMetodoPagamento, ...(iban ? { bank_iban: iban } : {}) };
+  }
 
   return { data };
 }
