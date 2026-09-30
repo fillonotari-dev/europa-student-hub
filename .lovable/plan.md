@@ -5,12 +5,18 @@
 - La data del documento è sempre quella italiana, anche fra mezzanotte e le 2.
 
 ## 1. 409 definitivo (`fic-emetti-fattura/index.ts`, riga 381)
-- `definitivo = status === 400 || 409 || 422`, estratto in una funzione pura `rifiutoDefinitivoFic(status)` in `_shared/fic-client.ts` (testabile).
+- `definitivo = rifiutoDefinitivoFic(doc.status)`: funzione pura (400, 409, 422) in `_shared/fic-collega.ts`, importata da lì in `fic-emetti-fattura`. `fic-client.ts` (unico modulo con I/O, `ficFetch`) non viene toccato, così i test importano solo moduli puri.
 - Commento: la documentazione ufficiale (developers.fattureincloud.it/docs/basics/errors) dice che col 409 "the request has no effect"; fra le cause numero duplicato e violazione dell'ordine cronologico del sezionale. Il documento quindi non esiste: la riga passa a `errore` (riga 394-396).
 
 ## 2. Diagnostica per ogni 4xx
-- In `fic-emetti-fattura`, sia nel PUT del cliente (riga 318) sia nel POST del documento (riga 387): `estraiDiagnosticaFic` si registra quando `status >= 400 && status < 500`. Stessa funzione, stesse regole sui dati personali (nessuna modifica a `estraiDiagnosticaFic`).
-- `campi_inviati` resta com'è oggi (solo nomi).
+- Funzione pura `rispostaClient4xx(status)` (400-499) in `_shared/fic-collega.ts`, usata in tutti i punti sotto. Nessuna modifica a `estraiDiagnosticaFic` né alle regole sui dati personali (solo `error.message` / campi d'errore, `campi_inviati` solo nomi).
+- Punti toccati:
+  - `fic-emetti-fattura/index.ts:318` — PUT del cliente.
+  - `fic-emetti-fattura/index.ts:387` — POST del documento.
+  - `fic-sync-anagrafica/index.ts:231` — PUT/POST del cliente (usa la sua copia locale di `estraiDiagnosticaFic`, riga 46; l'unificazione con `fic-client.ts` resta rinviata come da commento in `fic-client.ts:6`).
+  - `fic-collega-fattura/index.ts:110` — elenco documenti (modo elenca).
+  - `fic-collega-fattura/index.ts:145` — rilettura del documento (modo collega): oggi non registra nessuna diagnostica, la aggiungo per i 4xx.
+- `fic-registri/index.ts:115` resta su 400/422 (non richiesto).
 
 ## 3. Messaggio del 409 (`messaggioErrore`, riga 63)
 - Nuovo ramo 409: «Fatture in Cloud ha rifiutato la fattura per un conflitto con i documenti esistenti (per esempio una data precedente all'ultima fattura del sezionale). Nessun documento è stato creato.» seguito, se presente, dal `error.message` del corpo (letto tramite `estraiDiagnosticaFic`).
