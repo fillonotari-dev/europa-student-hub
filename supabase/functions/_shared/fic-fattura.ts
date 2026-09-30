@@ -167,3 +167,13 @@ export function costruisciPayloadFattura(d: DatiFattura): PayloadFattura {
 
   return { data };
 }
+
+/**
+ * Data odierna (YYYY-MM-DD) nel fuso Europe/Rome. new Date().toISOString()
+ * darebbe la data UTC: fra le 00:00 e le 02:00 italiane, il giorno prima.
+ */
+export function oggiRoma(ora: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(ora);
+}

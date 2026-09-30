@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  esisteFatturaDaRiconciliare, importiDocumento, stessoId, stessoImporto,
+  esisteFatturaDaRiconciliare, rifiutoDefinitivoFic, rispostaClient4xx, importiDocumento, stessoId, stessoImporto,
 } from '../../supabase/functions/_shared/fic-collega';
 
 describe('fic-collega', () => {
@@ -29,5 +29,18 @@ describe('fic-collega', () => {
     expect(esisteFatturaDaRiconciliare([{ id: 'a', stato: 'emessa' }], new Set())).toBe(true);
     expect(esisteFatturaDaRiconciliare([{ id: 'a', stato: 'emessa' }], new Set(['a']))).toBe(false);
     expect(esisteFatturaDaRiconciliare([{ id: 'a', stato: 'errore' }], new Set())).toBe(false);
+  });
+});
+
+describe('classificazione delle risposte di Fatture in Cloud', () => {
+  it('400, 409 e 422 sono rifiuti definitivi (il documento non esiste)', () => {
+    for (const s of [400, 409, 422]) expect(rifiutoDefinitivoFic(s)).toBe(true);
+  });
+  it('gli altri esiti lasciano il dubbio', () => {
+    for (const s of [401, 403, 404, 429, 500, 503, null]) expect(rifiutoDefinitivoFic(s)).toBe(false);
+  });
+  it('rispostaClient4xx copre tutto 400-499', () => {
+    for (const s of [400, 404, 409, 499]) expect(rispostaClient4xx(s)).toBe(true);
+    for (const s of [399, 500, null]) expect(rispostaClient4xx(s)).toBe(false);
   });
 });

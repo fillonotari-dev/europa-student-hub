@@ -5,6 +5,7 @@ import {
   giorniFra,
   aggiungiGiorni,
   meseAnnoIt,
+  oggiRoma,
   scadenzaDocumento,
   scrittureLocaliAttive,
   tipoDocumentoDa,
@@ -241,5 +242,19 @@ describe('costruisciPayloadFattura', () => {
 
   it('con tipo invoice manda il flag di fattura elettronica', () => {
     expect(costruisciPayloadFattura({ ...base, tipo: 'invoice' }).data.e_invoice).toBe(true);
+  });
+});
+
+describe('oggiRoma: data odierna nel fuso Europe/Rome', () => {
+  it('23:30 UTC del 30/09 è già il 1° ottobre in Italia', () => {
+    expect(oggiRoma(new Date('2026-09-30T23:30:00Z'))).toBe('2026-10-01');
+  });
+  it('12:00 UTC è lo stesso giorno', () => {
+    expect(oggiRoma(new Date('2026-09-30T12:00:00Z'))).toBe('2026-09-30');
+  });
+  it('a cavallo del cambio d\'ora di fine ottobre (25/10/2026)', () => {
+    expect(oggiRoma(new Date('2026-10-24T22:30:00Z'))).toBe('2026-10-25'); // 00:30 CEST
+    expect(oggiRoma(new Date('2026-10-25T22:30:00Z'))).toBe('2026-10-25'); // 23:30 CET
+    expect(oggiRoma(new Date('2026-10-25T23:30:00Z'))).toBe('2026-10-26'); // 00:30 CET
   });
 });

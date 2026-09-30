@@ -30,3 +30,5 @@ Debiti aperti dichiarati:
 
 - [x] Collegare fatture già esistenti su FIC (fic-collega-fattura, registra_fattura_esistente) e guardia doppioni in fic-emetti-fattura
 - [x] Fattura elettronica completa: fic_ei_metodo_pagamento, ei_data, entity da mappatura, payment_terms, nuova descrizione, log di ciò che FIC salva
+- [x] 409 di FIC come rifiuto definitivo, diagnostica su ogni 4xx (emetti, sync-anagrafica, collega), data odierna nel fuso Europe/Rome
+- [ ] Sbloccare la riga in_invio della mensilità 46cd973d (decisione dell'operatore, nessuna modifica ai dati dall'agente)
