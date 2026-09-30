@@ -123,6 +123,10 @@ export function costruisciPayloadFattura(d: DatiFattura): PayloadFattura {
     date: d.dataEmissione,
     numeration: d.numerazione,
     payment_method: { id: d.metodoPagamentoId },
+    // Stampa sul PDF il riquadro della modalità di pagamento e le scadenze
+    // (IssuedDocument.yaml: show_payment_method, show_payments).
+    show_payment_method: true,
+    show_payments: true,
     items_list: [{
       name: descrizioneCanone(d.competenza),
       net_price: d.imponibile,
@@ -145,9 +149,15 @@ export function costruisciPayloadFattura(d: DatiFattura): PayloadFattura {
   // ei_data.payment_method: stringa SDI ModalitaPagamento, obbligatoria sul
   // documento elettronico (IssuedDocument.yaml). Campo distinto dal
   // payment_method.id di primo livello. Nessuna chiave null o undefined.
+  const iban = typeof d.iban === 'string' ? d.iban.trim() : '';
+
+  // IBAN nelle note: verificato il 30/09/2026 che il metodo di pagamento
+  // configurato ("Bonifico bancario") non ha details su /info/payment_methods,
+  // quindi show_payment_method da solo non stampa l'IBAN sul PDF.
+  if (iban) data.notes = `IBAN: ${iban}`;
+
   if (scrittureLocaliAttive(d.tipo)) {
     data.e_invoice = true;
-    const iban = typeof d.iban === 'string' ? d.iban.trim() : '';
     data.ei_data = { payment_method: d.eiMetodoPagamento, ...(iban ? { bank_iban: iban } : {}) };
   }
 
