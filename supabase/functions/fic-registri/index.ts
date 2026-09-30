@@ -136,7 +136,15 @@ Deno.serve(async (req) => {
     if (l.chiave === 'metodi') {
       risultato.metodi = righe
         // deno-lint-ignore no-explicit-any
-        .map((m: any) => ({ id: m?.id, name: typeof m?.name === 'string' ? m.name : '' }))
+        .map((m: any) => ({
+          id: m?.id,
+          name: typeof m?.name === 'string' ? m.name : '',
+          // Solo i titoli dei details, mai description: contiene l'IBAN.
+          dettagli_titoli: Array.isArray(m?.details)
+            // deno-lint-ignore no-explicit-any
+            ? m.details.map((x: any) => (typeof x?.title === 'string' ? x.title : '')).filter(Boolean)
+            : [],
+        }))
         // deno-lint-ignore no-explicit-any
         .filter((m: any) => typeof m.id === 'number')
     } else {
