@@ -27,6 +27,7 @@ type ImpostazioniFic = {
   fic_vat_id: string;
   fic_vat_valore: string;
   fic_emette_fatture: boolean;
+  fic_ei_metodo_pagamento: string;
 };
 
 const VUOTE: ImpostazioniFic = {
@@ -39,7 +40,21 @@ const VUOTE: ImpostazioniFic = {
   fic_vat_id: '',
   fic_vat_valore: '',
   fic_emette_fatture: false,
+  fic_ei_metodo_pagamento: 'MP05',
 };
+
+/** Codici SDI ModalitaPagamento (specifiche tecniche FatturaPA), elenco chiuso. */
+const MODALITA_PAGAMENTO_SDI: [string, string][] = [
+  ['MP01', 'Contanti'], ['MP02', 'Assegno'], ['MP03', 'Assegno circolare'],
+  ['MP04', 'Contanti presso Tesoreria'], ['MP05', 'Bonifico'], ['MP06', 'Vaglia cambiario'],
+  ['MP07', 'Bollettino bancario'], ['MP08', 'Carta di pagamento'], ['MP09', 'RID'],
+  ['MP10', 'RID utenze'], ['MP11', 'RID veloce'], ['MP12', 'RIBA'], ['MP13', 'MAV'],
+  ['MP14', 'Quietanza erario'], ['MP15', 'Giroconto su conti di contabilità speciale'],
+  ['MP16', 'Domiciliazione bancaria'], ['MP17', 'Domiciliazione postale'],
+  ['MP18', 'Bollettino di c/c postale'], ['MP19', 'SEPA Direct Debit'],
+  ['MP20', 'SEPA Direct Debit CORE'], ['MP21', 'SEPA Direct Debit B2B'],
+  ['MP22', 'Trattenuta su somme già riscosse'], ['MP23', 'PagoPA'],
+];
 
 function ImpostazioniFatturazione() {
   const { toast } = useToast();
@@ -56,7 +71,7 @@ function ImpostazioniFatturazione() {
       const [imp, emesse] = await Promise.all([
         supabase
           .from('impostazioni')
-          .select('fic_numerazione, fic_giorni_scadenza, fic_giorno_emissione, fic_iban, fic_metodo_pagamento, fic_metodo_pagamento_id, fic_vat_id, fic_vat_valore, fic_emette_fatture')
+          .select('fic_numerazione, fic_giorni_scadenza, fic_giorno_emissione, fic_iban, fic_metodo_pagamento, fic_metodo_pagamento_id, fic_vat_id, fic_vat_valore, fic_emette_fatture, fic_ei_metodo_pagamento')
           .eq('id', 1)
           .maybeSingle(),
         supabase.from('fatture').select('id', { count: 'exact', head: true }).eq('stato', 'emessa'),
@@ -74,6 +89,7 @@ function ImpostazioniFatturazione() {
           fic_vat_id: imp.data.fic_vat_id?.toString() ?? '',
           fic_vat_valore: imp.data.fic_vat_valore?.toString() ?? '',
           fic_emette_fatture: imp.data.fic_emette_fatture === true,
+          fic_ei_metodo_pagamento: imp.data.fic_ei_metodo_pagamento || 'MP05',
         });
       }
       setNumerazioneBloccata((emesse.count ?? 0) > 0);
@@ -130,6 +146,7 @@ function ImpostazioniFatturazione() {
       fic_vat_id: form.fic_vat_id === '' ? null : Number(form.fic_vat_id),
       fic_vat_valore: form.fic_vat_valore === '' ? null : Number(form.fic_vat_valore),
       fic_emette_fatture: form.fic_emette_fatture,
+      fic_ei_metodo_pagamento: form.fic_ei_metodo_pagamento,
       ...(numerazioneBloccata ? {} : { fic_numerazione: form.fic_numerazione.trim() || null }),
     };
 
@@ -220,6 +237,23 @@ function ImpostazioniFatturazione() {
             )}
             <p className="text-[11px] text-muted-foreground">
               Deve coincidere con l'aliquota dei contratti: se differisce, l'emissione si fermerà.
+            </p>
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>Modalità di pagamento per la fattura elettronica</Label>
+            <Select
+              value={form.fic_ei_metodo_pagamento}
+              onValueChange={(v) => setForm((f) => ({ ...f, fic_ei_metodo_pagamento: v }))}
+            >
+              <SelectTrigger><SelectValue placeholder="Scegli un codice SDI" /></SelectTrigger>
+              <SelectContent>
+                {MODALITA_PAGAMENTO_SDI.map(([c, d]) => (
+                  <SelectItem key={c} value={c}>{c} — {d}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Codice SDI obbligatorio sulla fattura elettronica (bonifico = MP05).
             </p>
           </div>
         </div>
