@@ -239,6 +239,8 @@ export default function Fatturazione() {
       qc.invalidateQueries({ queryKey: ['fatturazione-canoni'] });
       qc.invalidateQueries({ queryKey: ['fatturazione-arretrati'] });
       qc.invalidateQueries({ queryKey: ['fatturazione-fatture'] });
+      qc.invalidateQueries({ queryKey: ['fatturazione-canoni-collegati'] });
+
     }
   };
 

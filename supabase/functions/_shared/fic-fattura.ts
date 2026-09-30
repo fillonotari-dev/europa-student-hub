@@ -151,10 +151,14 @@ export function costruisciPayloadFattura(d: DatiFattura): PayloadFattura {
   // payment_method.id di primo livello. Nessuna chiave null o undefined.
   const iban = typeof d.iban === 'string' ? d.iban.trim() : '';
 
-  // IBAN nelle note: verificato il 30/09/2026 che il metodo di pagamento
-  // configurato ("Bonifico bancario") non ha details su /info/payment_methods,
-  // quindi show_payment_method da solo non stampa l'IBAN sul PDF.
-  if (iban) data.notes = `IBAN: ${iban}`;
+  // L'IBAN stampato sul PDF — nel riquadro Modalità di pagamento, sotto il
+  // nome del metodo — viene da ei_data.bank_iban quando show_payment_method
+  // è attivo: è la stessa fonte che finisce nell'XML trasmesso allo SDI
+  // (verificato sul PDF della fattura 8/S del 30/09/2026, dove l'IBAN non
+  // viene dai details del metodo). Le note del documento NON si usano:
+  // l'IBAN comparirebbe una seconda volta accanto a quella di FIC.
+
+
 
   if (scrittureLocaliAttive(d.tipo)) {
     data.e_invoice = true;
