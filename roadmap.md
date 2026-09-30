@@ -29,3 +29,4 @@ Debiti aperti dichiarati:
 - [ ] Email di trasmissione della fattura allo studente; trasmissione allo SDI resta manuale
 
 - [x] Collegare fatture già esistenti su FIC (fic-collega-fattura, registra_fattura_esistente) e guardia doppioni in fic-emetti-fattura
+- [x] Fattura elettronica completa: fic_ei_metodo_pagamento, ei_data, entity da mappatura, payment_terms, nuova descrizione, log di ciò che FIC salva
