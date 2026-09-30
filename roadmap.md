@@ -27,3 +27,5 @@ Debiti aperti dichiarati:
 - [ ] fic-sync-anagrafica su _shared/fic-client.ts
 - [ ] Azioni di risoluzione nel pannello di riconciliazione (oggi sola lettura)
 - [ ] Email di trasmissione della fattura allo studente; trasmissione allo SDI resta manuale
+
+- [x] Collegare fatture già esistenti su FIC (fic-collega-fattura, registra_fattura_esistente) e guardia doppioni in fic-emetti-fattura
