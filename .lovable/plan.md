@@ -15,6 +15,8 @@ Nessuna funzione nuova, nessuna policy toccata. In `FattureInCloudSection.tsx` u
 ## 2. ei_data (`_shared/fic-fattura.ts`)
 `DatiFattura` riceve `eiMetodoPagamento: string` e `iban?: string | null`. Solo quando `scrittureLocaliAttive(tipo)` (cioè documento elettronico, lo stesso ramo di `e_invoice`): `ei_data = { payment_method, ...(iban ? { bank_iban: iban } : {}) }`. Nessuna chiave null/undefined. `payment_method.id` di primo livello invariato.
 
+In `fic-emetti-fattura/index.ts` la select su `impostazioni` aggiunge `fic_ei_metodo_pagamento, fic_iban` (oggi assenti: arriverebbero undefined alla funzione pura). La guardia (e) rifiuta anche il caso `fic_ei_metodo_pagamento` vuoto, con messaggio esplicito: "Modalità di pagamento per la fattura elettronica (codice SDI) non scelta nelle impostazioni di fatturazione." Il resoconto riporterà la riga della select aggiornata.
+
 ## 3. entity completa
 `DatiFattura` perde `ficEntityId` e `nomeCliente`, acquista `entity: ClientePayloadFic` (tipo già esportato da `fic-anagrafica.ts`, import di solo tipo, il modulo resta puro) e `ficEntityId`. Payload: `entity: { id, ...entity }`.
 In `fic-emetti-fattura/index.ts` `const mappatura = mappaAnagraficaPerFic(ana)` si sposta prima di `costruisciPayloadFattura` (oggi è calcolata dopo, alla riga del PUT): è puro calcolo, nessuna chiamata esterna in più nell'anteprima. Lo stesso oggetto `mappatura.data` va al PUT e al documento. Rimosso l'import di `nomeCompleto` se non più usato.
