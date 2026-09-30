@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  esisteFatturaDaRiconciliare, importiDocumento, stessoId, stessoImporto,
+  esisteFatturaDaRiconciliare, rifiutoDefinitivoFic, rispostaClient4xx, importiDocumento, stessoId, stessoImporto,
 } from '../../supabase/functions/_shared/fic-collega';
 
 describe('fic-collega', () => {
