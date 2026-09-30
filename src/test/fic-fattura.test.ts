@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   costruisciPayloadFattura,
   descrizioneCanone,
+  giorniFra,
   aggiungiGiorni,
   meseAnnoIt,
   scadenzaDocumento,
@@ -9,16 +10,30 @@ import {
   tipoDocumentoDa,
   type DatiFattura,
 } from '../../supabase/functions/_shared/fic-fattura';
-import { nomeCompleto } from '../../supabase/functions/_shared/fic-anagrafica';
+import { mappaAnagraficaPerFic } from '../../supabase/functions/_shared/fic-anagrafica';
 
 // La forma del payload viene dalla guida ufficiale "Invoice creation" di
 // Fatture in Cloud e non si ricostruisce a memoria: se regredisce, il sintomo
 // è un 422 in emissione o, peggio, una fattura con l'aliquota sbagliata.
 
+const anaIt = {
+  tipo: 'persona_fisica', nome: 'Mario', cognome: 'Rossi', codice_fiscale: 'RSSMRA80A01H501U',
+  indirizzo_via: 'Via Roma', indirizzo_civico: '1', indirizzo_cap: '42121',
+  indirizzo_comune: 'Reggio Emilia', indirizzo_provincia: 'RE', indirizzo_nazione: 'IT',
+  email_recapito: 'mario@example.com',
+};
+const anaEstera = {
+  tipo: 'persona_fisica', nome: 'Jean', cognome: 'Dupont', codice_fiscale: 'XXX',
+  indirizzo_via: 'Rue de Rivoli', indirizzo_civico: '10', indirizzo_cap: '75001',
+  indirizzo_comune: 'Paris', indirizzo_nazione: 'FR', email_recapito: 'jean@example.com',
+};
+
 const base: DatiFattura = {
   tipo: 'proforma',
   ficEntityId: 123456,
-  nomeCliente: 'Mario Rossi',
+  entity: mappaAnagraficaPerFic(anaIt).data,
+  eiMetodoPagamento: 'MP05',
+  iban: 'IT60X0542811101000000123456',
   competenza: '2026-03-01',
   imponibile: 272.73,
   totale: 300,
@@ -41,7 +56,7 @@ describe('helper di data e descrizione', () => {
   });
 
   it('compone la descrizione del canone', () => {
-    expect(descrizioneCanone('2026-03-01')).toBe('Canone di ospitalità — marzo 2026');
+    expect(descrizioneCanone('2026-03-01')).toBe('Canone di ospitalità Studentato Europa, marzo 2026');
   });
 });
 
@@ -89,7 +104,7 @@ describe('costruisciPayloadFattura', () => {
   });
 
   it('descrive la riga col mese in lettere', () => {
-    expect((data.items_list as any[])[0].name).toBe('Canone di ospitalità — marzo 2026');
+    expect((data.items_list as any[])[0].name).toBe('Canone di ospitalità Studentato Europa, marzo 2026');
   });
 
   it('manda net_price uguale all\'imponibile del canone', () => {
@@ -125,20 +140,81 @@ describe('costruisciPayloadFattura', () => {
     expect((data.payments_list as any[])[0].amount).toBe(300);
   });
 
-  it('manda entity con id e name valorizzati', () => {
-    expect(data.entity).toEqual({ id: 123456, name: 'Mario Rossi' });
+  it('entity completa per anagrafica italiana: stesso oggetto della mappatura', () => {
+    const m = mappaAnagraficaPerFic(anaIt).data;
+    expect(data.entity).toEqual({ id: 123456, ...m });
+    const e = data.entity as any;
+    expect(e.first_name).toBe('Mario');
+    expect(e.last_name).toBe('Rossi');
+    expect(e.tax_code).toBe('RSSMRA80A01H501U');
+    expect(e.address_street).toBe('Via Roma 1');
+    expect(e.address_postal_code).toBe('42121');
   });
 
-  it('compone entity.name per una persona fisica con nomeCompleto', () => {
-    const nome = nomeCompleto({ tipo: 'persona_fisica', nome: 'Mario', cognome: 'Rossi' });
-    const { data: d } = costruisciPayloadFattura({ ...base, nomeCliente: nome });
-    expect((d.entity as any).name).toBe('Mario Rossi');
+  it('entity completa per anagrafica estera: vale la mappatura estera', () => {
+    const { data: d } = costruisciPayloadFattura({ ...base, entity: mappaAnagraficaPerFic(anaEstera).data });
+    const e = d.entity as any;
+    expect(e.country_iso).toBe('FR');
+    expect(e.address_postal_code).toBe('00000');
+    expect(e.address_province).toBe('EE');
+    expect(e.tax_code).toBe('');
+    expect(e.ei_code).toBe('XXXXXXX');
   });
 
-  it('compone entity.name per un soggetto giuridico con la denominazione', () => {
-    const nome = nomeCompleto({ tipo: 'soggetto_giuridico', denominazione: 'Navona SRL', nome: 'Ignorato', cognome: 'Ignorato' });
-    const { data: d } = costruisciPayloadFattura({ ...base, nomeCliente: nome });
+  it('entity per soggetto giuridico usa la denominazione', () => {
+    const m = mappaAnagraficaPerFic({ ...anaIt, tipo: 'soggetto_giuridico', denominazione: 'Navona SRL', partita_iva: '01234567890' }).data;
+    const { data: d } = costruisciPayloadFattura({ ...base, entity: m });
     expect((d.entity as any).name).toBe('Navona SRL');
+    expect((d.entity as any).type).toBe('company');
+  });
+
+  it('payment_terms coerente con due_date', () => {
+    const p = (data.payments_list as any[])[0];
+    expect(p.payment_terms).toEqual({ days: giorniFra('2026-03-10', p.due_date), type: 'standard' });
+    expect(p.payment_terms.days).toBe(21);
+  });
+
+  it('payment_terms su arretrato: days = 0', () => {
+    const { data: d } = costruisciPayloadFattura({ ...base, scadenza: '2026-01-31' });
+    expect((d.payments_list as any[])[0].payment_terms).toEqual({ days: 0, type: 'standard' });
+  });
+
+  it('payment_terms col ripiego sui giorni di scadenza', () => {
+    const { data: d } = costruisciPayloadFattura({ ...base, scadenza: null });
+    expect((d.payments_list as any[])[0].payment_terms.days).toBe(30);
+  });
+
+  it('ei_data assente in proforma', () => {
+    expect('ei_data' in data).toBe(false);
+  });
+
+  it('ei_data in invoice con payment_method e bank_iban', () => {
+    const { data: d } = costruisciPayloadFattura({ ...base, tipo: 'invoice' });
+    expect(d.ei_data).toEqual({ payment_method: 'MP05', bank_iban: 'IT60X0542811101000000123456' });
+  });
+
+  it('ei_data in invoice senza IBAN non contiene bank_iban', () => {
+    for (const iban of [null, undefined, '', '  ']) {
+      const { data: d } = costruisciPayloadFattura({ ...base, tipo: 'invoice', iban });
+      expect(d.ei_data).toEqual({ payment_method: 'MP05' });
+      expect('bank_iban' in (d.ei_data as any)).toBe(false);
+    }
+  });
+
+  it('invariante: nessuna proprietà null o undefined a qualunque profondità', () => {
+    const cerca = (v: unknown, path: string): string[] => {
+      if (v === null || v === undefined) return [path];
+      if (typeof v !== 'object') return [];
+      return Object.entries(v as object).flatMap(([k, x]) => cerca(x, `${path}.${k}`));
+    };
+    for (const tipo of ['proforma', 'invoice'] as const) {
+      for (const ana of [anaIt, anaEstera]) {
+        for (const extra of [{}, { scadenza: null, iban: null }]) {
+          const p = costruisciPayloadFattura({ ...base, ...extra, tipo, entity: mappaAnagraficaPerFic(ana).data });
+          expect(cerca(p.data, 'data')).toEqual([]);
+        }
+      }
+    }
   });
 
   it('con tipo proforma non manda il flag di fattura elettronica', () => {

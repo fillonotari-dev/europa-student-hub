@@ -2,7 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { z } from 'npm:zod@3'
 import { FIC_BASE, ficFetch, estraiDiagnosticaFic, isQuotaError } from '../_shared/fic-client.ts'
-import { campiMancantiPerFattura, mappaAnagraficaPerFic, nomeCompleto } from '../_shared/fic-anagrafica.ts'
+import { campiMancantiPerFattura, mappaAnagraficaPerFic } from '../_shared/fic-anagrafica.ts'
 import { esisteFatturaDaRiconciliare, MESSAGGIO_DOPPIONE } from '../_shared/fic-collega.ts'
 import {
   costruisciPayloadFattura,
@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
 
   const { data: imp } = await admin
     .from('impostazioni')
-    .select('fic_numerazione, fic_giorni_scadenza, fic_metodo_pagamento_id, fic_vat_id, fic_vat_valore, fic_metodo_pagamento, fic_emette_fatture')
+    .select('fic_numerazione, fic_giorni_scadenza, fic_metodo_pagamento_id, fic_vat_id, fic_vat_valore, fic_metodo_pagamento, fic_emette_fatture, fic_ei_metodo_pagamento, fic_iban')
     .eq('id', 1)
     .maybeSingle()
 
@@ -205,6 +205,10 @@ Deno.serve(async (req) => {
       fallisci('Metodo di pagamento o aliquota IVA non ancora scelti nelle impostazioni di fatturazione.', { guardia: 'impostazioni' })
       continue
     }
+    if (!imp.fic_ei_metodo_pagamento || !String(imp.fic_ei_metodo_pagamento).trim()) {
+      fallisci('Modalità di pagamento per la fattura elettronica (codice SDI) non scelta nelle impostazioni di fatturazione.', { guardia: 'impostazioni' })
+      continue
+    }
 
     // --- (f) aliquota del canone uguale a quella scelta ---
     if (Number(canone.aliquota_iva) !== Number(imp.fic_vat_valore)) {
@@ -223,10 +227,16 @@ Deno.serve(async (req) => {
 
     const scadenzaDoc = scadenzaDocumento(oggi, canone.scadenza, giorniScadenza)
 
+    // Mappatura calcolata QUI, prima del payload: stesso oggetto per il PUT del
+    // cliente e per l'entity del documento. Puro calcolo, nessuna chiamata.
+    const mappatura = mappaAnagraficaPerFic(ana)
+
     const payload = costruisciPayloadFattura({
       tipo: TIPO,
       ficEntityId: Number(ana.fic_entity_id),
-      nomeCliente: nomeCompleto(ana),
+      entity: mappatura.data,
+      eiMetodoPagamento: String(imp.fic_ei_metodo_pagamento),
+      iban: imp.fic_iban ?? null,
       competenza: canone.competenza,
       imponibile,
       totale,
@@ -278,7 +288,6 @@ Deno.serve(async (req) => {
 
     // --- Risincronizzazione dell'intestazione: il gestionale è la fonte di
     // verità, e una fattura sbagliata si corregge solo con nota di credito. ---
-    const mappatura = mappaAnagraficaPerFic(ana)
     const urlCliente = `${FIC_BASE}/c/${companyId}/entities/clients/${ana.fic_entity_id}`
     const sync = await ficFetch(urlCliente, { method: 'PUT', token, body: { data: mappatura.data } })
 
@@ -401,6 +410,17 @@ Deno.serve(async (req) => {
       payload_ridotto: {
         canone_id: canoneId, fattura_id: fatturaId, fic_document_id: docId,
         tipo_documento: TIPO, scritture_locali: SCRITTURE, ...doc.quota,
+        // Cosa FIC ha effettivamente salvato. Nessun dato personale: dell'IBAN
+        // solo la presenza, dell'entity solo i NOMI dei campi valorizzati.
+        salvato: {
+          numeration: d?.numeration ?? null,
+          number: d?.number ?? null,
+          due_date: d?.payments_list?.[0]?.due_date ?? null,
+          payment_terms: d?.payments_list?.[0]?.payment_terms ?? null,
+          ei_payment_method: d?.ei_data?.payment_method ?? null,
+          ei_bank_iban_presente: d?.ei_data?.bank_iban ? 'sì' : 'no',
+          entity_campi: d?.entity && typeof d.entity === 'object' ? campiValorizzati(d.entity) : [],
+        },
       },
     })
 

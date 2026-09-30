@@ -878,6 +878,7 @@ export type Database = {
           contatto_orari: string | null
           contatto_telefono: string | null
           contatto_whatsapp: string | null
+          fic_ei_metodo_pagamento: string
           fic_emette_fatture: boolean
           fic_giorni_scadenza: number | null
           fic_giorno_emissione: number | null
@@ -896,6 +897,7 @@ export type Database = {
           contatto_orari?: string | null
           contatto_telefono?: string | null
           contatto_whatsapp?: string | null
+          fic_ei_metodo_pagamento?: string
           fic_emette_fatture?: boolean
           fic_giorni_scadenza?: number | null
           fic_giorno_emissione?: number | null
@@ -914,6 +916,7 @@ export type Database = {
           contatto_orari?: string | null
           contatto_telefono?: string | null
           contatto_whatsapp?: string | null
+          fic_ei_metodo_pagamento?: string
           fic_emette_fatture?: boolean
           fic_giorni_scadenza?: number | null
           fic_giorno_emissione?: number | null
