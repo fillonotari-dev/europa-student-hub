@@ -2,7 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { z } from 'npm:zod@3'
 import { FIC_BASE, ficFetch, estraiDiagnosticaFic, isQuotaError } from '../_shared/fic-client.ts'
-import { importiDocumento, stessoId, stessoImporto } from '../_shared/fic-collega.ts'
+import { importiDocumento, rispostaClient4xx, stessoId, stessoImporto } from '../_shared/fic-collega.ts'
 
 /**
  * fic-collega-fattura — registra nel gestionale fatture GIÀ ESISTENTI su
@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
       if (!r.ok) {
         const msg = messaggioErrore(r.status, r.body)
         const ridotto: Record<string, unknown> = { canone_id: canone.id, page, ...r.quota }
-        if (r.status === 400 || r.status === 422) Object.assign(ridotto, estraiDiagnosticaFic(r.body))
+        if (rispostaClient4xx(r.status)) Object.assign(ridotto, estraiDiagnosticaFic(r.body))
         await logFic(admin, { endpoint: '/c/{company_id}/issued_documents', http_status: r.status, esito: 'errore', messaggio: msg, payload_ridotto: ridotto })
         return json(200, { ok: false, message: msg })
       }
@@ -146,7 +146,10 @@ Deno.serve(async (req) => {
     const msg = messaggioErrore(r.status, r.body)
     await logFic(admin, {
       endpoint: '/c/{company_id}/issued_documents/{document_id}', http_status: r.status, esito: 'errore', messaggio: msg,
-      payload_ridotto: { canone_id: canone.id, fic_document_id: input.fic_document_id, ...r.quota },
+      payload_ridotto: {
+        canone_id: canone.id, fic_document_id: input.fic_document_id, ...r.quota,
+        ...(rispostaClient4xx(r.status) ? estraiDiagnosticaFic(r.body) : {}),
+      },
     })
     return json(200, { ok: false, message: msg })
   }

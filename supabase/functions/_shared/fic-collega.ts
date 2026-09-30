@@ -43,3 +43,18 @@ export function esisteFatturaDaRiconciliare(
 
 export const MESSAGGIO_DOPPIONE =
   'Esiste una fattura da riconciliare per questo contratto: verificala nel pannello Da riconciliare prima di emettere.'
+
+/**
+ * Rifiuto definitivo di Fatture in Cloud: il documento sicuramente NON esiste.
+ * 400 e 422: richiesta non valida. 409: la documentazione ufficiale
+ * (developers.fattureincloud.it/docs/basics/errors) dice che "the request has
+ * no effect"; fra le cause il numero duplicato e la violazione dell'ordine
+ * cronologico del sezionale. Ogni altro esito (rete, 5xx, 429...) lascia il
+ * dubbio che il documento esista.
+ */
+export const rifiutoDefinitivoFic = (status: number | null): boolean =>
+  status === 400 || status === 409 || status === 422
+
+/** Risposta 4xx: si registra la diagnostica (estraiDiagnosticaFic) in fic_log. */
+export const rispostaClient4xx = (status: number | null): boolean =>
+  status != null && status >= 400 && status < 500

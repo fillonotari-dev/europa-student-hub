@@ -3,9 +3,10 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { z } from 'npm:zod@3'
 import { FIC_BASE, ficFetch, estraiDiagnosticaFic, isQuotaError } from '../_shared/fic-client.ts'
 import { campiMancantiPerFattura, mappaAnagraficaPerFic } from '../_shared/fic-anagrafica.ts'
-import { esisteFatturaDaRiconciliare, MESSAGGIO_DOPPIONE } from '../_shared/fic-collega.ts'
+import { esisteFatturaDaRiconciliare, MESSAGGIO_DOPPIONE, rifiutoDefinitivoFic, rispostaClient4xx } from '../_shared/fic-collega.ts'
 import {
   costruisciPayloadFattura,
+  oggiRoma,
   descrizioneCanone,
   scadenzaDocumento,
   scrittureLocaliAttive,
@@ -66,6 +67,11 @@ function messaggioErrore(status: number | null, body: string, contesto: string):
     return isQuotaError(status, body)
       ? 'Quota di chiamate esaurita: riprova più tardi.'
       : `Il token non ha i permessi necessari per ${contesto}.`
+  }
+  if (status === 409) {
+    const base = 'Fatture in Cloud ha rifiutato la fattura per un conflitto con i documenti esistenti (per esempio una data precedente all\'ultima fattura del sezionale). Nessun documento è stato creato.'
+    const fic = estraiDiagnosticaFic(body).fic_error_message
+    return typeof fic === 'string' && fic.trim() ? `${base} ${fic.trim()}` : base
   }
   if (status === 400 || status === 422) return `Fatture in Cloud ha rifiutato ${contesto}.`
   return `Fatture in Cloud ha risposto con errore ${status}.`
@@ -134,7 +140,8 @@ Deno.serve(async (req) => {
   const TIPO: TipoDocumento = tipoDocumentoDa(imp?.fic_emette_fatture === true)
   const SCRITTURE = scrittureLocaliAttive(TIPO)
 
-  const oggi = new Date().toISOString().slice(0, 10)
+  // Data del documento nel fuso italiano, non UTC.
+  const oggi = oggiRoma()
   const esiti: Record<string, unknown>[] = []
 
   for (const canoneId of canone_ids) {
@@ -315,7 +322,7 @@ Deno.serve(async (req) => {
     if (!sync.ok) {
       const msg = messaggioErrore(sync.status, sync.body, 'i dati dell\'intestazione')
       const ridotto: Record<string, unknown> = { canone_id: canoneId, anagrafica_id: ana.id, ...sync.quota }
-      if (sync.status === 400 || sync.status === 422) {
+      if (rispostaClient4xx(sync.status)) {
         ridotto.campi_inviati = campiValorizzati(mappatura.data as unknown as Record<string, unknown>)
         Object.assign(ridotto, estraiDiagnosticaFic(sync.body))
       }
@@ -378,13 +385,17 @@ Deno.serve(async (req) => {
     }
 
     if (!doc.ok) {
-      const definitivo = doc.status === 400 || doc.status === 422
+      // 400/409/422: rifiuto definitivo, il documento non esiste. Per il 409 la
+      // documentazione ufficiale (developers.fattureincloud.it/docs/basics/errors)
+      // dice "the request has no effect" (numero duplicato, ordine cronologico
+      // del sezionale violato): la riga NON deve restare in_invio.
+      const definitivo = rifiutoDefinitivoFic(doc.status)
       const msg = messaggioErrore(doc.status, doc.body, 'il documento')
       const ridotto: Record<string, unknown> = {
         canone_id: canoneId, fattura_id: fatturaId,
         campi_inviati: campiValorizzati(payload.data), ...doc.quota,
       }
-      if (definitivo) Object.assign(ridotto, estraiDiagnosticaFic(doc.body))
+      if (rispostaClient4xx(doc.status)) Object.assign(ridotto, estraiDiagnosticaFic(doc.body))
       await logFic(admin, {
         metodo: 'POST', endpoint: '/c/{company_id}/issued_documents',
         http_status: doc.status, esito: 'errore', messaggio: msg, payload_ridotto: ridotto,

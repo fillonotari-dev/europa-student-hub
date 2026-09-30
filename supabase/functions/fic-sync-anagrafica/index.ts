@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { campiMancantiPerFicSync, mappaAnagraficaPerFic } from '../_shared/fic-anagrafica.ts'
+import { rispostaClient4xx } from '../_shared/fic-collega.ts'
 
 /**
  * fic-sync-anagrafica — allinea una riga di anagrafiche_fatturazione al
@@ -228,7 +229,7 @@ Deno.serve(async (req) => {
     else if (lastStatus === 422 || lastStatus === 400) msg = 'Fatture in Cloud ha rifiutato i dati dell\'anagrafica.'
     else msg = `Fatture in Cloud ha risposto con errore ${lastStatus}.`
     const ridotto: Record<string, unknown> = { anagrafica_id: anagraficaId, ...quota }
-    if (lastStatus === 400 || lastStatus === 422) {
+    if (rispostaClient4xx(lastStatus)) {
       // Solo i nomi dei campi valorizzati, mai i valori: il payload contiene
       // dati personali e non deve finire nel registro.
       ridotto.campi_inviati = Object.entries(mappatura.data as Record<string, unknown>)
