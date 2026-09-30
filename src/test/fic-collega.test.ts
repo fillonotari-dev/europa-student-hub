@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   esisteFatturaDaRiconciliare, importiDocumento, stessoId, stessoImporto,
-} from '@shared/fic-collega';
+} from '@shared/fic-collega.ts';
 
 describe('fic-collega', () => {
   it('confronta gli importi in centesimi', () => {
