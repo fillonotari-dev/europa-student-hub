@@ -225,19 +225,15 @@ describe('costruisciPayloadFattura', () => {
     }
   });
 
-  it('con IBAN mette la nota "IBAN: ..."', () => {
+  it('notes non è mai presente, con o senza IBAN, in proforma e invoice', () => {
     for (const tipo of ['proforma', 'invoice'] as const) {
-      const { data: d } = costruisciPayloadFattura({ ...base, tipo, iban: '  IT60X0542811101000000123456 ' });
-      expect(d.notes).toBe('IBAN: IT60X0542811101000000123456');
+      for (const iban of ['IT60X0542811101000000123456', null, undefined, '', '  ']) {
+        const { data: d } = costruisciPayloadFattura({ ...base, tipo, iban });
+        expect('notes' in d).toBe(false);
+      }
     }
   });
 
-  it('senza IBAN nessuna chiave notes', () => {
-    for (const iban of [null, undefined, '', '  ']) {
-      const { data: d } = costruisciPayloadFattura({ ...base, tipo: 'invoice', iban });
-      expect('notes' in d).toBe(false);
-    }
-  });
 
   it('con tipo proforma non manda il flag di fattura elettronica', () => {
     expect('e_invoice' in costruisciPayloadFattura({ ...base, tipo: 'proforma' }).data).toBe(false);
