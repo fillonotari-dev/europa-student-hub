@@ -420,6 +420,8 @@ Deno.serve(async (req) => {
           ei_payment_method: d?.ei_data?.payment_method ?? null,
           ei_bank_iban_presente: d?.ei_data?.bank_iban ? 'sì' : 'no',
           entity_campi: d?.entity && typeof d.entity === 'object' ? campiValorizzati(d.entity) : [],
+          show_payment_method: d?.show_payment_method ?? null,
+          notes_presenti: typeof d?.notes === 'string' && d.notes.trim() !== '' ? 'sì' : 'no',
         },
       },
     })
