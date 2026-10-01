@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('@/integrations/supabase/client', () => ({ supabase: {} }));
+vi.mock('@/components/admin/contratti/anagraficaStudente', () => ({ caricaAnaStudente: vi.fn() }));
+vi.mock('@/components/admin/contratti/AnagraficaFatturazioneFields', () => ({ payloadAnagrafica: vi.fn() }));
 import {
   scegliAssegnazione, campiDaAssegnazione, garanteDaCandidatura, canoneDaListino,
   bloccantiAttivazione, motivoErroreBozza, DEPOSITO_DA_DEFINIRE, GIORNO_SCADENZA_PREDEFINITO,
