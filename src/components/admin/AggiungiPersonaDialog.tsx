@@ -15,6 +15,7 @@ import { NATIONALITIES } from '@/lib/nationalities';
 import { PROVINCE } from '@shared/province';
 import { COUNTRIES } from '@shared/countries';
 import { AlertTriangle, BedDouble } from 'lucide-react';
+import { creaBozzaDaAssegnazione } from '@/lib/precompilaContratto';
 
 /**
  * Dialogo "Aggiungi persona" (toolbar di /admin/residenti).
@@ -161,15 +162,20 @@ export function AggiungiPersonaDialog({ open, onOpenChange }: { open: boolean; o
     const { data, error } = await supabase.rpc('crea_persona_manuale', {
       p_studente, p_candidatura: {}, p_assegnazione,
     } as any);
-    setSaving(false);
     if (error) {
+      setSaving(false);
       // Gli errori della funzione sono già in italiano e specifici: mostrati testualmente.
       setSubmitError(error.message);
       return;
     }
+    // Bozza di contratto automatica quando c'è un'assegnazione: mai attivata qui.
+    // L'esito si mostra nella scheda (stato di navigazione), perché questa pagina si chiude.
+    const assegnazioneId = (data as any)?.assegnazione_id as string | null;
+    const esitoBozza = assegnazioneId ? await creaBozzaDaAssegnazione(assegnazioneId) : null;
+    setSaving(false);
     toast({ title: conPosto ? 'Persona aggiunta e assegnata al posto letto' : 'Persona aggiunta in lista d\u2019attesa' });
     onOpenChange(false);
-    navigate(`/admin/studenti/${(data as any).studente_id}`);
+    navigate(`/admin/studenti/${(data as any).studente_id}`, { state: esitoBozza ? { esitoBozza } : undefined });
   };
 
   return (
