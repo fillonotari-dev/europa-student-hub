@@ -20,12 +20,11 @@ import {
 import { generaScadenzario, totaleRiga } from '@/lib/scadenzario';
 import { imponibilePersonalizzato, partizionaMensilitaPerCambioCanone } from '@/lib/canoniRicalcolo';
 import { eliminaContrattoBozza } from '@/lib/contrattoDelete';
-import { scomposizione, lordoDaImponibile } from '@/lib/iva';
+import { scomposizione, lordoDaImponibile, imponibileDaLordo } from '@/lib/iva';
 import { fmtEuro, fmtIt, STATO_CONTRATTO_COLORS } from './Contratti';
 import { cn } from '@/lib/utils';
 import { VerificaBozza } from '@/components/admin/contratti/VerificaBozza';
 import { bloccantiAttivazione, cercaListino } from '@/lib/precompilaContratto';
-import { imponibileDaLordo } from '@/lib/iva';
 import { AlertTriangle, Check, FileUp, FileText, Info, Pencil, Repeat, Trash2, Undo2, X } from 'lucide-react';
 
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
