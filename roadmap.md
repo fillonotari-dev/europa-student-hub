@@ -34,3 +34,4 @@ Debiti aperti dichiarati:
 - [x] Documentazione Context allineata a rifiuto 409, diagnostica 4xx e data italiana
 - [x] Una sola strada: il gestionale crea sempre fatture (rimosso il modo proforma, vocabolario crea/emetti)
 - [x] Fatturazione: stati leggibili (statiFatturazione.ts), due tab, archivio paginato con errori, mese proposto con arretrati, stato vuoto e prossimo lotto, Collega nel menu ⋯
+- [x] Fatturazione: tabella del mese con le mensilità già fatturate, riepilogo fuori dalla tabella, prossimo lotto = primo mese con da fatturare
