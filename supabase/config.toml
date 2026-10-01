@@ -26,3 +26,5 @@ project_id = "mxfrhocvswxfweyafqce"
   [functions.fic-collega-fattura]
     verify_jwt = true
 
+  [functions.fic-riallinea]
+    verify_jwt = false

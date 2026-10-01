@@ -1,13 +1,21 @@
 import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
 import { fmtEuro, fmtIt } from '@/pages/admin/Contratti';
-import { STATO_FATTURA } from '@/lib/statiFatturazione';
+import { STATO_FATTURA, etichettaSdi } from '@/lib/statiFatturazione';
+import { cn } from '@/lib/utils';
 import { meseSuccessivo } from '@/lib/meseFatturazione';
 import { StatoBadge } from './StatoBadge';
+import { RiepilogoRiallineamento, type EsitoRiallineamento } from './RiepilogoRiallineamento';
+
+/** Query di Fatturazione da rileggere dopo un riallineamento. */
+export const QUERY_FATTURAZIONE = ['fatturazione-canoni', 'fatturazione-arretrati', 'fatturazione-piu-vecchia',
+  'fatturazione-riconciliare', 'fatturazione-archivio', 'fatturazione-archivio-conteggio',
+  'fatturazione-mese-fatturate', 'fatturazione-prossimo-lotto', 'fatturazione-canoni-collegati', 'fatturazione-avvisi'];
 
 const PAGE_SIZE = 15;
 const FK_CANONI = 'canoni!canoni_fattura_stesso_contratto_fkey';
@@ -26,6 +34,24 @@ const etichettaMese = (m: string) =>
 export function ArchivioFatture({ mesi }: { mesi: string[] }) {
   const [pagina, setPagina] = useState(1);
   const [meseFiltro, setMeseFiltro] = useState<string>('tutti');
+  const [riallineo, setRiallineo] = useState(false);
+  const [esito, setEsito] = useState<EsitoRiallineamento | null>(null);
+  const qc = useQueryClient();
+
+  const riallinea = async () => {
+    setRiallineo(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('fic-riallinea', { body: {} });
+      if (error) throw error;
+      if (!data?.ok) { toast.error(data?.message ?? 'Riallineamento non riuscito.'); return; }
+      setEsito(data as EsitoRiallineamento);
+      for (const k of QUERY_FATTURAZIONE) qc.invalidateQueries({ queryKey: [k] });
+    } catch {
+      toast.error('Riallineamento non riuscito: riprova più tardi.');
+    } finally {
+      setRiallineo(false);
+    }
+  };
 
   useEffect(() => { setPagina(1); }, [meseFiltro]);
 
@@ -36,8 +62,8 @@ export function ArchivioFatture({ mesi }: { mesi: string[] }) {
       let q = supabase
         .from('fatture')
         .select(
-          `id, numero, numerazione, data, totale, stato, ei_status, url_documento, messaggio_errore, created_at,
-           contratti(studenti(nome, cognome)), ${FK_CANONI}${filtra ? '!inner' : ''}(competenza)`,
+          `id, numero, numerazione, data, totale, stato, ei_status, url_documento, messaggio_errore, created_at, riallineata_il,
+           contratti(studenti(nome, cognome), anagrafiche_fatturazione(codice_destinatario)), ${FK_CANONI}${filtra ? '!inner' : ''}(competenza)`,
           { count: 'exact' },
         )
         .not('stato', 'in', STATI_ARCHIVIO_ESCLUSI)
@@ -57,6 +83,8 @@ export function ArchivioFatture({ mesi }: { mesi: string[] }) {
   const inizio = (pagina - 1) * PAGE_SIZE;
 
   return (
+    <div className="space-y-4">
+    <RiepilogoRiallineamento esito={esito} onClose={() => setEsito(null)} />
     <section className="bg-card border border-border/50 rounded-lg overflow-hidden">
       <div className="flex flex-wrap items-center gap-3 px-5 py-4 border-b border-border/50">
         <Select value={meseFiltro} onValueChange={setMeseFiltro}>
@@ -71,6 +99,10 @@ export function ArchivioFatture({ mesi }: { mesi: string[] }) {
             Col filtro per mese non compaiono le fatture senza mensilità collegata (per esempio quelle in errore).
           </span>
         )}
+        <Button variant="outline" className="ml-auto" disabled={riallineo} onClick={riallinea}>
+          {riallineo ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+          Riallinea con Fatture in Cloud
+        </Button>
       </div>
       <table className="w-full">
         <thead>
@@ -112,7 +144,7 @@ export function ArchivioFatture({ mesi }: { mesi: string[] }) {
                     <p className="mt-1 text-xs text-muted-foreground">{f.messaggio_errore}</p>
                   )}
                 </td>
-                <td className="px-4 py-3 text-muted-foreground">{f.ei_status ?? '—'}</td>
+                <td className="px-4 py-3"><CellaSdi fattura={f} /></td>
               </tr>
             );
           })}
@@ -130,5 +162,21 @@ export function ArchivioFatture({ mesi }: { mesi: string[] }) {
         </div>
       )}
     </section>
+    </div>
+  );
+}
+
+function CellaSdi({ fattura }: { fattura: any }) {
+  if (fattura.stato !== 'emessa') return <span className="text-muted-foreground">—</span>;
+  const v = etichettaSdi(fattura.ei_status, fattura.contratti?.anagrafiche_fatturazione?.codice_destinatario);
+  const verificata = fattura.riallineata_il
+    ? `Ultima verifica con Fatture in Cloud: ${new Date(fattura.riallineata_il).toLocaleString('it-IT')}`
+    : 'Mai verificata con Fatture in Cloud';
+  const titolo = [v.spiegazione, verificata].filter(Boolean).join('\n');
+  return (
+    <div title={titolo} className="space-y-1">
+      <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', v.classi)}>{v.etichetta}</span>
+      {v.nota && <p className="text-xs text-muted-foreground">{v.nota}</p>}
+    </div>
   );
 }

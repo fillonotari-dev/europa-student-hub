@@ -19,7 +19,8 @@ import { oggiRoma } from '@shared/fic-fattura';
 import { mesePredefinito, meseSuccessivo } from '@/lib/meseFatturazione';
 import { SPIEGAZIONE_RICONCILIAZIONE, STATO_CANONE, STATO_FATTURA } from '@/lib/statiFatturazione';
 import { StatoBadge } from '@/components/admin/fatturazione/StatoBadge';
-import { ArchivioFatture, STATI_ARCHIVIO_ESCLUSI } from '@/components/admin/fatturazione/ArchivioFatture';
+import { ArchivioFatture, QUERY_FATTURAZIONE, STATI_ARCHIVIO_ESCLUSI } from '@/components/admin/fatturazione/ArchivioFatture';
+import { AvvisiFatturazione } from '@/components/admin/fatturazione/AvvisiFatturazione';
 
 /** L'anteprima non chiama Fatture in Cloud: può permettersi gruppi ampi. */
 const GRUPPO_ANTEPRIMA = 50;
@@ -210,11 +211,7 @@ export default function Fatturazione() {
     setSelezione(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const invalidaTutto = () => {
-    for (const k of ['fatturazione-canoni', 'fatturazione-arretrati', 'fatturazione-piu-vecchia',
-      'fatturazione-riconciliare', 'fatturazione-archivio', 'fatturazione-archivio-conteggio',
-      'fatturazione-mese-fatturate', 'fatturazione-prossimo-lotto', 'fatturazione-canoni-collegati']) {
-      qc.invalidateQueries({ queryKey: [k] });
-    }
+    for (const k of QUERY_FATTURAZIONE) qc.invalidateQueries({ queryKey: [k] });
   };
 
   const emetti = async () => {
@@ -387,14 +384,17 @@ export default function Fatturazione() {
         )}
       </div>
 
+      <AvvisiFatturazione />
+
       <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground space-y-1">
         <p>
           La fattura viene creata su Fatture in Cloud e resta modificabile lì finché non viene emessa,
           cioè trasmessa allo SDI: l'emissione si fa da Fatture in Cloud.
         </p>
         <p>
-          Nel gestionale la mensilità passa subito a fatturato e non torna indietro: un documento
-          sbagliato va corretto su Fatture in Cloud, non cancellato.
+          Ogni mattina il gestionale rilegge le fatture da Fatture in Cloud: le correzioni fatte lì
+          (numero, data, importi, stato dell'invio) arrivano anche qui. Una fattura cancellata su
+          Fatture in Cloud prima della trasmissione viene annullata anche qui e la mensilità torna da fatturare.
         </p>
       </div>
 

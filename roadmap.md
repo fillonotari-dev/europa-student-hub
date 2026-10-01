@@ -37,5 +37,6 @@ Debiti aperti dichiarati:
 - [x] Fatturazione: tabella del mese con le mensilità già fatturate, riepilogo fuori dalla tabella, prossimo lotto = primo mese con da fatturare
 
 - [x] Riallineamento fatture: stato annullata, riallinea_fattura (solo service_role), varco nei trigger col segnale app.riallineamento
-- [ ] Sincronizzatore che chiama riallinea_fattura ed etichetta «Annullata» (intervento successivo)
+- [x] Sincronizzatore fic-riallinea ed etichetta «Annullata» (P5b)
+- [ ] Job pg_cron fic-riallinea-giornaliero — in attesa che Filippo inserisca il segreto (secret + Vault) e confermi
 - [x] Correzione a riallinea_fattura: con p_esiste = true i parametri numero/numerazione/data/imponibile/iva/totale nulli sollevano parametri_riallineamento_mancanti (migration 0003); p_ei_status NULL = invariato

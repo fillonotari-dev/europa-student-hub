@@ -121,8 +121,10 @@ export function EmettiFatturaDialog({ open, righe, busy, onOpenChange, onConferm
           <AlertTriangle className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
           <span>
             La fattura viene creata su Fatture in Cloud e resta modificabile lì finché non viene emessa,
-            cioè trasmessa allo SDI. Nel gestionale la mensilità passa subito a fatturato e non torna
-            indietro: un documento sbagliato va corretto su Fatture in Cloud, non cancellato.{' '}
+            cioè trasmessa allo SDI. Nel gestionale la mensilità passa subito a fatturato; le correzioni
+            fatte su Fatture in Cloud arrivano qui al riallineamento successivo. Se il documento viene
+            cancellato su Fatture in Cloud prima della trasmissione, qui la fattura viene annullata e la
+            mensilità torna da fatturare.{' '}
             La trasmissione allo SDI non viene fatta dal gestionale e resta un'azione manuale su Fatture in Cloud.
           </span>
         </div>
