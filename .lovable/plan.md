@@ -15,7 +15,11 @@
 
 ## 2. Edge function `fic-riallinea` (solo GET su Fatture in Cloud)
 - Selezione: `stato='emessa'`, `fic_document_id` non nullo, (`ei_status` non definitivo **o** `riallineata_il` nullo), `data >= oggi Roma - 90 giorni`.
-- Per ciascuna: GET `/c/{company}/issued_documents/{id}`. 200 → valori; 404 → p_esiste false; altro → saltata, diagnostica 4xx esistente (`rispostaClient4xx`, `estraiDiagnosticaFic`).
+- Interruttore di sicurezza (un annullamento è irreversibile):
+  - All'inizio GET `/c/{company}/company/info`: se fallisce, nessuna fattura elaborata, il giro si chiude con errore esplicito (fic_log esito errore).
+  - Per ciascuna: GET `/c/{company}/issued_documents/{id}`. 200 → valori; 404 → secondo GET immediato, solo un doppio 404 vale "documento inesistente"; altro → saltata, diagnostica 4xx esistente (`rispostaClient4xx`, `estraiDiagnosticaFic`).
+  - Prima si raccolgono tutti gli esiti del giro, poi si scrive. Funzione pura `ammettiAnnullamenti(nInesistenti)` in `fic-riallinea.ts`: soglia 2. Se gli inesistenti sono più di 2, nessuna chiamata con p_esiste false: tutti registrati come anomalia `troppi_404` (fic_log) e mostrati nell'avviso di Fatturazione. Gli aggiornamenti dei documenti esistenti procedono normalmente.
+  - Test puri con 0, 1, 2, 3 inesistenti (0-2 ammessi, 3 bloccati).
 - Chiama `riallinea_fattura` con il client service_role. Eccezione della RPC → anomalia, registrata, si prosegue.
 - `fic_log` con operazione 'riallinea', metodo GET: esito, decisione, nomi dei campi; nessun dato personale.
 - Risposta: elenco aggiornate (campi), annullate (nome studente letto dal gestionale, solo nella risposta all'admin, mai in fic_log), anomalie (codice dell'errore).
@@ -25,8 +29,8 @@
   - (a) JWT admin: `getClaims` + `has_role`, come le altre fic-*.
   - (b) intestazione `x-riallinea-secret` confrontata a tempo costante con il secret `FIC_RIALLINEA_CRON_SECRET`.
   - Altrimenti 403.
-- Segreto condiviso: tu generi un valore casuale lungo (gestore password o `openssl rand -hex 32`) e lo inserisci due volte: nel modulo sicuro (secret della funzione) e — tramite un comando che eseguirò io con il valore preso dal modulo? No: io non vedo mai il valore. Quindi lo inserisci tu anche in Vault, dall'editor SQL del backend, con `select vault.create_secret('<valore>', 'fic_riallinea_cron_secret');`. Il valore non finisce mai in migration, tabelle o nel comando del job.
-- Job pg_cron (creato con run_sql, non migration, come lo schema email): `fic-riallinea-giornaliero`, pianificato `0 5,6 * * *` UTC; il comando esegue net.http_post solo se `extract(hour from now() at time zone 'Europe/Rome') = 7`, così parte alle 07:00 italiane sia con l'ora legale sia con la solare (una chiamata al giorno). Intestazione letta da `vault.decrypted_secrets`.
+- Segreto condiviso: lo inserisci tu, con lo stesso valore, nel secret della funzione `FIC_RIALLINEA_CRON_SECRET` e in Vault con nome `fic_riallinea_cron_secret`. Il valore non finisce mai in migration, tabelle o nel comando del job.
+- Job pg_cron, creato solo dopo la tua conferma (con run_sql, come lo schema email): `fic-riallinea-giornaliero`, pianificato `0 5,6 * * *` UTC; il comando esegue net.http_post solo se `extract(hour from now() at time zone 'Europe/Rome') = 7`, così parte alle 07:00 italiane con ora legale e solare (una chiamata al giorno). Intestazione letta da `vault.decrypted_secrets`.
 - Prova: curl senza Authorization e senza segreto → 403; con JWT non admin → 403. Nessuna prova che scriva sui dati: il primo giro vero lo lanci tu dal pulsante o arriva dal job delle 07:00.
 
 ## 4. Interfaccia
