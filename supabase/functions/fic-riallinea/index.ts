@@ -224,7 +224,7 @@ Deno.serve(async (req) => {
           p_imponibile: null, p_iva: null, p_totale: null, p_ei_status: null, p_url: null,
         }
     const { data: esito, error } = await admin.rpc('riallinea_fattura', p)
-    if (error) { await anomalia(codiceErroreRpc(error.message), remoto ? 200 : 404); continue }
+    if (error) { await anomalia(codiceErroreRpc(error.message), remoto ? 200 : 404, error.message); continue }
 
     // deno-lint-ignore no-explicit-any
     const e = esito as any
