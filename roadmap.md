@@ -12,7 +12,7 @@
 - [x] Modifica intestazione fattura post-creazione: estrazione AnagraficaFatturazioneFields + IntestazioneFatturaDialog
 - [x] Avvisi: mensilità già fatturate, intestazione condivisa da altri contratti, invito a risincronizzare
 - [x] Cambio modalità intestazione: ricarica campi, conteggio sulla riga di destinazione (rigaDestinazioneAnagrafica + test), nota legata all'esito reale
-- [ ] D2: fic-emetti-fattura deve risincronizzare l'anagrafica (PUT idempotente) prima di creare il documento
+- [x] D2: fic-emetti-fattura risincronizza l'anagrafica (PUT idempotente) prima di creare il documento
 - [x] Pagina /admin/fatturazione: lotto mensile con conferma umana, avviso arretrati, archivio, riconciliazione; emissione rimossa dalla scheda contratto
 - [x] Interfaccia Fatturazione allineata a Contratti: filtri in URL, barra selezione sopra, archivio collassabile, tabelle uniformi
 - [x] Importi personalizzati protetti dal cambio canone (aggiorna_canone_contratto + ContrattoPage + funzione pura testata)
@@ -31,4 +31,5 @@ Debiti aperti dichiarati:
 - [x] Collegare fatture già esistenti su FIC (fic-collega-fattura, registra_fattura_esistente) e guardia doppioni in fic-emetti-fattura
 - [x] Fattura elettronica completa: fic_ei_metodo_pagamento, ei_data, entity da mappatura, payment_terms, nuova descrizione, log di ciò che FIC salva
 - [x] 409 di FIC come rifiuto definitivo, diagnostica su ogni 4xx (emetti, sync-anagrafica, collega), data odierna nel fuso Europe/Rome
+- [x] Documentazione Context allineata a rifiuto 409, diagnostica 4xx e data italiana
 - [ ] Sbloccare la riga in_invio della mensilità 46cd973d (decisione dell'operatore, nessuna modifica ai dati dall'agente)
