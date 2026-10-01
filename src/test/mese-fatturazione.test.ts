@@ -24,7 +24,7 @@ describe('mesePredefinito', () => {
 
 describe('mappe di stato', () => {
   it('coprono tutto il dominio', () => {
-    expect(Object.keys(STATO_FATTURA).sort()).toEqual(['emessa', 'errore', 'in_invio']);
+    expect(Object.keys(STATO_FATTURA).sort()).toEqual(['annullata', 'emessa', 'errore', 'in_invio']);
     expect(Object.keys(STATO_CANONE).sort()).toEqual(['annullato', 'da_fatturare', 'fatturato', 'incassato']);
   });
   it('emessa è neutra e si legge come creata', () => {
@@ -32,6 +32,6 @@ describe('mappe di stato', () => {
     expect(STATO_FATTURA.emessa.classi).not.toMatch(/success/);
   });
   it('ripiego sul valore grezzo', () => {
-    expect(voceStato(STATO_FATTURA, 'annullata').etichetta).toBe('annullata');
+    expect(voceStato(STATO_FATTURA, 'sconosciuto').etichetta).toBe('sconosciuto');
   });
 });
