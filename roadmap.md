@@ -41,5 +41,5 @@ Debiti aperti dichiarati:
 - [x] ~~Job pg_cron fic-riallinea-giornaliero~~ — sostituito: la piattaforma non permette all'agente di usare il Vault
 - [x] Etichette SDI rejected, manual_rejected, no_response, manual_accepted, missing; rifiutate nell'avviso di Fatturazione
 - [x] Riallineamento all'apertura di Fatturazione (ultimo giro più vecchio di 6 ore) e dal pulsante; fic-riallinea solo admin con verify_jwt = true; regola dei 10 minuti solo per l'apertura
-- [ ] Bug in riallinea_fattura: `v_campi || 'testo'` solleva "malformed array literal" quando un campo differisce (intervento separato, subito dopo)
+- [x] Bug in riallinea_fattura: `v_campi || 'testo'` solleva "malformed array literal" — corretto con `array_append` (migration `0004_riallinea_fattura_array_append.sql`); fic-riallinea registra anche `messaggio_rpc` (troncato a 300 caratteri) in fic_log quando la RPC fallisce
 - [x] Correzione a riallinea_fattura: con p_esiste = true i parametri numero/numerazione/data/imponibile/iva/totale nulli sollevano parametri_riallineamento_mancanti (migration 0003); p_ei_status NULL = invariato
