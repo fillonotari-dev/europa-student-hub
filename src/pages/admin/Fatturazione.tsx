@@ -396,8 +396,9 @@ export default function Fatturazione() {
           cioè trasmessa allo SDI: l'emissione si fa da Fatture in Cloud.
         </p>
         <p>
-          Ogni mattina il gestionale rilegge le fatture da Fatture in Cloud: le correzioni fatte lì
-          (numero, data, importi, stato dell'invio) arrivano anche qui. Una fattura cancellata su
+          Il gestionale rilegge le fatture da Fatture in Cloud quando apri questa pagina (al massimo
+          ogni 6 ore) e quando premi «Riallinea» nell'Archivio: le correzioni fatte lì (numero, data,
+          importi, stato dell'invio) arrivano anche qui. Una fattura cancellata su
           Fatture in Cloud prima della trasmissione viene annullata anche qui e la mensilità torna da fatturare.
         </p>
       </div>
