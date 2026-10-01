@@ -38,3 +38,4 @@ Debiti aperti dichiarati:
 
 - [x] Riallineamento fatture: stato annullata, riallinea_fattura (solo service_role), varco nei trigger col segnale app.riallineamento
 - [ ] Sincronizzatore che chiama riallinea_fattura ed etichetta «Annullata» (intervento successivo)
+- [x] Correzione a riallinea_fattura: con p_esiste = true i parametri numero/numerazione/data/imponibile/iva/totale nulli sollevano parametri_riallineamento_mancanti (migration 0003); p_ei_status NULL = invariato
