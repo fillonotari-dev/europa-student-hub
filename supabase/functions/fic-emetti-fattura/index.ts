@@ -445,7 +445,6 @@ Deno.serve(async (req) => {
 
   return jsonResponse(200, {
     ok: esiti.every((e) => e.ok),
-    passi_saltati: passiSaltati(TIPO),
     esiti,
   })
 })

@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2, XCircle, Loader2, AlertTriangle } from 'lucide-react';
@@ -26,7 +25,6 @@ type ImpostazioniFic = {
   fic_metodo_pagamento_id: string;
   fic_vat_id: string;
   fic_vat_valore: string;
-  fic_emette_fatture: boolean;
   fic_ei_metodo_pagamento: string;
 };
 
@@ -39,7 +37,6 @@ const VUOTE: ImpostazioniFic = {
   fic_metodo_pagamento_id: '',
   fic_vat_id: '',
   fic_vat_valore: '',
-  fic_emette_fatture: false,
   fic_ei_metodo_pagamento: 'MP05',
 };
 
@@ -71,7 +68,7 @@ function ImpostazioniFatturazione() {
       const [imp, emesse] = await Promise.all([
         supabase
           .from('impostazioni')
-          .select('fic_numerazione, fic_giorni_scadenza, fic_giorno_emissione, fic_iban, fic_metodo_pagamento, fic_metodo_pagamento_id, fic_vat_id, fic_vat_valore, fic_emette_fatture, fic_ei_metodo_pagamento')
+          .select('fic_numerazione, fic_giorni_scadenza, fic_giorno_emissione, fic_iban, fic_metodo_pagamento, fic_metodo_pagamento_id, fic_vat_id, fic_vat_valore, fic_ei_metodo_pagamento')
           .eq('id', 1)
           .maybeSingle(),
         supabase.from('fatture').select('id', { count: 'exact', head: true }).eq('stato', 'emessa'),
@@ -88,7 +85,6 @@ function ImpostazioniFatturazione() {
           fic_metodo_pagamento_id: imp.data.fic_metodo_pagamento_id?.toString() ?? '',
           fic_vat_id: imp.data.fic_vat_id?.toString() ?? '',
           fic_vat_valore: imp.data.fic_vat_valore?.toString() ?? '',
-          fic_emette_fatture: imp.data.fic_emette_fatture === true,
           fic_ei_metodo_pagamento: imp.data.fic_ei_metodo_pagamento || 'MP05',
         });
       }
@@ -145,7 +141,6 @@ function ImpostazioniFatturazione() {
       fic_metodo_pagamento_id: form.fic_metodo_pagamento_id === '' ? null : Number(form.fic_metodo_pagamento_id),
       fic_vat_id: form.fic_vat_id === '' ? null : Number(form.fic_vat_id),
       fic_vat_valore: form.fic_vat_valore === '' ? null : Number(form.fic_vat_valore),
-      fic_emette_fatture: form.fic_emette_fatture,
       fic_ei_metodo_pagamento: form.fic_ei_metodo_pagamento,
       ...(numerazioneBloccata ? {} : { fic_numerazione: form.fic_numerazione.trim() || null }),
     };
@@ -163,7 +158,7 @@ function ImpostazioniFatturazione() {
       <div>
         <h3 className="text-sm font-semibold">Impostazioni di fatturazione</h3>
         <p className="text-[13px] text-muted-foreground">
-          Valori usati per la creazione dei documenti. Non viene emesso nulla da questa pagina.
+          Valori usati per la creazione dei documenti. Da questa pagina non si crea nessun documento.
         </p>
       </div>
 
@@ -236,7 +231,7 @@ function ImpostazioniFatturazione() {
               </p>
             )}
             <p className="text-[11px] text-muted-foreground">
-              Deve coincidere con l'aliquota dei contratti: se differisce, l'emissione si fermerà.
+              Deve coincidere con l'aliquota dei contratti: se differisce, la creazione si fermerà.
             </p>
           </div>
           <div className="space-y-1.5 sm:col-span-2">
@@ -259,27 +254,6 @@ function ImpostazioniFatturazione() {
         </div>
       </div>
 
-      <div className="rounded-md border p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1">
-            <Label htmlFor="fic_emette_fatture" className="text-sm font-medium">Emetti fatture reali</Label>
-            <p className="text-[12px] text-muted-foreground">
-              Spento, il sistema crea documenti proforma di prova: non sono fiscali, non consumano il
-              numero del sezionale, sono cancellabili e le mensilità restano da fatturare.
-              Acceso, crea documenti fiscali con il numero del sezionale: non sono cancellabili,
-              si correggono solo con nota di credito, e ogni mensilità emessa viene registrata e
-              bloccata nell'importo. Spegnerlo di nuovo cambia solo i documenti futuri e non annulla
-              nulla di ciò che è già stato emesso.
-            </p>
-          </div>
-          <Switch
-            id="fic_emette_fatture"
-            checked={form.fic_emette_fatture}
-            onCheckedChange={(v) => setForm((f) => ({ ...f, fic_emette_fatture: v }))}
-          />
-        </div>
-      </div>
-
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="fic_numerazione">Sigla di numerazione</Label>
@@ -295,12 +269,12 @@ function ImpostazioniFatturazione() {
             <Alert className="mt-2">
               <AlertTriangle className="w-4 h-4" />
               <AlertDescription className="text-[12px]">
-                Esiste già almeno una fattura emessa: la sigla di numerazione non è più modificabile.
+                Esiste già almeno una fattura creata: la sigla di numerazione non è più modificabile.
               </AlertDescription>
             </Alert>
           ) : (
             <p className="text-[11px] text-muted-foreground">
-              Non sarà più modificabile dopo la prima fattura emessa.
+              Non sarà più modificabile dopo la prima fattura creata.
             </p>
           )}
         </div>
@@ -387,8 +361,8 @@ export function FattureInCloudSection() {
         <div>
           <h2 className="text-lg font-semibold">Fatture in Cloud</h2>
           <p className="text-[13px] text-muted-foreground">
-            Verifica che il collegamento con l'account di fatturazione sia attivo. In questa fase il
-            collegamento è in sola lettura: nessun documento viene creato o inviato.
+            Verifica che il collegamento con l'account di fatturazione sia attivo. Il gestionale crea
+            le fatture su Fatture in Cloud; l'emissione (trasmissione allo SDI) si fa da Fatture in Cloud.
           </p>
         </div>
 

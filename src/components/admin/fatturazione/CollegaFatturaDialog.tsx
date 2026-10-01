@@ -51,7 +51,7 @@ export function CollegaFatturaDialog({ riga, onClose, onCollegata }: {
     <Dialog open={!!riga} onOpenChange={o => { if (!o && !busy) onClose(); }}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Collega fattura già emessa</DialogTitle>
+          <DialogTitle>Collega fattura esistente</DialogTitle>
           <DialogDescription>
             {riga?.etichetta} — totale mensilità {riga ? fmtEuro(riga.totale) : ''}
           </DialogDescription>

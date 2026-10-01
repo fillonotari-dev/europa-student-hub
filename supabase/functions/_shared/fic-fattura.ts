@@ -11,28 +11,8 @@
 // Forma verificata sulla guida ufficiale "Invoice creation" e sullo schema
 // models/schemas/IssuedDocument.yaml del repository OpenAPI di Fatture in Cloud.
 //
-// Il tipo del documento NON è più una costante di questo modulo: è
-// l'impostazione `impostazioni.fic_emette_fatture`, letta da fic-emetti-fattura
-// e passata qui come argomento. Una sola fonte di verità.
-
-export type TipoDocumento = 'proforma' | 'invoice';
-
-/** Dall'interruttore delle impostazioni al tipo del documento. */
-export function tipoDocumentoDa(emetteFatture: boolean): TipoDocumento {
-  return emetteFatture ? 'invoice' : 'proforma';
-}
-
-/**
- * Le scritture locali (riga in `fatture`, collegamento del canone e passaggio a
- * `fatturato`) e il flag di fattura elettronica valgono SOLO per 'invoice'.
- * Una proforma non fattura un mese: marcare il canone sarebbe sbagliato nel
- * merito e irreversibile, perché canoni_protect_fatturati da 'fatturato'
- * ammette solo 'incassato', vieta la cancellazione della riga, e
- * riporta_contratto_in_bozza rifiuta un contratto con canoni fatturati.
- */
-export function scrittureLocaliAttive(tipo: TipoDocumento): boolean {
-  return tipo === 'invoice';
-}
+// Il documento è sempre una fattura elettronica (type "invoice", e_invoice,
+// ei_data): il collaudo in proforma è concluso e non esiste un secondo modo.
 
 import type { ClientePayloadFic } from './fic-anagrafica.ts';
 
@@ -86,7 +66,6 @@ export function descrizioneCanone(competenzaIso: string): string {
 }
 
 export type DatiFattura = {
-  tipo: TipoDocumento;
   ficEntityId: number;
   // Cliente già mappato da mappaAnagraficaPerFic (fic-anagrafica.ts): è lo
   // STESSO oggetto inviato nel PUT del cliente, così documento e anagrafica
@@ -118,7 +97,7 @@ export function costruisciPayloadFattura(d: DatiFattura): PayloadFattura {
   const data: Record<string, unknown> = {
     // `number` è deliberatamente OMESSO: il progressivo del sezionale lo
     // assegna Fatture in Cloud.
-    type: d.tipo,
+    type: 'invoice',
     entity: { id: d.ficEntityId, ...d.entity },
     date: d.dataEmissione,
     numeration: d.numerazione,
@@ -142,28 +121,18 @@ export function costruisciPayloadFattura(d: DatiFattura): PayloadFattura {
   };
 
   // e_invoice: booleano di IssuedDocument ("Issued document is an e-invoice",
-  // models/schemas/IssuedDocument.yaml), presupposto dalla guida "E-Invoice
-  // management" per poter poi trasmettere il documento allo SDI. Ha senso solo
-  // su una fattura: su una proforma non è un documento fiscale e la richiesta
-  // può essere rifiutata.
+  // models/schemas/IssuedDocument.yaml), presupposto per la trasmissione allo SDI.
   // ei_data.payment_method: stringa SDI ModalitaPagamento, obbligatoria sul
-  // documento elettronico (IssuedDocument.yaml). Campo distinto dal
-  // payment_method.id di primo livello. Nessuna chiave null o undefined.
-  const iban = typeof d.iban === 'string' ? d.iban.trim() : '';
-
+  // documento elettronico. Nessuna chiave null o undefined.
+  //
   // L'IBAN stampato sul PDF — nel riquadro Modalità di pagamento, sotto il
   // nome del metodo — viene da ei_data.bank_iban quando show_payment_method
   // è attivo: è la stessa fonte che finisce nell'XML trasmesso allo SDI
-  // (verificato sul PDF della fattura 8/S del 30/09/2026, dove l'IBAN non
-  // viene dai details del metodo). Le note del documento NON si usano:
-  // l'IBAN comparirebbe una seconda volta accanto a quella di FIC.
-
-
-
-  if (scrittureLocaliAttive(d.tipo)) {
-    data.e_invoice = true;
-    data.ei_data = { payment_method: d.eiMetodoPagamento, ...(iban ? { bank_iban: iban } : {}) };
-  }
+  // (verificato sul PDF della fattura 8/S del 30/09/2026). Le note non si
+  // usano: l'IBAN comparirebbe due volte.
+  const iban = typeof d.iban === 'string' ? d.iban.trim() : '';
+  data.e_invoice = true;
+  data.ei_data = { payment_method: d.eiMetodoPagamento, ...(iban ? { bank_iban: iban } : {}) };
 
   return { data };
 }
