@@ -330,3 +330,6 @@ Per dividere una pagina in viste sorelle (esempio: `/admin/fatturazione`, «Fatt
 - La vista attiva vive nell'URL come parametro (`?vista=archivio`) tramite il `patchParams` della pagina; la vista predefinita non scrive il parametro.
 - L'etichetta può portare un conteggio fra parentesi, calcolato con lo stesso criterio della lista.
 - `TabsContent` con `mt-6`; i presìdi operativi (es. «Da riconciliare») restano nella vista di lavoro, non nell'archivio.
+
+## Avviso fisso in testa alla scheda
+Riquadro `border-accent/50 bg-accent/10`, icona AlertTriangle, testo a sinistra e una sola azione a destra (es. AvvisoContratto). Per i blocchi che impediscono un'azione: `border-destructive/40 bg-destructive/5`, un solo elenco «Prima di …: …».
