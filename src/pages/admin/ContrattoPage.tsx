@@ -20,9 +20,11 @@ import {
 import { generaScadenzario, totaleRiga } from '@/lib/scadenzario';
 import { imponibilePersonalizzato, partizionaMensilitaPerCambioCanone } from '@/lib/canoniRicalcolo';
 import { eliminaContrattoBozza } from '@/lib/contrattoDelete';
-import { scomposizione, lordoDaImponibile } from '@/lib/iva';
+import { scomposizione, lordoDaImponibile, imponibileDaLordo } from '@/lib/iva';
 import { fmtEuro, fmtIt, STATO_CONTRATTO_COLORS } from './Contratti';
 import { cn } from '@/lib/utils';
+import { VerificaBozza } from '@/components/admin/contratti/VerificaBozza';
+import { bloccantiAttivazione, cercaListino } from '@/lib/precompilaContratto';
 import { AlertTriangle, Check, FileUp, FileText, Info, Pencil, Repeat, Trash2, Undo2, X } from 'lucide-react';
 
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
@@ -63,6 +65,9 @@ export default function ContrattoPage() {
   const [chiudiMotivo, setChiudiMotivo] = useState('');
   const [bozzaOpen, setBozzaOpen] = useState(false);
   const [sostituisciOpen, setSostituisciOpen] = useState(false);
+  // Importi lordi corretti a mano nella bozza, per competenza.
+  const [importiBozza, setImportiBozza] = useState<Record<string, string>>({});
+  const [notaCanone, setNotaCanone] = useState('');
 
   const { data: contratto, isLoading } = useQuery({
     queryKey: ['contratti', id],
@@ -120,6 +125,37 @@ export default function ContrattoPage() {
       giornoScadenza: Number(contratto.giorno_scadenza),
     });
   }, [contratto]);
+
+  // Camera e listino della bozza: servono a dire "da listino" o "personalizzato".
+  const { data: cameraListino } = useQuery({
+    queryKey: ['contratto-camera-listino', id, contratto?.assegnazione_id, contratto?.struttura_id],
+    enabled: !!contratto && contratto.stato === 'bozza',
+    queryFn: async () => {
+      let camera: { numero: string | null; tipo: string | null } | null = null;
+      if (contratto!.assegnazione_id) {
+        const { data } = await supabase.from('assegnazioni').select('camere(numero, tipo)').eq('id', contratto!.assegnazione_id).maybeSingle();
+        camera = ((data as any)?.camere as any) ?? null;
+      }
+      const l = camera?.tipo ? await cercaListino(contratto!.struttura_id, camera.tipo) : null;
+      return { camera, listinoLordo: l?.importo_mensile_lordo != null ? Number(l.importo_mensile_lordo) : null };
+    },
+  });
+
+  // Scadenzario effettivo: l'anteprima con gli importi corretti a mano.
+  const righeAttivazione = useMemo(() => anteprima.map(r => {
+    const v = importiBozza[r.competenza];
+    if (v === undefined || v.trim() === '' || !Number.isFinite(Number(v))) return r;
+    return { ...r, imponibile: imponibileDaLordo(Number(v), r.aliquota_iva) };
+  }), [anteprima, importiBozza]);
+  const importiNonValidi = Object.values(importiBozza).some(v => v.trim() === '' || !Number.isFinite(Number(v)) || Number(v) < 0);
+  const bloccanti = contratto ? [
+    ...bloccantiAttivazione(contratto as any),
+    ...(importiNonValidi ? ['correggi gli importi non validi dello scadenzario'] : []),
+  ] : [];
+  const lordoContratto = contratto ? lordoDaImponibile(Number(contratto.canone_mensile), Number(contratto.aliquota_iva) || 0) : 0;
+  const listinoLordo = cameraListino?.listinoLordo ?? null;
+  const canonePersonalizzato = listinoLordo != null && Math.abs(listinoLordo - lordoContratto) >= 0.005;
+  const serveNota = canonePersonalizzato && !(contratto?.canone_note ?? '').trim();
 
   // Il criterio vive in src/lib/canoniRicalcolo.ts e rispecchia la condizione
   // della funzione database aggiorna_canone_contratto: il conteggio mostrato
@@ -221,7 +257,13 @@ export default function ContrattoPage() {
     if (!contratto) return;
     setBusy(true);
     try {
-      const righe = anteprima.map(r => ({
+      if (bloccanti.length > 0) throw new Error(`Prima di attivare: ${bloccanti.join('; ')}.`);
+      if (serveNota) {
+        if (!notaCanone.trim()) throw new Error('Indica la nota sul canone personalizzato.');
+        const { error: errN } = await supabase.from('contratti').update({ canone_note: notaCanone.trim() }).eq('id', contratto.id);
+        if (errN) throw errN;
+      }
+      const righe = righeAttivazione.map(r => ({
         competenza: r.competenza,
         imponibile: r.imponibile,
         aliquota_iva: r.aliquota_iva,
@@ -409,7 +451,7 @@ export default function ContrattoPage() {
             <Button variant="outline" disabled={busy} onClick={() => setConfermaElimina(true)}>
               <Trash2 className="w-4 h-4 mr-2" />Elimina contratto
             </Button>
-            <Button onClick={() => setConfermaAttiva(true)} disabled={busy}>Attiva contratto</Button>
+            <Button onClick={() => { setNotaCanone(''); setConfermaAttiva(true); }} disabled={busy || bloccanti.length > 0}>Attiva contratto</Button>
           </div>
         )}
         {contratto.stato === 'attivo' && (
@@ -452,6 +494,20 @@ export default function ContrattoPage() {
             </button>
           )}
         </div>
+      )}
+
+      {contratto.stato === 'bozza' && (
+        <VerificaBozza
+          contratto={contratto}
+          camera={cameraListino?.camera ?? null}
+          listinoLordo={listinoLordo}
+          bloccanti={bloccanti}
+          righe={anteprima}
+          importi={importiBozza}
+          onImporto={(c, v) => setImportiBozza(prev => ({ ...prev, [c]: v }))}
+          onModificaIntestazione={() => setIntestazioneOpen(true)}
+          onRefresh={refresh}
+        />
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -702,7 +758,7 @@ export default function ContrattoPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Attivare il contratto?</AlertDialogTitle>
             <AlertDialogDescription>
-              Verranno create {anteprima.length} mensilità. Dopo l'attivazione il contratto non è più cancellabile.
+              Verranno create {righeAttivazione.length} mensilità. Dopo l'attivazione il contratto non è più cancellabile.
               Scadenza posticipata: ogni mensilità scade il giorno {contratto.giorno_scadenza} del mese successivo
               a quello di competenza.
             </AlertDialogDescription>
@@ -710,7 +766,7 @@ export default function ContrattoPage() {
           <div className="max-h-64 overflow-y-auto border border-border/50 rounded-lg">
             <table className="w-full text-sm">
               <tbody>
-                {anteprima.map(r => (
+                {righeAttivazione.map(r => (
                   <tr key={r.competenza} className="border-b border-border/40 last:border-0">
                     <td className="px-3 py-1.5">{new Date(r.competenza + 'T00:00:00').toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}</td>
                     <td className="px-3 py-1.5">{fmtEuro(totaleRiga(r))}<span className="text-xs text-muted-foreground ml-1.5">IVA incl.</span></td>
@@ -721,10 +777,18 @@ export default function ContrattoPage() {
               </tbody>
             </table>
           </div>
-          <p className="text-sm">Totale complessivo: <strong>{fmtEuro(anteprima.reduce((s, r) => s + totaleRiga(r), 0))}</strong></p>
+          <p className="text-sm">Totale complessivo: <strong>{fmtEuro(righeAttivazione.reduce((s, r) => s + totaleRiga(r), 0))}</strong></p>
+          {canonePersonalizzato && (
+            <div className="space-y-1.5 text-sm">
+              <p>Canone personalizzato: {fmtEuro(lordoContratto)} (listino {fmtEuro(listinoLordo!)})</p>
+              {serveNota && (
+                <Input placeholder="Nota sul canone (obbligatoria)" value={notaCanone} onChange={e => setNotaCanone(e.target.value)} />
+              )}
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={(e) => { e.preventDefault(); attiva(); }} disabled={busy}>Attiva e genera</AlertDialogAction>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); attiva(); }} disabled={busy || (serveNota && !notaCanone.trim())}>Attiva e genera</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

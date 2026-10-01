@@ -12,6 +12,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
+import { creaBozzaDaAssegnazione, type EsitoBozza } from '@/lib/precompilaContratto';
+import { EsitoBozzaDialog } from '@/components/admin/contratti/EsitoBozzaDialog';
 import { MailCheck, Copy, CheckCircle, Mail, AlertTriangle } from 'lucide-react';
 import {
   type CandidaturaActionId, type CandidaturaLike,
@@ -400,6 +402,9 @@ export function useCandidaturaActions(options: Options = {}) {
         }
       }
 
+      // 2b. Bozza di contratto automatica (solo assegna): mai attivata qui.
+      const bozza: EsitoBozza | null = v.mode === 'assegna' ? await creaBozzaDaAssegnazione(insData.id) : null;
+
       // 3. Email esito (solo assegna, e solo se non e' un inserimento manuale).
       // Per inserimenti manuali non viene inviata alcuna email: l'operatore lo sa gia' dal dialogo.
       if (deveInviareEsito(v.mode, v.c.origine)) {
@@ -408,13 +413,13 @@ export function useCandidaturaActions(options: Options = {}) {
             body: { candidatura_id: v.c.id, nota: v.nota_esito || null },
           });
           if (mailErr) throw mailErr;
-          return { emailInviata: true, invioPrevisto: true };
+          return { emailInviata: true, invioPrevisto: true, bozza };
         } catch (e: any) {
           console.warn('assegna: invio esito fallito', e);
-          return { emailInviata: false, invioPrevisto: true };
+          return { emailInviata: false, invioPrevisto: true, bozza };
         }
       }
-      return { emailInviata: false, invioPrevisto: false };
+      return { emailInviata: false, invioPrevisto: false, bozza };
     },
     onSuccess: (res, vars) => {
       invalidateAll();
@@ -428,6 +433,7 @@ export function useCandidaturaActions(options: Options = {}) {
         : undefined;
       toast({ title: titles[vars.mode], description: desc, variant: vars.mode === 'assegna' && res.invioPrevisto && !res.emailInviata ? 'destructive' : undefined });
       closeAssign();
+      if (res.bozza) setEsitoBozza(res.bozza);
     },
     onError: (e: any) => toast({ title: 'Errore', description: e?.message, variant: 'destructive' }),
   });
@@ -435,6 +441,7 @@ export function useCandidaturaActions(options: Options = {}) {
   // ---- Stato dialog ------------------------------------------------------
 
   const [deleteTarget, setDeleteTarget] = useState<CandidaturaLike | null>(null);
+  const [esitoBozza, setEsitoBozza] = useState<EsitoBozza | null>(null);
   const [contrattoProposta, setContrattoProposta] = useState<
     { contratto: { id: string; data_inizio: string; data_fine: string }; data: string; motivoAssegnazione: string } | null
   >(null);
@@ -845,6 +852,8 @@ export function useCandidaturaActions(options: Options = {}) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <EsitoBozzaDialog esito={esitoBozza} titolo="Posto assegnato" onClose={() => setEsitoBozza(null)} />
 
       {/* Invio comunicazione esito */}
       <Dialog open={!!esitoTarget} onOpenChange={open => { if (!open && !esitoLoading) { setEsitoTarget(null); setEsitoNota(''); } }}>

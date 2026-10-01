@@ -16,6 +16,7 @@ import {
   type AnaState, type Modalita,
 } from './AnagraficaFatturazioneFields';
 import { caricaAnaStudente } from './anagraficaStudente';
+import { caricaPrecompilazione, cercaListino, GIORNO_SCADENZA_PREDEFINITO } from '@/lib/precompilaContratto';
 import { scomposizione, imponibileDaLordo, lordoDaImponibile } from '@/lib/iva';
 
 type Props = {
@@ -55,7 +56,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
   const [assegnazioneId, setAssegnazioneId] = useState<string | null>(null);
   const [dataInizio, setDataInizio] = useState('');
   const [dataFine, setDataFine] = useState('');
-  const [giornoScadenza, setGiornoScadenza] = useState('1');
+  const [giornoScadenza, setGiornoScadenza] = useState(String(GIORNO_SCADENZA_PREDEFINITO));
   const [canone, setCanone] = useState('');
   const [canoneNote, setCanoneNote] = useState('');
   const [aliquota, setAliquota] = useState('10');
@@ -98,45 +99,18 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
     let annullato = false;
 
     (async () => {
-      const [datiFatturazione, { data: assegnazioni }, { data: candidature }] =
-        await Promise.all([
-          caricaAnaStudente(studenteId).catch(() => null),
-          supabase
-            .from('assegnazioni')
-            .select('id, data_inizio, data_fine, stato, camere(id, tipo, struttura_id)')
-            .eq('studente_id', studenteId)
-            .eq('stato', 'attiva')
-            .order('data_inizio', { ascending: false }),
-          supabase
-            .from('candidature')
-            .select('garante_nome, garante_relazione, garante_telefono, garante_email, created_at')
-            .eq('studente_id', studenteId)
-            .order('created_at', { ascending: false })
-            .limit(1),
-        ]);
+      const { assegnazione: ass, garante: gar, datiFatturazione } = await caricaPrecompilazione(studenteId);
       if (annullato) return;
 
-      const ass = (assegnazioni ?? []).find(
-        (a: any) => !a.data_fine || a.data_fine >= oggi(),
-      ) ?? (assegnazioni ?? [])[0];
-
       if (ass) {
-        setAssegnazioneId(ass.id);
-        setDataInizio(ass.data_inizio ?? '');
-        setDataFine(ass.data_fine ?? '');
-        if ((ass as any).camere?.struttura_id) setStrutturaId((ass as any).camere.struttura_id);
-        if ((ass as any).camere?.tipo) setTipoCamera((ass as any).camere.tipo);
+        setAssegnazioneId(ass.assegnazioneId);
+        setDataInizio(ass.dataInizio);
+        setDataFine(ass.dataFine);
+        if (ass.strutturaId) setStrutturaId(ass.strutturaId);
+        if (ass.tipoCamera) setTipoCamera(ass.tipoCamera);
       }
 
-      const cand = (candidature ?? [])[0];
-      if (cand) {
-        setGarante({
-          nome: cand.garante_nome ?? '',
-          relazione: cand.garante_relazione ?? '',
-          telefono: cand.garante_telefono ?? '',
-          email: cand.garante_email ?? '',
-        });
-      }
+      if (gar) setGarante(gar);
 
       if (datiFatturazione) {
         setAnagraficaEsistenteId(datiFatturazione.id);
@@ -214,16 +188,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
     }
     let annullato = false;
     (async () => {
-      const { data } = await supabase
-        .from('listini')
-        .select('importo_mensile_lordo, valido_dal')
-        .eq('struttura_id', strutturaId)
-        .eq('tipo_camera', tipoCamera)
-        .lte('valido_dal', oggi())
-        .or(`valido_al.is.null,valido_al.gte.${oggi()}`)
-        .order('valido_dal', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const data = await cercaListino(strutturaId, tipoCamera);
       if (annullato) return;
       setListinoCercato(true);
       if (data?.importo_mensile_lordo != null) {
@@ -254,7 +219,7 @@ export function ContrattoDialog({ open, onOpenChange, studenteId: studenteFisso,
     setStudenteId(studenteFisso ?? '');
     setDataFineVecchio('');
     setStrutturaId(''); setAssegnazioneId(null);
-    setDataInizio(''); setDataFine(''); setGiornoScadenza('1');
+    setDataInizio(''); setDataFine(''); setGiornoScadenza(String(GIORNO_SCADENZA_PREDEFINITO));
     setTipoCamera('');
     setCanone(''); setCanoneNote(''); setAliquota('10'); setNote('');
     setListino(null); setListinoCercato(false); setUltimoProposto(null); setOrigine(null);
