@@ -32,4 +32,4 @@ Debiti aperti dichiarati:
 - [x] Fattura elettronica completa: fic_ei_metodo_pagamento, ei_data, entity da mappatura, payment_terms, nuova descrizione, log di ciò che FIC salva
 - [x] 409 di FIC come rifiuto definitivo, diagnostica su ogni 4xx (emetti, sync-anagrafica, collega), data odierna nel fuso Europe/Rome
 - [x] Documentazione Context allineata a rifiuto 409, diagnostica 4xx e data italiana
-- [ ] Sbloccare la riga in_invio della mensilità 46cd973d (decisione dell'operatore, nessuna modifica ai dati dall'agente)
+- [x] Una sola strada: il gestionale crea sempre fatture (rimosso il modo proforma, vocabolario crea/emetti)
