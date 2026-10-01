@@ -205,9 +205,9 @@ Deno.serve(async (req) => {
     const remoto = x.tipo === 'trovato' ? x.remoto : null
     const { decisione, campi } = confrontaFattura(f, remoto)
 
-    const anomalia = async (codice: string, status: number | null) => {
+    const anomalia = async (codice: string, status: number | null, messaggioRpc?: string) => {
       anomalie.push({ fattura_id: f.id, numero, studente, codice })
-      await logFic(admin, { endpoint: EP_DOC, http_status: status, esito: 'anomalia', messaggio: `Anomalia: ${codice}.`, payload_ridotto: { ...base, decisione: 'anomalia', codice } })
+      await logFic(admin, { endpoint: EP_DOC, http_status: status, esito: 'anomalia', messaggio: `Anomalia: ${codice}.`, payload_ridotto: { ...base, decisione: 'anomalia', codice, ...(messaggioRpc ? { messaggio_rpc: messaggioRpc.slice(0, 300) } : {}) } })
     }
 
     if (x.tipo === 'inesistente' && !annullamentiAmmessi) { await anomalia('troppi_404', 404); continue }
