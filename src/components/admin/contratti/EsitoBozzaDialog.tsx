@@ -23,7 +23,7 @@ export function EsitoBozzaDialog({ esito, titolo, onClose }: Props) {
           <DialogDescription>
             {esito.esito === 'creata' && 'Bozza di contratto creata. Va verificata e attivata: nessuna mensilità viene generata finché non la attivi.'}
             {esito.esito === 'creata' && esito.listinoMancante && ' Manca il listino per questa sede e tipo di camera: il canone è da inserire.'}
-            {esito.esito === 'esistente' && 'Esiste già un contratto per questa assegnazione.'}
+            {esito.esito === 'esistente' && (esito.motivo ? `Bozza non creata: la persona ${esito.motivo}.` : 'Esiste già un contratto per questa assegnazione.')}
             {esito.esito === 'errore' && `Bozza di contratto non creata: ${esito.motivo} Puoi crearlo dalla scheda del residente con «Crea il contratto».`}
           </DialogDescription>
         </DialogHeader>
