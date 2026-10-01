@@ -446,6 +446,16 @@ export default function Fatturazione() {
         </section>
       )}
 
+      {meseDeciso && !isLoading && (righe ?? []).length === 0 && fatturateMese && (
+        <RiepilogoMese
+          mese={mese}
+          nFatturate={fatturateMese.length}
+          prossimo={prossimoLotto}
+          onVai={(m) => patchParams({ mese: m })}
+        />
+      )}
+
+      {!(meseDeciso && !isLoading && (righe ?? []).length === 0 && fatturateMese && fatturateMese.length === 0) && (
       <section className="bg-card border border-border/50 rounded-lg overflow-hidden">
         {emettibili.length > 0 && (
           <div className="flex flex-wrap items-center gap-3 border-b border-border/50 bg-muted/30 px-4 py-3">
@@ -477,16 +487,6 @@ export default function Fatturazione() {
           <tbody className="text-sm">
             {(!meseDeciso || isLoading) && (
               <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">Caricamento…</td></tr>
-            )}
-            {meseVuoto && (
-              <tr><td colSpan={9} className="px-4 py-8 text-muted-foreground">
-                <StatoVuoto
-                  mese={mese}
-                  fatturate={fatturateMese ?? []}
-                  prossimo={prossimoLotto}
-                  onVai={(m) => patchParams({ mese: m })}
-                />
-              </td></tr>
             )}
             {(righe ?? []).map(r => {
               const esito = esiti?.[r.id];
@@ -566,42 +566,62 @@ export default function Fatturazione() {
   );
 }
 
-/** Stato vuoto del mese: completato oppure senza mensilità, e prossimo lotto. */
-function StatoVuoto({ mese, fatturate, prossimo, onVai }: {
+export interface RigaFatturataDati {
+  id: string;
+  studente: string;
+  struttura: string;
+  imponibile: number;
+  totale: number;
+  scadenza: string;
+  stato: string;
+  numero: string | null;
+  url: string | null;
+}
+
+/** Mensilità già fatturata: stesse colonne, nessuna selezione, nessun menu. */
+function RigaFatturata({ r }: { r: RigaFatturataDati }) {
+  return (
+    <tr className="border-t border-border/50 hover:bg-muted/50">
+      <td className="px-4 py-3" />
+      <td className="px-4 py-3">{r.studente}</td>
+      <td className="px-4 py-3 text-muted-foreground">{r.struttura}</td>
+      <td className="px-4 py-3">{fmtEuro(r.imponibile)}</td>
+      <td className="px-4 py-3">{fmtEuro(Math.round((r.totale - r.imponibile) * 100) / 100)}</td>
+      <td className="px-4 py-3">{fmtEuro(r.totale)}</td>
+      <td className="px-4 py-3">{fmtIt(r.scadenza)}</td>
+      <td className="px-4 py-3">
+        <span className="inline-flex items-center gap-2">
+          <StatoBadge mappa={STATO_CANONE} stato={r.stato} />
+          {r.numero && (r.url
+            ? <a href={r.url} target="_blank" rel="noreferrer" className="text-primary underline-offset-2 hover:underline">{r.numero}</a>
+            : <span className="text-muted-foreground">{r.numero}</span>)}
+        </span>
+      </td>
+      <td className="px-4 py-3" />
+    </tr>
+  );
+}
+
+/** Riga sopra la tabella: mese completato o vuoto, e prossimo lotto. */
+function RiepilogoMese({ mese, nFatturate, prossimo, onVai }: {
   mese: string;
-  fatturate: any[];
-  prossimo: { mese: string; n: number } | undefined;
+  nFatturate: number;
+  prossimo: { mese: string; n: number } | null | undefined;
   onVai: (m: string) => void;
 }) {
   const nome = etichettaMese(mese);
   const Nome = nome.charAt(0).toUpperCase() + nome.slice(1);
   return (
-    <div className="space-y-3">
-      {fatturate.length > 0 ? (
-        <>
-          <p className="text-foreground font-medium">
-            {Nome} completato: {fatturate.length} {fatturate.length === 1 ? 'mensilità fatturata' : 'mensilità fatturate'}.
-          </p>
-          <ul className="space-y-1">
-            {fatturate.map((c) => {
-              const s = c.contratti?.studenti;
-              return (
-                <li key={c.id} className="flex items-center gap-3">
-                  <span className="min-w-[200px]">{s ? `${s.cognome ?? ''} ${s.nome ?? ''}`.trim() : '—'}</span>
-                  <span>{fmtEuro(Number(c.totale))}</span>
-                  <StatoBadge mappa={STATO_CANONE} stato={c.stato} />
-                </li>
-              );
-            })}
-          </ul>
-        </>
-      ) : (
-        <p>Nessuna mensilità in questo mese.</p>
-      )}
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+      <p className="font-medium text-foreground">
+        {nFatturate > 0
+          ? `${Nome} completato: ${nFatturate} ${nFatturate === 1 ? 'mensilità fatturata' : 'mensilità fatturate'}.`
+          : 'Nessuna mensilità in questo mese'}
+      </p>
       {prossimo && prossimo.n > 0 && (
-        <div className="flex flex-wrap items-center gap-3 pt-1">
+        <div className="flex flex-wrap items-center gap-3 text-muted-foreground">
           <span>
-            Prossimo lotto: {etichettaMese(prossimo.mese)}, {prossimo.n} {prossimo.n === 1 ? 'mensilità' : 'mensilità'},
+            Prossimo lotto: {etichettaMese(prossimo.mese)}, {prossimo.n} mensilità,
             da fatturare dal 1° {etichettaMese(meseSuccessivo(prossimo.mese))}
           </span>
           <Button size="sm" variant="outline" onClick={() => onVai(prossimo.mese)}>
