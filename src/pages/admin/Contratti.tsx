@@ -5,6 +5,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { BozzeMancantiDialog } from '@/components/admin/contratti/BozzeMancantiDialog';
+import { caricaAssegnazioniSenzaContratto } from '@/lib/precompilaContratto';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
@@ -45,6 +47,14 @@ export default function Contratti() {
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [openNuovo, setOpenNuovo] = useState(false);
+  const [openBozze, setOpenBozze] = useState(false);
+  // Assegnazioni attive il cui studente non ha contratti bozza o attivi (solo letture).
+  const { data: senzaContratto } = useQuery({
+    queryKey: ['assegnazioni-senza-contratto'],
+    queryFn: caricaAssegnazioniSenzaContratto,
+  });
+  // Elenco congelato all'apertura: il riepilogo non deve cambiare mentre si aggiornano i dati.
+  const [elencoBozze, setElencoBozze] = useState<typeof senzaContratto>([]);
   const [daEliminare, setDaEliminare] = useState<any | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -131,10 +141,17 @@ export default function Contratti() {
             {(strutture ?? []).map((s: any) => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Button className="ml-auto" onClick={() => setOpenNuovo(true)}>
+        {(senzaContratto?.length ?? 0) > 0 && (
+          <Button variant="outline" className="ml-auto" onClick={() => { setElencoBozze(senzaContratto); setOpenBozze(true); }}>
+            Prepara le bozze mancanti ({senzaContratto!.length})
+          </Button>
+        )}
+        <Button className={(senzaContratto?.length ?? 0) > 0 ? '' : 'ml-auto'} onClick={() => setOpenNuovo(true)}>
           <Plus className="w-4 h-4 mr-2" /> Nuovo contratto
         </Button>
       </div>
+
+      <BozzeMancantiDialog open={openBozze} onOpenChange={setOpenBozze} elenco={elencoBozze ?? []} />
 
       <div className="bg-card border border-border/50 rounded-lg overflow-hidden">
         <table className="w-full">

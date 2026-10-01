@@ -37,3 +37,19 @@ describe('precompilazione contratto', () => {
     expect(motivoErroreBozza(new Error('senza_data_fine'))).toContain('data di fine');
   });
 });
+
+import { contrattoCheEsclude } from '@/lib/precompilaContratto';
+describe('contrattoCheEsclude', () => {
+  it('nessun contratto: non esclude', () => { expect(contrattoCheEsclude('a1', [])).toBeNull(); });
+  it('contratti chiusi non escludono', () => {
+    expect(contrattoCheEsclude('a1', [{ id: 'c', stato: 'scaduto', assegnazione_id: 'a0' }])).toBeNull();
+  });
+  it('stessa assegnazione: esclude senza motivo', () => {
+    expect(contrattoCheEsclude('a1', [{ id: 'c', stato: 'bozza', assegnazione_id: 'a1' }])).toEqual({ contrattoId: 'c', motivo: null });
+  });
+  it('bozza o attivo su altra assegnazione: esclude con motivo', () => {
+    expect(contrattoCheEsclude('a1', [{ id: 'c', stato: 'attivo', assegnazione_id: 'a0' }])?.motivo)
+      .toBe("ha già un contratto attivo collegato a un'altra assegnazione: verifica se serve un rinnovo o una sostituzione");
+    expect(contrattoCheEsclude('a1', [{ id: 'c', stato: 'bozza', assegnazione_id: null }])?.motivo).toContain('contratto bozza');
+  });
+});
