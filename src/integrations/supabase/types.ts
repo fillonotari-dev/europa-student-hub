@@ -776,6 +776,7 @@ export type Database = {
       }
       fatture: {
         Row: {
+          annullata_il: string | null
           contratto_id: string
           created_at: string
           data: string | null
@@ -785,14 +786,17 @@ export type Database = {
           imponibile: number
           iva: number
           messaggio_errore: string | null
+          motivo_annullamento: string | null
           numerazione: string | null
           numero: number | null
+          riallineata_il: string | null
           stato: string
           totale: number
           updated_at: string
           url_documento: string | null
         }
         Insert: {
+          annullata_il?: string | null
           contratto_id: string
           created_at?: string
           data?: string | null
@@ -802,14 +806,17 @@ export type Database = {
           imponibile: number
           iva: number
           messaggio_errore?: string | null
+          motivo_annullamento?: string | null
           numerazione?: string | null
           numero?: number | null
+          riallineata_il?: string | null
           stato: string
           totale: number
           updated_at?: string
           url_documento?: string | null
         }
         Update: {
+          annullata_il?: string | null
           contratto_id?: string
           created_at?: string
           data?: string | null
@@ -819,8 +826,10 @@ export type Database = {
           imponibile?: number
           iva?: number
           messaggio_errore?: string | null
+          motivo_annullamento?: string | null
           numerazione?: string | null
           numero?: number | null
+          riallineata_il?: string | null
           stato?: string
           totale?: number
           updated_at?: string
@@ -1294,6 +1303,21 @@ export type Database = {
           p_totale: number
         }
         Returns: string
+      }
+      riallinea_fattura: {
+        Args: {
+          p_data: string
+          p_ei_status: string
+          p_esiste: boolean
+          p_fattura_id: string
+          p_imponibile: number
+          p_iva: number
+          p_numerazione: string
+          p_numero: number
+          p_totale: number
+          p_url: string
+        }
+        Returns: Json
       }
       riporta_contratto_in_bozza: {
         Args: { p_contratto_id: string }
