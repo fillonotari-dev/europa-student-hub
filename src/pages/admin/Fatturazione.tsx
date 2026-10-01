@@ -211,11 +211,7 @@ export default function Fatturazione() {
     setSelezione(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const invalidaTutto = () => {
-    for (const k of ['fatturazione-canoni', 'fatturazione-arretrati', 'fatturazione-piu-vecchia',
-      'fatturazione-riconciliare', 'fatturazione-archivio', 'fatturazione-archivio-conteggio',
-      'fatturazione-mese-fatturate', 'fatturazione-prossimo-lotto', 'fatturazione-canoni-collegati']) {
-      qc.invalidateQueries({ queryKey: [k] });
-    }
+    for (const k of QUERY_FATTURAZIONE) qc.invalidateQueries({ queryKey: [k] });
   };
 
   const emetti = async () => {
