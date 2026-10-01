@@ -41,7 +41,7 @@ export function ArchivioFatture({ mesi }: { mesi: string[] }) {
   const riallinea = async () => {
     setRiallineo(true);
     try {
-      const { data, error } = await supabase.functions.invoke('fic-riallinea', { body: {} });
+      const { data, error } = await supabase.functions.invoke('fic-riallinea', { body: { origine: 'pulsante' } });
       if (error) throw error;
       if (!data?.ok) { toast.error(data?.message ?? 'Riallineamento non riuscito.'); return; }
       setEsito(data as EsitoRiallineamento);

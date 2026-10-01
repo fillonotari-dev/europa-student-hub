@@ -21,6 +21,8 @@ import { SPIEGAZIONE_RICONCILIAZIONE, STATO_CANONE, STATO_FATTURA } from '@/lib/
 import { StatoBadge } from '@/components/admin/fatturazione/StatoBadge';
 import { ArchivioFatture, QUERY_FATTURAZIONE, STATI_ARCHIVIO_ESCLUSI } from '@/components/admin/fatturazione/ArchivioFatture';
 import { AvvisiFatturazione } from '@/components/admin/fatturazione/AvvisiFatturazione';
+import { RiepilogoRiallineamento } from '@/components/admin/fatturazione/RiepilogoRiallineamento';
+import { useRiallineamentoAutomatico } from '@/hooks/useRiallineamentoAutomatico';
 
 /** L'anteprima non chiama Fatture in Cloud: può permettersi gruppi ampi. */
 const GRUPPO_ANTEPRIMA = 50;
@@ -84,6 +86,7 @@ const chunk = <T,>(arr: T[], n: number): T[][] => {
 export default function Fatturazione() {
   usePageTitle('Fatturazione');
   const qc = useQueryClient();
+  const riallineoAuto = useRiallineamentoAutomatico();
   const [searchParams, setSearchParams] = useSearchParams();
   const [selezione, setSelezione] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -385,6 +388,7 @@ export default function Fatturazione() {
       </div>
 
       <AvvisiFatturazione />
+      <RiepilogoRiallineamento esito={riallineoAuto.esito} onClose={riallineoAuto.chiudi} />
 
       <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground space-y-1">
         <p>

@@ -14,10 +14,11 @@ import {
  *
  * SOLA LETTURA verso Fatture in Cloud: esclusivamente GET.
  *
- * Accesso (verify_jwt = false perché pg_cron non ha un JWT utente):
- *  (a) JWT di un admin (getClaims + has_role), oppure
- *  (b) intestazione x-riallinea-secret uguale al secret FIC_RIALLINEA_CRON_SECRET
- *      (confronto a tempo costante). Altrimenti 403.
+ * Accesso: verify_jwt = true e solo admin (getClaims + has_role). Nessun job:
+ * il giro parte all'apertura di Fatturazione e dal pulsante dell'Archivio.
+ * Origine 'apertura': se un giro si è concluso negli ultimi 10 minuti non ne
+ * parte un altro e si risponde con il riepilogo di quello. Origine 'pulsante'
+ * (default): sempre un giro nuovo.
  *
  * Interruttore di sicurezza (un annullamento è irreversibile):
  *  - GET company/info all'inizio: se fallisce, nessuna fattura elaborata;
@@ -31,20 +32,46 @@ import {
 
 const OPERAZIONE = 'riallinea'
 const GIORNI = 90
+const MINUTI_GIRO_RECENTE = 10
 
 const json = (status: number, body: Record<string, unknown>) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
-async function stessoSegreto(a: string, b: string): Promise<boolean> {
-  const enc = new TextEncoder()
-  const [ha, hb] = await Promise.all([
-    crypto.subtle.digest('SHA-256', enc.encode(a)),
-    crypto.subtle.digest('SHA-256', enc.encode(b)),
-  ])
-  const va = new Uint8Array(ha), vb = new Uint8Array(hb)
-  let diff = 0
-  for (let i = 0; i < va.length; i++) diff |= va[i] ^ vb[i]
-  return diff === 0
+const numeroDi = (f: { numero: number | null; numerazione: string | null } | null) =>
+  f && f.numero != null ? `${f.numero}${f.numerazione ?? ''}` : '—'
+// deno-lint-ignore no-explicit-any
+const studenteDi = (f: any) => {
+  const s = f?.contratti?.studenti
+  return s ? `${s.cognome ?? ''} ${s.nome ?? ''}`.trim() : '—'
+}
+
+/** Ricostruisce il riepilogo di un giro concluso da fic_log + fatture. */
+// deno-lint-ignore no-explicit-any
+async function riepilogoDaLog(admin: any, chiusura: { created_at: string; payload_ridotto: any }) {
+  const giroId = chiusura.payload_ridotto?.giro_id
+  const { data: righe } = await admin.from('fic_log').select('payload_ridotto')
+    .eq('operazione', OPERAZIONE).eq('payload_ridotto->>giro_id', giroId)
+  // deno-lint-ignore no-explicit-any
+  const per = ((righe ?? []) as any[]).map((r) => r.payload_ridotto).filter((p) => p?.fattura_id)
+  const ids = [...new Set(per.map((p) => p.fattura_id))]
+  // deno-lint-ignore no-explicit-any
+  const mappa = new Map<string, any>()
+  if (ids.length) {
+    const { data: ff } = await admin.from('fatture').select('id, numero, numerazione, contratti(studenti(nome, cognome))').in('id', ids)
+    for (const f of ff ?? []) mappa.set(f.id, f)
+  }
+  const aggiornate = per.filter((p) => p.decisione === 'aggiornata').map((p) => ({
+    fattura_id: p.fattura_id, numero: numeroDi(mappa.get(p.fattura_id)), campi: p.campi ?? [], importo_divergente: !!p.importo_divergente,
+  }))
+  const annullate = per.filter((p) => p.decisione === 'annullata').map((p) => ({
+    fattura_id: p.fattura_id, numero: numeroDi(mappa.get(p.fattura_id)), studente: studenteDi(mappa.get(p.fattura_id)),
+  }))
+  const anomalie = per.filter((p) => p.decisione === 'anomalia').map((p) => ({
+    fattura_id: p.fattura_id, numero: numeroDi(mappa.get(p.fattura_id)), studente: studenteDi(mappa.get(p.fattura_id)), codice: p.codice,
+  }))
+  // deno-lint-ignore no-unused-vars
+  const { giro_id, origine, giro_concluso, ...riepilogo } = chiusura.payload_ridotto ?? {}
+  return { ok: true, recente: true, concluso_il: chiusura.created_at, riepilogo, aggiornate, annullate, anomalie }
 }
 
 // deno-lint-ignore no-explicit-any
@@ -74,29 +101,35 @@ Deno.serve(async (req) => {
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
   if (!supabaseUrl || !serviceKey || !anonKey) return json(500, { ok: false, message: 'Configurazione del server incompleta.' })
 
-  // --- Accesso: segreto del job oppure admin ---
-  let origine: 'cron' | 'admin' | null = null
-  const segreto = req.headers.get('x-riallinea-secret')
-  const atteso = Deno.env.get('FIC_RIALLINEA_CRON_SECRET')
-  if (segreto && atteso && atteso.length >= 16 && await stessoSegreto(segreto, atteso)) {
-    origine = 'cron'
-  } else {
-    const authHeader = req.headers.get('Authorization')
-    if (authHeader?.startsWith('Bearer ')) {
-      const caller = createClient(supabaseUrl, anonKey, {
-        global: { headers: { Authorization: authHeader } }, auth: { persistSession: false },
-      })
-      const { data: claims } = await caller.auth.getClaims(authHeader.replace('Bearer ', ''))
-      const userId = claims?.claims?.sub
-      if (userId) {
-        const { data: isAdmin, error } = await caller.rpc('has_role', { _user_id: userId, _role: 'admin' })
-        if (!error && isAdmin) origine = 'admin'
-      }
-    }
-  }
-  if (!origine) return json(403, { ok: false, message: 'Accesso riservato agli amministratori.' })
+  // --- Accesso: solo admin ---
+  const authHeader = req.headers.get('Authorization')
+  if (!authHeader?.startsWith('Bearer ')) return json(401, { ok: false, message: 'Accesso non autenticato.' })
+  const caller = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: authHeader } }, auth: { persistSession: false },
+  })
+  const { data: claims, error: claimsErr } = await caller.auth.getClaims(authHeader.replace('Bearer ', ''))
+  const userId = claims?.claims?.sub
+  if (claimsErr || !userId) return json(401, { ok: false, message: 'Accesso non autenticato.' })
+  const { data: isAdmin, error: roleErr } = await caller.rpc('has_role', { _user_id: userId, _role: 'admin' })
+  if (roleErr || !isAdmin) return json(403, { ok: false, message: 'Accesso riservato agli amministratori.' })
+
+  // deno-lint-ignore no-explicit-any
+  let corpo: any = null
+  try { corpo = await req.json() } catch { /* corpo assente */ }
+  const origine: 'apertura' | 'pulsante' = corpo?.origine === 'apertura' ? 'apertura' : 'pulsante'
 
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } })
+
+  // --- Regola dei 10 minuti, solo per l'apertura della pagina ---
+  if (origine === 'apertura') {
+    const { data: ultimo } = await admin.from('fic_log').select('created_at, payload_ridotto')
+      .eq('operazione', OPERAZIONE).eq('payload_ridotto->>giro_concluso', 'true')
+      .order('created_at', { ascending: false }).limit(1).maybeSingle()
+    if (ultimo && Date.now() - new Date(ultimo.created_at).getTime() < MINUTI_GIRO_RECENTE * 60_000) {
+      return json(200, await riepilogoDaLog(admin, ultimo))
+    }
+  }
+
   const token = Deno.env.get('FIC_ACCESS_TOKEN')
   const companyId = Deno.env.get('FIC_COMPANY_ID')
   if (!token || !companyId) return json(200, { ok: false, message: 'Le credenziali di Fatture in Cloud non sono configurate.' })
