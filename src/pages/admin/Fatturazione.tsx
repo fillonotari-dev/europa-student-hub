@@ -279,35 +279,62 @@ export default function Fatturazione() {
     },
   });
 
-  // --- Stato vuoto: mensilità già fatturate del mese e prossimo lotto ---
+  // --- Mensilità già fatturate del mese (qualunque contratto): sola lettura,
+  //     mai passate all'anteprima né alla selezione ---
   const meseVuoto = meseDeciso && !isLoading && (righe ?? []).length === 0;
   const { data: fatturateMese } = useQuery({
     queryKey: ['fatturazione-mese-fatturate', mese],
-    enabled: meseVuoto,
-    queryFn: async () => {
+    enabled: meseDeciso,
+    queryFn: async (): Promise<RigaFatturataDati[]> => {
       const { data, error } = await supabase
         .from('canoni')
-        .select('id, competenza, totale, stato, contratti!inner(studenti(nome, cognome))')
+        .select(`id, competenza, imponibile, totale, scadenza, stato,
+                 contratti!inner(studenti(nome, cognome), strutture(nome)),
+                 fatture!canoni_fattura_stesso_contratto_fkey(numero, numerazione, url_documento)`)
         .in('stato', ['fatturato', 'incassato'])
         .gte('competenza', primoDelMese(mese))
         .lt('competenza', primoDelMese(meseSuccessivo(mese)));
       if (error) throw error;
-      return (data ?? []) as any[];
+      return (data ?? []).map((c: any) => {
+        const f = c.fatture;
+        return {
+          id: c.id,
+          studente: `${c.contratti?.studenti?.cognome ?? ''} ${c.contratti?.studenti?.nome ?? ''}`.trim() || '—',
+          struttura: c.contratti?.strutture?.nome ?? '—',
+          imponibile: Number(c.imponibile),
+          totale: Number(c.totale),
+          scadenza: c.scadenza,
+          stato: c.stato,
+          numero: f?.numero != null ? `${f.numero}${f.numerazione ? `/${f.numerazione}` : ''}` : null,
+          url: f?.url_documento ?? null,
+        };
+      }).sort((a, b) => a.studente.localeCompare(b.studente, 'it'));
     },
   });
+  // Primo mese successivo con mensilità da fatturare di contratti attivi.
   const { data: prossimoLotto } = useQuery({
     queryKey: ['fatturazione-prossimo-lotto', mese],
     enabled: meseVuoto,
     queryFn: async () => {
-      const prossimo = meseSuccessivo(mese);
-      const { count, error } = await supabase
+      const { data, error } = await supabase
+        .from('canoni')
+        .select('competenza, contratti!inner(stato)')
+        .eq('stato', 'da_fatturare')
+        .eq('contratti.stato', 'attivo')
+        .gte('competenza', primoDelMese(meseSuccessivo(mese)))
+        .order('competenza')
+        .limit(1);
+      if (error) throw error;
+      const prossimo = data?.[0]?.competenza?.slice(0, 7);
+      if (!prossimo) return null;
+      const { count, error: e2 } = await supabase
         .from('canoni')
         .select('id, contratti!inner(stato)', { count: 'exact', head: true })
         .eq('stato', 'da_fatturare')
         .eq('contratti.stato', 'attivo')
         .gte('competenza', primoDelMese(prossimo))
         .lt('competenza', primoDelMese(meseSuccessivo(prossimo)));
-      if (error) throw error;
+      if (e2) throw e2;
       return { mese: prossimo, n: count ?? 0 };
     },
   });
@@ -544,9 +571,11 @@ export default function Fatturazione() {
                 </tr>
               );
             })}
+            {(fatturateMese ?? []).map(r => <RigaFatturata key={r.id} r={r} />)}
           </tbody>
         </table>
       </section>
+      )}
 
         </TabsContent>
 
