@@ -1,4 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
+import { StatoBadge } from '@/components/admin/fatturazione/StatoBadge';
+import { STATO_FATTURA } from '@/lib/statiFatturazione';
 import { FicSyncAnagrafica } from '@/components/admin/contratti/FicSyncAnagrafica';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
