@@ -762,7 +762,7 @@ export default function ContrattoPage() {
                   </p>
                 )}
                 {intoccabili.length > 0 && (
-                  <p>Non verranno toccate {intoccabili.length} mensilità già fatturate o incassate: corrispondono a documenti fiscali emessi.</p>
+                  <p>Non verranno toccate {intoccabili.length} mensilità già fatturate o incassate: corrispondono a fatture già create su Fatture in Cloud.</p>
                 )}
               </div>
             </AlertDialogDescription>
@@ -796,7 +796,7 @@ export default function ContrattoPage() {
                 <p>La data di fine del contratto verrà riscritta con quella indicata.</p>
                 <p>Verranno annullate {daAnnullare.length} mensilità da fatturare successive al mese di chiusura. Il mese di chiusura resta dovuto per intero.</p>
                 {intoccabili.length > 0 && (
-                  <p>Restano intoccate {intoccabili.length} mensilità già fatturate o incassate: corrispondono a documenti fiscali emessi.</p>
+                  <p>Restano intoccate {intoccabili.length} mensilità già fatturate o incassate: corrispondono a fatture già create su Fatture in Cloud.</p>
                 )}
               </div>
             </AlertDialogDescription>
