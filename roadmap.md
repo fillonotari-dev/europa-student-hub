@@ -45,3 +45,5 @@ Debiti aperti dichiarati:
 - [x] Correzione a riallinea_fattura: con p_esiste = true i parametri numero/numerazione/data/imponibile/iva/totale nulli sollevano parametri_riallineamento_mancanti (migration 0003); p_ei_status NULL = invariato
 
 - [x] Bozza di contratto automatica all assegnazione (con deposito da definire, scadenza 15, motivo errore leggibile, elenco «Prima di attivare»)
+
+- [x] Pulsante «Prepara le bozze mancanti» in /admin/contratti + esclusione per studente in creaBozzaDaAssegnazione

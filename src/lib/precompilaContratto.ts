@@ -80,6 +80,28 @@ export function motivoErroreBozza(e: unknown): string {
   return msg ? `errore imprevisto (${msg.slice(0, 160)}).` : 'errore imprevisto.';
 }
 
+export type ContrattoStudente = { id: string; stato: string; assegnazione_id: string | null };
+
+/**
+ * Contratto che impedisce una nuova bozza per l'assegnazione: qualunque contratto
+ * bozza o attivo dello STUDENTE, anche collegato a un'altra assegnazione.
+ * Restituisce il contratto e il motivo (null se è sulla stessa assegnazione).
+ */
+export function contrattoCheEsclude(
+  assegnazioneId: string,
+  contrattiStudente: ContrattoStudente[],
+): { contrattoId: string; motivo: string | null } | null {
+  const aperti = contrattiStudente.filter(c => c.stato === 'bozza' || c.stato === 'attivo');
+  const stessa = aperti.find(c => c.assegnazione_id === assegnazioneId);
+  if (stessa) return { contrattoId: stessa.id, motivo: null };
+  const altro = aperti.find(c => c.stato === 'attivo') ?? aperti[0];
+  if (!altro) return null;
+  return {
+    contrattoId: altro.id,
+    motivo: `ha già un contratto ${altro.stato} collegato a un'altra assegnazione: verifica se serve un rinnovo o una sostituzione`,
+  };
+}
+
 export async function cercaListino(strutturaId: string, tipoCamera: string, oggi = oggiIso()) {
   const { data } = await supabase
     .from('listini')
@@ -120,7 +142,7 @@ export async function caricaPrecompilazione(studenteId: string) {
 
 export type EsitoBozza =
   | { esito: 'creata'; contrattoId: string; listinoMancante: boolean }
-  | { esito: 'esistente'; contrattoId: string }
+  | { esito: 'esistente'; contrattoId: string; motivo: string | null }
   | { esito: 'errore'; motivo: string };
 
 /**
@@ -129,17 +151,18 @@ export type EsitoBozza =
  */
 export async function creaBozzaDaAssegnazione(assegnazioneId: string): Promise<EsitoBozza> {
   try {
-    const { data: esistente } = await supabase
-      .from('contratti').select('id')
-      .eq('assegnazione_id', assegnazioneId).in('stato', ['bozza', 'attivo'])
-      .limit(1).maybeSingle();
-    if (esistente) return { esito: 'esistente', contrattoId: esistente.id };
-
     const { data: ass, error: errA } = await supabase
       .from('assegnazioni')
       .select('id, studente_id, candidatura_id, data_inizio, data_fine, camere(tipo, struttura_id)')
       .eq('id', assegnazioneId).single();
     if (errA) throw errA;
+    const { data: contrattiStudente, error: errC } = await supabase
+      .from('contratti').select('id, stato, assegnazione_id')
+      .eq('studente_id', ass.studente_id).in('stato', ['bozza', 'attivo']);
+    if (errC) throw errC;
+    const esclude = contrattoCheEsclude(assegnazioneId, (contrattiStudente ?? []) as ContrattoStudente[]);
+    if (esclude) return { esito: 'esistente', ...esclude };
+
     const campi = campiDaAssegnazione(ass as any);
     if (!campi.dataFine) throw new Error('senza_data_fine');
     if (!campi.strutturaId) throw new Error('senza_struttura');
@@ -186,4 +209,50 @@ export async function creaBozzaDaAssegnazione(assegnazioneId: string): Promise<E
   } catch (e) {
     return { esito: 'errore', motivo: motivoErroreBozza(e) };
   }
+}
+
+export type AssegnazioneSenzaContratto = {
+  assegnazioneId: string;
+  studenteId: string;
+  persona: string;
+  dataInizio: string;
+  dataFine: string | null;
+  sede: string;
+  tipoCamera: string | null;
+  canone: { lordo: number; listinoMancante: boolean };
+  intestazioneDaCreare: boolean;
+};
+
+/** Solo letture: assegnazioni attive il cui studente non ha contratti bozza o attivi. */
+export async function caricaAssegnazioniSenzaContratto(): Promise<AssegnazioneSenzaContratto[]> {
+  const [{ data: ass, error: e1 }, { data: contratti, error: e2 }, { data: anagrafiche, error: e3 }] = await Promise.all([
+    supabase.from('assegnazioni')
+      .select('id, studente_id, data_inizio, data_fine, studenti(nome, cognome), camere(tipo, struttura_id, strutture(nome))')
+      .eq('stato', 'attiva').order('data_inizio'),
+    supabase.from('contratti').select('id, stato, assegnazione_id, studente_id').in('stato', ['bozza', 'attivo']),
+    supabase.from('anagrafiche_fatturazione').select('studente_id').not('studente_id', 'is', null),
+  ]);
+  if (e1) throw e1; if (e2) throw e2; if (e3) throw e3;
+  const perStudente = new Map<string, ContrattoStudente[]>();
+  for (const c of (contratti ?? []) as any[]) {
+    perStudente.set(c.studente_id, [...(perStudente.get(c.studente_id) ?? []), c]);
+  }
+  const conAnagrafica = new Set((anagrafiche ?? []).map((a: any) => a.studente_id));
+  const libere = ((ass ?? []) as any[]).filter(a => !contrattoCheEsclude(a.id, perStudente.get(a.studente_id) ?? []));
+  const listini = new Map<string, Awaited<ReturnType<typeof cercaListino>>>();
+  const out: AssegnazioneSenzaContratto[] = [];
+  for (const a of libere) {
+    const sid = a.camere?.struttura_id; const tipo = a.camere?.tipo ?? null;
+    const k = `${sid}|${tipo}`;
+    if (sid && tipo && !listini.has(k)) listini.set(k, await cercaListino(sid, tipo));
+    out.push({
+      assegnazioneId: a.id, studenteId: a.studente_id,
+      persona: `${a.studenti?.cognome ?? ''} ${a.studenti?.nome ?? ''}`.trim(),
+      dataInizio: a.data_inizio, dataFine: a.data_fine,
+      sede: a.camere?.strutture?.nome ?? '—', tipoCamera: tipo,
+      canone: canoneDaListino(listini.get(k) ?? null),
+      intestazioneDaCreare: !conAnagrafica.has(a.studente_id),
+    });
+  }
+  return out;
 }
