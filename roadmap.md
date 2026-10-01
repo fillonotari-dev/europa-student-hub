@@ -38,5 +38,8 @@ Debiti aperti dichiarati:
 
 - [x] Riallineamento fatture: stato annullata, riallinea_fattura (solo service_role), varco nei trigger col segnale app.riallineamento
 - [x] Sincronizzatore fic-riallinea ed etichetta «Annullata» (P5b)
-- [ ] Job pg_cron fic-riallinea-giornaliero — in attesa che Filippo inserisca il segreto (secret + Vault) e confermi
+- [x] ~~Job pg_cron fic-riallinea-giornaliero~~ — sostituito: la piattaforma non permette all'agente di usare il Vault
+- [x] Etichette SDI rejected, manual_rejected, no_response, manual_accepted, missing; rifiutate nell'avviso di Fatturazione
+- [x] Riallineamento all'apertura di Fatturazione (ultimo giro più vecchio di 6 ore) e dal pulsante; fic-riallinea solo admin con verify_jwt = true; regola dei 10 minuti solo per l'apertura
+- [ ] Bug in riallinea_fattura: `v_campi || 'testo'` solleva "malformed array literal" quando un campo differisce (intervento separato, subito dopo)
 - [x] Correzione a riallinea_fattura: con p_esiste = true i parametri numero/numerazione/data/imponibile/iva/totale nulli sollevano parametri_riallineamento_mancanti (migration 0003); p_ei_status NULL = invariato
