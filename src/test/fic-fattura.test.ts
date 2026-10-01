@@ -7,15 +7,13 @@ import {
   meseAnnoIt,
   oggiRoma,
   scadenzaDocumento,
-  scrittureLocaliAttive,
-  tipoDocumentoDa,
   type DatiFattura,
 } from '../../supabase/functions/_shared/fic-fattura';
 import { mappaAnagraficaPerFic } from '../../supabase/functions/_shared/fic-anagrafica';
 
 // La forma del payload viene dalla guida ufficiale "Invoice creation" di
 // Fatture in Cloud e non si ricostruisce a memoria: se regredisce, il sintomo
-// è un 422 in emissione o, peggio, una fattura con l'aliquota sbagliata.
+// è un 422 alla creazione o, peggio, una fattura con l'aliquota sbagliata.
 
 const anaIt = {
   tipo: 'persona_fisica', nome: 'Mario', cognome: 'Rossi', codice_fiscale: 'RSSMRA80A01H501U',
@@ -30,7 +28,6 @@ const anaEstera = {
 };
 
 const base: DatiFattura = {
-  tipo: 'proforma',
   ficEntityId: 123456,
   entity: mappaAnagraficaPerFic(anaIt).data,
   eiMetodoPagamento: 'MP05',
@@ -61,18 +58,6 @@ describe('helper di data e descrizione', () => {
   });
 });
 
-describe('tipo del documento come impostazione', () => {
-  it('interruttore spento: proforma senza scritture locali', () => {
-    expect(tipoDocumentoDa(false)).toBe('proforma');
-    expect(scrittureLocaliAttive('proforma')).toBe(false);
-  });
-
-  it('interruttore acceso: fattura con scritture locali', () => {
-    expect(tipoDocumentoDa(true)).toBe('invoice');
-    expect(scrittureLocaliAttive('invoice')).toBe(true);
-  });
-});
-
 describe('scadenzaDocumento', () => {
   it('usa la scadenza del canone quando è successiva alla data di emissione', () => {
     expect(scadenzaDocumento('2026-03-10', '2026-03-31', 30)).toBe('2026-03-31');
@@ -95,9 +80,8 @@ describe('scadenzaDocumento', () => {
 describe('costruisciPayloadFattura', () => {
   const { data } = costruisciPayloadFattura({ ...base, scadenza: '2026-03-31' });
 
-  it('usa il tipo ricevuto come argomento', () => {
-    expect(data.type).toBe('proforma');
-    expect(costruisciPayloadFattura({ ...base, tipo: 'invoice' }).data.type).toBe('invoice');
+  it('il documento è sempre una fattura', () => {
+    expect(data.type).toBe('invoice');
   });
 
   it('non invia il numero: il progressivo lo assegna Fatture in Cloud', () => {
@@ -185,18 +169,14 @@ describe('costruisciPayloadFattura', () => {
     expect((d.payments_list as any[])[0].payment_terms.days).toBe(30);
   });
 
-  it('ei_data assente in proforma', () => {
-    expect('ei_data' in data).toBe(false);
-  });
-
   it('ei_data in invoice con payment_method e bank_iban', () => {
-    const { data: d } = costruisciPayloadFattura({ ...base, tipo: 'invoice' });
+    const { data: d } = costruisciPayloadFattura({ ...base });
     expect(d.ei_data).toEqual({ payment_method: 'MP05', bank_iban: 'IT60X0542811101000000123456' });
   });
 
   it('ei_data in invoice senza IBAN non contiene bank_iban', () => {
     for (const iban of [null, undefined, '', '  ']) {
-      const { data: d } = costruisciPayloadFattura({ ...base, tipo: 'invoice', iban });
+      const { data: d } = costruisciPayloadFattura({ ...base, iban });
       expect(d.ei_data).toEqual({ payment_method: 'MP05' });
       expect('bank_iban' in (d.ei_data as any)).toBe(false);
     }
@@ -208,40 +188,31 @@ describe('costruisciPayloadFattura', () => {
       if (typeof v !== 'object') return [];
       return Object.entries(v as object).flatMap(([k, x]) => cerca(x, `${path}.${k}`));
     };
-    for (const tipo of ['proforma', 'invoice'] as const) {
-      for (const ana of [anaIt, anaEstera]) {
-        for (const extra of [{}, { scadenza: null, iban: null }]) {
-          const p = costruisciPayloadFattura({ ...base, ...extra, tipo, entity: mappaAnagraficaPerFic(ana).data });
-          expect(cerca(p.data, 'data')).toEqual([]);
-        }
+    for (const ana of [anaIt, anaEstera]) {
+      for (const extra of [{}, { scadenza: null, iban: null }]) {
+        const p = costruisciPayloadFattura({ ...base, ...extra, entity: mappaAnagraficaPerFic(ana).data });
+        expect(cerca(p.data, 'data')).toEqual([]);
       }
     }
   });
 
-  it('manda show_payment_method e show_payments in proforma e invoice', () => {
-    for (const tipo of ['proforma', 'invoice'] as const) {
-      const { data: d } = costruisciPayloadFattura({ ...base, tipo });
-      expect(d.show_payment_method).toBe(true);
-      expect(d.show_payments).toBe(true);
+  it('manda show_payment_method e show_payments', () => {
+    expect(data.show_payment_method).toBe(true);
+    expect(data.show_payments).toBe(true);
+  });
+
+  it('notes non è mai presente, con o senza IBAN', () => {
+    for (const iban of ['IT60X0542811101000000123456', null, undefined, '', '  ']) {
+      expect('notes' in costruisciPayloadFattura({ ...base, iban }).data).toBe(false);
     }
   });
 
-  it('notes non è mai presente, con o senza IBAN, in proforma e invoice', () => {
-    for (const tipo of ['proforma', 'invoice'] as const) {
-      for (const iban of ['IT60X0542811101000000123456', null, undefined, '', '  ']) {
-        const { data: d } = costruisciPayloadFattura({ ...base, tipo, iban });
-        expect('notes' in d).toBe(false);
-      }
+  it('manda sempre il flag di fattura elettronica ed ei_data', () => {
+    for (const iban of ['IT60X0542811101000000123456', null]) {
+      const { data: d } = costruisciPayloadFattura({ ...base, iban });
+      expect(d.e_invoice).toBe(true);
+      expect((d.ei_data as any).payment_method).toBe('MP05');
     }
-  });
-
-
-  it('con tipo proforma non manda il flag di fattura elettronica', () => {
-    expect('e_invoice' in costruisciPayloadFattura({ ...base, tipo: 'proforma' }).data).toBe(false);
-  });
-
-  it('con tipo invoice manda il flag di fattura elettronica', () => {
-    expect(costruisciPayloadFattura({ ...base, tipo: 'invoice' }).data.e_invoice).toBe(true);
   });
 });
 
