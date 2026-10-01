@@ -322,3 +322,11 @@ Il filtro sede vive in un unico contesto (`StrutturaFilterProvider` in `src/hook
 ---
 
 _Ultimo aggiornamento: questo documento va aggiornato ogni volta che si introduce un nuovo pattern UI riusabile, un nuovo token semantico o si modifica la palette._
+
+## Tabs di pagina
+
+Per dividere una pagina in viste sorelle (esempio: `/admin/fatturazione`, «Fatturazione» e «Archivio (N)») si usa il componente `Tabs` di shadcn (`src/components/ui/tabs.tsx`).
+
+- La vista attiva vive nell'URL come parametro (`?vista=archivio`) tramite il `patchParams` della pagina; la vista predefinita non scrive il parametro.
+- L'etichetta può portare un conteggio fra parentesi, calcolato con lo stesso criterio della lista.
+- `TabsContent` con `mt-6`; i presìdi operativi (es. «Da riconciliare») restano nella vista di lavoro, non nell'archivio.
