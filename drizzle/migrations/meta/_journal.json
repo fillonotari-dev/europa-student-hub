@@ -22,6 +22,13 @@
       "when": 1790844888152,
       "tag": "0002_riallinea_fattura",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790845625356,
+      "tag": "0003_riallinea_fattura_parametri_mancanti",
+      "breakpoints": true
     }
   ]
 }
