@@ -1,3 +1,4 @@
+import { SDI_DA_RIEMETTERE } from '@/lib/statiFatturazione';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
