@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { etichettaSdi, STATO_FATTURA } from '@/lib/statiFatturazione';
+import { etichettaSdi, STATO_FATTURA, SDI_DA_RIEMETTERE } from '@/lib/statiFatturazione';
 
 describe('etichettaSdi', () => {
   it('not_sent → Da emettere', () => {
@@ -40,7 +40,22 @@ describe('etichettaSdi', () => {
   });
   it('null → trattino; valore ignoto → grezzo', () => {
     expect(etichettaSdi(null).etichetta).toBe('—');
-    expect(etichettaSdi('rejected').etichetta).toBe('rejected');
+    expect(etichettaSdi('valore_ignoto').etichetta).toBe('valore_ignoto');
+  });
+  it.each([
+    ['rejected', 'Rifiutata dal destinatario: va riemessa', 'destructive'],
+    ['manual_rejected', 'Rifiutata (esito manuale): va riemessa', 'destructive'],
+    ['no_response', 'Emessa, nessuna risposta dal destinatario', 'success'],
+    ['manual_accepted', 'Emessa e consegnata (esito manuale)', 'success'],
+    ['missing', 'Stato non disponibile', 'bg-muted text-foreground'],
+  ])('%s → %s', (s, etichetta, classe) => {
+    const v = etichettaSdi(s, 'ABC1234');
+    expect(v.etichetta).toBe(etichetta);
+    expect(v.classi).toContain(classe);
+  });
+  it('SDI_DA_RIEMETTERE: scartate e rifiutate, non le altre', () => {
+    for (const s of ['discarded', 'error', 'rejected', 'manual_rejected']) expect(SDI_DA_RIEMETTERE.has(s)).toBe(true);
+    for (const s of ['no_response', 'manual_accepted', 'missing', 'accepted', 'not_sent']) expect(SDI_DA_RIEMETTERE.has(s)).toBe(false);
   });
   it('STATO_FATTURA ha Annullata', () => {
     expect(STATO_FATTURA.annullata.etichetta).toBe('Annullata');

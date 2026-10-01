@@ -1,3 +1,4 @@
+import { SDI_DA_RIEMETTERE } from '@/lib/statiFatturazione';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -37,8 +38,9 @@ export function AvvisiFatturazione() {
       const out: Voce[] = [];
       for (const f of (fatture ?? []) as any[]) {
         const chi = `${numeroDi(f)}${studenteDi(f) ? ` (${studenteDi(f)})` : ''}`;
-        if (f.ei_status === 'discarded' || f.ei_status === 'error') {
-          out.push({ id: `${f.id}-s`, testo: `${chi}: scartata dallo SDI, va riemessa.` });
+        if (f.ei_status && SDI_DA_RIEMETTERE.has(f.ei_status)) {
+          const rif = f.ei_status === 'rejected' || f.ei_status === 'manual_rejected';
+          out.push({ id: `${f.id}-s`, testo: `${chi}: ${rif ? 'rifiutata dal destinatario' : 'scartata dallo SDI'}, va riemessa.` });
         }
         if ((f.ei_status == null || f.ei_status === 'not_sent') && f.data && f.data < aggiungiGiorni(oggi, -GIORNI_NON_EMESSA)) {
           out.push({ id: `${f.id}-n`, testo: `${chi}: creata il ${f.data.split('-').reverse().join('/')} e non ancora emessa.` });
