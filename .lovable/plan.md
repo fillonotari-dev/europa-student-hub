@@ -11,8 +11,9 @@
 - `origine` diventa `'admin' | 'apertura'`. Il client la passa nel corpo come `{ origine: 'apertura' }` o `{ origine: 'pulsante' }`. Si legge solo nel log e ogni valore non riconosciuto vale "pulsante".
 - Niente job pg_cron e nessuna modifica al Vault o al database.
 
-## 2. Un solo giro ogni 10 minuti (dentro la funzione)
-- Dopo il controllo admin, la funzione legge da `fic_log` l'ultima riga con `operazione = 'riallinea'` e `payload_ridotto->>giro_concluso = 'true'`.
+## 2. Un solo giro ogni 10 minuti all'apertura (dentro la funzione)
+- La regola vale solo per l'origine `'apertura'`. Con `'pulsante'` la funzione fa sempre un giro nuovo: chi preme il pulsante vuole una verifica adesso, e il riallineamento è idempotente.
+- Con `'apertura'`, dopo il controllo admin, la funzione legge da `fic_log` l'ultima riga con `operazione = 'riallinea'` e `payload_ridotto->>giro_concluso = 'true'`.
 - Se quella riga ha meno di 10 minuti, la funzione non avvia un altro giro. Risponde con `{ ok: true, recente: true, riepilogo, aggiornate, annullate, anomalie }` ricostruiti da quel giro:
   - `riepilogo` è il conteggio salvato nella riga di chiusura;
   - le liste vengono dalle righe per fattura con lo stesso `giro_id`. Numero e studente si rileggono dalla tabella `fatture` col client service_role, quindi nel log non finisce nessun dato personale.
@@ -24,7 +25,7 @@
   - se il giro non esiste o ha più di 6 ore, chiama `supabase.functions.invoke('fic-riallinea', { body: { origine: 'apertura' } })` in background. La pagina si carica normalmente;
   - fa un solo tentativo per caricamento della pagina, protetto da un `useRef`, senza nuovi tentativi automatici. Un errore viene ignorato in silenzio: la pagina resta utilizzabile e c'è il pulsante;
   - a fine giro invalida `QUERY_FATTURAZIONE`. Se `annullate` o `anomalie` non sono vuote, apre lo stesso `RiepilogoRiallineamento` del pulsante; altrimenti non mostra nulla.
-- Il pulsante nell'Archivio resta, invia `origine: 'pulsante'` e mostra sempre il riepilogo. Se la risposta è `recente`, il riepilogo lo dice: «Giro già eseguito alle HH:MM».
+- Il pulsante nell'Archivio resta, invia `origine: 'pulsante'`, fa sempre un giro nuovo e mostra sempre il riepilogo.
 
 ## 4. Documentazione
 - docs/Context.md, sezione «Riallineamento automatico (P5b)», riscritta:
@@ -37,7 +38,7 @@
 - Contenuto di config.toml per fic-riallinea.
 - Chiamate senza token e con la sola chiave pubblica: devono rispondere 401 o 403.
 - Test, typecheck e build.
-- Nel browser, in sola lettura: la pagina si carica mentre il giro gira in background. È un giro vero: fa solo letture su Fatture in Cloud, ma può riallineare 7/S e 8/S nel gestionale. Lo segnalo nel resoconto.
+- Nessuna prova nel browser che apra Fatturazione: avvierebbe un giro vero, e in `riallinea_fattura` c'è un bug noto (`v_campi || 'testo'` solleva "malformed array literal" quando un campo differisce). Va corretto con un intervento separato, subito dopo questo, ed è registrato in roadmap.md.
 
 ## Scostamenti previsti
 - Nessuna protezione contro due giri partiti nello stesso istante (vedi punto 2).
