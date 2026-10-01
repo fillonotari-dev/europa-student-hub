@@ -36,3 +36,13 @@ Vocabolario in ogni testo: il gestionale CREA la fattura su Fatture in Cloud; l'
 
 ## Verifica
 Test vitest, typecheck, build log, deploy fic-emetti-fattura, confronto col piano e scostamenti dichiarati. Nessuna migration, nessun dato modificato. Nessuna fattura reale creata dall'agente.
+
+## Integrazioni approvate (01/10)
+1. Dialogo: niente colonna data per riga; la riga riassuntiva "Data di emissione" diventa "Data del documento". Per riga solo la colonna "Scadenza del pagamento" da `dati.scadenza` dell'anteprima.
+2. Fatturazione.tsx: via `passi_saltati` dal tipo Esito, `Riepilogo.passiSaltati` e il paragrafo "Passi saltati". fic-emetti-fattura: via `tipo_documento` e `scritture_locali` da risposta ed esiti.
+3. Riquadro informativo neutro (`border-border bg-muted/40`), non destructive.
+4. Vocabolario: "Non sarà più modificabile dopo la prima fattura creata" (FattureInCloudSection); IntestazioneFatturaDialog e ContrattoPage solo dove il senso è la creazione, con file/riga/prima/dopo. Commento di testata di fic-emetti-fattura aggiornato. "Giorno di emissione" NON toccato.
+5. Resoconto: test prima/dopo (123 prima) ed esito di `rg -n "proforma|tipoDocumento|TipoDocumento|passiSaltati|fic_emette_fatture" src supabase/functions` escluso types.ts.
+
+## Nota
+In modalità piano è già stata applicata per errore una parte del punto 2 a `fic-emetti-fattura/index.ts` (rimozione di TIPO/SCRITTURE/passiSaltati, testi, testata): non ridistribuita. Resta da togliere `passi_saltati` dalla risposta finale; il resto si completa in modalità costruzione.
