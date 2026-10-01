@@ -1,4 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
+import { StatoBadge } from '@/components/admin/fatturazione/StatoBadge';
+import { STATO_FATTURA } from '@/lib/statiFatturazione';
 import { FicSyncAnagrafica } from '@/components/admin/contratti/FicSyncAnagrafica';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -662,10 +664,13 @@ export default function ContrattoPage() {
                   </td>
                   <td className="px-4 py-2 text-right">
                     {!modificabile && c.fattura_id && fatturePerId[c.fattura_id] && (
-                      <span className="text-xs text-muted-foreground">
-                        Fattura {fatturePerId[c.fattura_id].numero ?? '—'}
-                        {fatturePerId[c.fattura_id].numerazione ?? ''}
-                        {fatturePerId[c.fattura_id].data ? ` del ${fmtIt(fatturePerId[c.fattura_id].data)}` : ''}
+                      <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>
+                          Fattura {fatturePerId[c.fattura_id].numero ?? '—'}
+                          {fatturePerId[c.fattura_id].numerazione ?? ''}
+                          {fatturePerId[c.fattura_id].data ? ` del ${fmtIt(fatturePerId[c.fattura_id].data)}` : ''}
+                        </span>
+                        <StatoBadge mappa={STATO_FATTURA} stato={fatturePerId[c.fattura_id].stato} />
                       </span>
                     )}
                     {modificabile && (inEdit ? (

@@ -33,3 +33,4 @@ Debiti aperti dichiarati:
 - [x] 409 di FIC come rifiuto definitivo, diagnostica su ogni 4xx (emetti, sync-anagrafica, collega), data odierna nel fuso Europe/Rome
 - [x] Documentazione Context allineata a rifiuto 409, diagnostica 4xx e data italiana
 - [x] Una sola strada: il gestionale crea sempre fatture (rimosso il modo proforma, vocabolario crea/emetti)
+- [x] Fatturazione: stati leggibili (statiFatturazione.ts), due tab, archivio paginato con errori, mese proposto con arretrati, stato vuoto e prossimo lotto, Collega nel menu ⋯
