@@ -7,26 +7,31 @@ Verificato nel database: `fatture_stato_check` = `stato IN ('in_invio','emessa',
 - Nuove colonne nullable su `fatture`: `riallineata_il timestamptz`, `annullata_il timestamptz`, `motivo_annullamento text`. Nessun dato toccato.
 
 ## 2. `public.riallinea_fattura(...) RETURNS jsonb`
-- SECURITY DEFINER, `SET search_path = public`; REVOKE EXECUTE da PUBLIC, anon, authenticated; GRANT EXECUTE a service_role.
-- Prima istruzione: `set_config('app.riallineamento','on',true)` (vale solo nella transazione).
+- SECURITY DEFINER, `SET search_path = public`; REVOKE EXECUTE da PUBLIC, anon, authenticated; GRANT EXECUTE a service_role. Il proprietario della funzione viene dichiarato nel resoconto.
+- Prima istruzione: `set_config('app.riallineamento','on',true)`; prima di ogni RETURN `set_config('app.riallineamento','off',true)`.
 - Legge la fattura `FOR UPDATE`; deve essere `emessa` (altrimenti eccezione).
-- `p_esiste = false`: se `ei_status` è NULL o `not_sent` → fattura `annullata` (annullata_il = now(), motivo «Documento cancellato su Fatture in Cloud prima della trasmissione allo SDI») e mensilità collegata `fatturato → da_fatturare` con `fattura_id = NULL` nella stessa UPDATE; esito `annullata`. Altrimenti `RAISE documento_trasmesso_scomparso` senza toccare nulla.
-- `p_esiste = true`: aggiorna solo i campi che differiscono fra numero, numerazione, data, imponibile, iva, totale, ei_status; `url_documento` solo se vuoto; sempre `riallineata_il = now()`. La mensilità non si tocca. Esito `aggiornata` o `invariata`, con `campi` (nomi cambiati) e `importo_divergente` = nuovo totale diverso da `canoni.totale` della mensilità collegata.
+- `p_esiste = false`:
+  - `ei_status` non NULL e diverso da `not_sent` → `RAISE documento_trasmesso_scomparso`, nulla toccato;
+  - una qualunque mensilità collegata in stato diverso da `fatturato` (es. `incassato`) → `RAISE mensilita_non_fatturata_documento_scomparso`, nulla toccato;
+  - altrimenti fattura `annullata` (annullata_il = now(), motivo «Documento cancellato su Fatture in Cloud prima della trasmissione allo SDI») e TUTTE le mensilità collegate `fatturato → da_fatturare` con `fattura_id = NULL` nella stessa UPDATE; esito `annullata`, con l'elenco delle mensilità riportate, oppure `mensilita: null` se non ce n'erano.
+- `p_esiste = true`: aggiorna solo i campi che differiscono fra numero, numerazione, data, imponibile, iva, totale, ei_status; `url_documento` solo se vuoto; sempre `riallineata_il = now()`. Le mensilità non si toccano. Esito `aggiornata` o `invariata`, con `campi` (nomi cambiati) e `importo_divergente` = nuovo totale diverso da `canoni.totale` della mensilità collegata.
 
 ## 3. `fatture_protect_emesse` (CREATE OR REPLACE)
-- Identico a oggi senza segnale.
-- Con `current_setting('app.riallineamento', true) = 'on'` su riga `emessa`: ammessi numero, numerazione, data, imponibile, iva, totale, ei_status, url_documento, riallineata_il e la transizione `emessa → annullata` (con annullata_il, motivo_annullamento). Sempre vietati: DELETE, modifica di fic_document_id e contratto_id, altre transizioni.
-- Nuovo: riga `annullata` immutabile e non cancellabile per chiunque, segnale o no.
+- Segnale valido solo se `current_setting('app.riallineamento', true) = 'on'` E `current_user NOT IN ('anon','authenticated')`.
+- Identico a oggi senza segnale valido.
+- Con segnale valido su riga `emessa`: ammessi numero, numerazione, data, imponibile, iva, totale, ei_status, url_documento, riallineata_il e la transizione `emessa → annullata` (con annullata_il, motivo_annullamento). Sempre vietati: DELETE, modifica di fic_document_id e contratto_id, altre transizioni.
+- `annullata` raggiungibile SOLO da `emessa` e SOLO con segnale valido: ogni passaggio ad annullata da `in_invio` o `errore`, o senza segnale, è rifiutato. Vale anche per un INSERT diretto in stato annullata (trigger esteso a INSERT per questo solo controllo).
+- Riga `annullata` immutabile e non cancellabile per chiunque.
 
 ## 4. `canoni_protect_fatturati` (CREATE OR REPLACE)
-- Identico a oggi senza segnale. Con segnale: ammessa solo `fatturato → da_fatturare` con `fattura_id` portato a NULL nella stessa UPDATE e nessun altro campo protetto cambiato. Nient'altro.
+- Stessa definizione di segnale valido. Senza: identico a oggi. Con: ammessa solo `fatturato → da_fatturare` con `fattura_id` portato a NULL nella stessa UPDATE e nessun altro campo protetto cambiato.
 
-## 5. Verifica (nessuna scrittura sui dati)
-- Resoconto con `pg_get_functiondef` delle tre funzioni e `has_function_privilege` su riallinea_fattura per anon, authenticated, service_role.
-- Lettura del codice, già fatta: la guardia doppioni di fic-emetti-fattura legge solo `stato IN ('in_invio','emessa')` (`fic-emetti-fattura/index.ts:162`), quindi ignora le annullate. Il modo «elenca» di fic-collega-fattura esclude ogni `fic_document_id` già registrato, qualunque sia lo stato (`fic-collega-fattura/index.ts:130`): anche le annullate restano escluse, il che è corretto perché quel documento su FIC non esiste più.
+## 5. Verifica (nessuna scrittura sui dati, nemmeno in transazione annullata)
+- Resoconto con `pg_get_functiondef` delle tre funzioni, `has_function_privilege` su riallinea_fattura per anon, authenticated, service_role, definizione aggiornata di `fatture_stato_check`, proprietario della funzione.
+- Codice, già letto: la guardia doppioni di fic-emetti-fattura legge solo `stato IN ('in_invio','emessa')` (`fic-emetti-fattura/index.ts:162`), quindi ignora le annullate. Il modo «elenca» di fic-collega-fattura esclude ogni `fic_document_id` già registrato, qualunque sia lo stato (`fic-collega-fattura/index.ts:130`): le annullate restano escluse, corretto perché quel documento su FIC non esiste più.
 - docs/Context.md e roadmap.md aggiornati.
 
 ## Fuori perimetro (dichiarato)
 - Nessuna edge function che chiama `riallinea_fattura`: il sincronizzatore è un intervento successivo.
-- `src/lib/statiFatturazione.ts` non ha ancora l'etichetta per `annullata`: l'Archivio mostrerebbe il valore grezzo. Non la aggiungo se non me lo chiedi.
+- Etichetta «Annullata» in statiFatturazione.ts: arriva con l'intervento successivo.
 - Nessun riallineamento eseguito su 7/S e 8/S.
