@@ -13,7 +13,6 @@ import { CollegaFatturaDialog, type RigaDaCollegare } from '@/components/admin/f
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { coperturaMese, etichettaCopertura } from '@/lib/coperturaMese';
-import type { TipoDocumento } from '@shared/fic-fattura';
 import { cn } from '@/lib/utils';
 
 /** L'anteprima non chiama Fatture in Cloud: può permettersi gruppi ampi. */
@@ -69,12 +68,11 @@ type Riga = {
   copertura: string | null;
 };
 
-type Esito = { canone_id: string; ok: boolean; message?: string; dati?: Anteprima; passi_saltati?: string[] };
+type Esito = { canone_id: string; ok: boolean; message?: string; dati?: Anteprima };
 
 type Riepilogo = {
   riuscite: number;
   fallite: { etichetta: string; motivo: string }[];
-  passiSaltati: string[];
   interrotto: boolean;
 };
 
@@ -137,21 +135,6 @@ export default function Fatturazione() {
     },
   });
 
-  // --- Modo in vigore: proforma di prova oppure fatture reali ---
-  const { data: modo } = useQuery({
-    queryKey: ['fatturazione-modo'],
-    queryFn: async (): Promise<TipoDocumento> => {
-      const { data, error } = await supabase
-        .from('impostazioni')
-        .select('fic_emette_fatture')
-        .eq('id', 1)
-        .maybeSingle();
-      if (error) throw error;
-      return data?.fic_emette_fatture ? 'invoice' : 'proforma';
-    },
-  });
-  const tipoDocumento: TipoDocumento = modo ?? 'proforma';
-
   // --- Arretrati: mensilità da fatturare precedenti al mese scelto ---
   const { data: arretrati } = useQuery({
     queryKey: ['fatturazione-arretrati', mese],
@@ -210,7 +193,7 @@ export default function Fatturazione() {
   const emetti = async () => {
     setBusy(true);
     const etichette = new Map(righeDialogo.map(r => [r.canoneId, r.etichetta]));
-    const acc: Riepilogo = { riuscite: 0, fallite: [], passiSaltati: [], interrotto: false };
+    const acc: Riepilogo = { riuscite: 0, fallite: [], interrotto: false };
     try {
       for (const gruppo of chunk(selezionate.map(r => r.id), GRUPPO_EMISSIONE)) {
         try {
@@ -221,7 +204,6 @@ export default function Fatturazione() {
           for (const e of (data?.esiti ?? []) as Esito[]) {
             if (e.ok) {
               acc.riuscite += 1;
-              for (const p of e.passi_saltati ?? []) if (!acc.passiSaltati.includes(p)) acc.passiSaltati.push(p);
             } else {
               acc.fallite.push({ etichetta: etichette.get(e.canone_id) ?? e.canone_id, motivo: e.message ?? 'Motivo non dichiarato.' });
             }
@@ -318,21 +300,21 @@ export default function Fatturazione() {
             </span>
             <Button disabled={selezionate.length === 0} onClick={() => setDialogOpen(true)}>
               <Receipt className="w-4 h-4 mr-2" />
-              {tipoDocumento === 'invoice' ? 'Emetti le fatture selezionate' : 'Crea le proforma selezionate'}
+              Crea le fatture selezionate
             </Button>
           </div>
         )}
       </div>
 
-      <div className={cn(
-        'rounded-lg border p-3 text-sm',
-        tipoDocumento === 'invoice'
-          ? 'border-destructive/40 bg-destructive/5'
-          : 'border-border bg-muted/40 text-muted-foreground',
-      )}>
-        {tipoDocumento === 'invoice'
-          ? 'Modo in vigore: fatture reali. Ogni emissione crea un documento fiscale con il numero del sezionale, non cancellabile e correggibile solo con nota di credito.'
-          : 'Modo in vigore: proforma di prova. I documenti non sono fiscali, non consumano il numero del sezionale e le mensilità restano da fatturare. Si cambia dalle impostazioni.'}
+      <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground space-y-1">
+        <p>
+          La fattura viene creata su Fatture in Cloud e resta modificabile lì finché non viene emessa,
+          cioè trasmessa allo SDI: l'emissione si fa da Fatture in Cloud.
+        </p>
+        <p>
+          Nel gestionale la mensilità passa subito a fatturato e non torna indietro: un documento
+          sbagliato va corretto su Fatture in Cloud, non cancellato.
+        </p>
       </div>
 
       {(arretrati ?? []).length > 0 && meseArretratoPiuVecchio && (
@@ -354,7 +336,7 @@ export default function Fatturazione() {
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-2 font-semibold">
               <CheckCircle2 className="w-4 h-4 text-primary" />
-              Esito dell'emissione: {riepilogo.riuscite} {riepilogo.riuscite === 1 ? 'riuscita' : 'riuscite'}
+              Esito della creazione: {riepilogo.riuscite} {riepilogo.riuscite === 1 ? 'riuscita' : 'riuscite'}
               {riepilogo.fallite.length > 0 && `, ${riepilogo.fallite.length} non riuscite`}
             </div>
             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setRiepilogo(null)}>
@@ -374,9 +356,6 @@ export default function Fatturazione() {
               ))}
             </ul>
           )}
-          {riepilogo.passiSaltati.length > 0 && (
-            <p className="text-muted-foreground">Passi saltati: {riepilogo.passiSaltati.join('; ')}.</p>
-          )}
         </div>
       )}
 
@@ -387,7 +366,7 @@ export default function Fatturazione() {
               <Checkbox
                 checked={selezionate.length > 0 && selezionate.length === emettibili.length}
                 onCheckedChange={(v) => setSelezione(v ? new Set(emettibili.map(r => r.id)) : new Set())}
-                aria-label="Seleziona tutte le emettibili"
+                aria-label="Seleziona tutte le pronte"
               />
               <span>Seleziona tutte ({emettibili.length})</span>
             </div>
@@ -450,7 +429,7 @@ export default function Fatturazione() {
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />Controllo…
                       </span>
                     )}
-                    {esito && emettibile && <span className="text-primary">Emettibile</span>}
+                    {esito && emettibile && <span className="text-primary">Pronta</span>}
                     {esito && !emettibile && (
                       <span className="text-destructive">{esito.message}</span>
                     )}
@@ -465,7 +444,7 @@ export default function Fatturazione() {
                         totale: r.totale,
                       })}
                     >
-                      Collega fattura già emessa
+                      Collega fattura esistente
                     </Button>
                   </td>
                 </tr>
@@ -480,7 +459,7 @@ export default function Fatturazione() {
           <div className="px-5 py-4 border-b border-border/50">
             <h2 className="text-sm font-semibold">Da riconciliare</h2>
             <p className="text-xs text-muted-foreground">
-              Fatture in corso di invio o emesse senza una mensilità collegata: è l'unico punto in cui
+              Fatture create su Fatture in Cloud senza una mensilità collegata: è l'unico punto in cui
               il gestionale e Fatture in Cloud possono divergere. Sola lettura.
             </p>
           </div>
@@ -533,7 +512,7 @@ export default function Fatturazione() {
               <tbody className="text-sm">
                 {archivio.length === 0 && (
                   <tr><td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
-                    Nessuna fattura emessa.
+                    Nessuna fattura creata.
                   </td></tr>
                 )}
                 {archivio.map((f: any) => (
@@ -559,7 +538,6 @@ export default function Fatturazione() {
         open={dialogOpen}
         righe={righeDialogo}
         busy={busy}
-        tipoDocumento={tipoDocumento}
         onOpenChange={(o) => { if (!busy) setDialogOpen(o); }}
         onConferma={emetti}
       />

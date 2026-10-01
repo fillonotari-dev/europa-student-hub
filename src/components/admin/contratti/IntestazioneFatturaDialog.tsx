@@ -180,7 +180,7 @@ export function IntestazioneFatturaDialog({ open, onOpenChange, contratto, haFat
               <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-destructive" />
               <p>
                 Questo contratto ha già mensilità fatturate o incassate. Cambiare l'intestatario ora
-                <strong> non modifica le fatture già emesse</strong>, che restano intestate a chi erano.
+                <strong> non modifica le fatture già create</strong>, che restano intestate a chi erano.
               </p>
             </div>
           )}
