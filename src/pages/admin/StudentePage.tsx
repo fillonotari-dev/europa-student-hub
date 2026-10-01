@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { EsitoBozzaDialog } from '@/components/admin/contratti/EsitoBozzaDialog';
+import type { EsitoBozza } from '@/lib/precompilaContratto';
+import { AvvisoContratto } from '@/components/admin/contratti/AvvisoContratto';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { lordoDaImponibile } from '@/lib/iva';
@@ -244,6 +247,12 @@ export default function StudentePage() {
     },
   });
   const contrattoAttivo = (contratti ?? []).some((k: any) => k.stato === 'attivo');
+  const bozzaContratto = (contratti ?? []).find((k: any) => k.stato === 'bozza') as any | undefined;
+  // Esito della bozza automatica creata dall'inserimento manuale (stato di navigazione).
+  const location = useLocation();
+  const [esitoBozza, setEsitoBozza] = useState<EsitoBozza | null>(
+    ((location.state as any)?.esitoBozza as EsitoBozza | undefined) ?? null,
+  );
   const TIPO_DOC_LABELS: Record<string, string> = {
     documento_identita: 'Documento di identità',
     certificato_iscrizione: 'Certificato di iscrizione',
@@ -503,6 +512,16 @@ export default function StudentePage() {
             )}
           </div>
         </div>
+
+        {(stadio === 'assegnato' || stadio === 'in_casa') && !contrattoAttivo && (
+          <AvvisoContratto
+            bozzaId={bozzaContratto?.id ?? null}
+            onCrea={() => setOpenContratto(true)}
+            onVerifica={(id) => navigateTo(`/admin/contratti/${id}`)}
+          />
+        )}
+
+        <EsitoBozzaDialog esito={esitoBozza} titolo="Persona assegnata al posto letto" onClose={() => setEsitoBozza(null)} />
 
         <ContrattoDialog
           open={openContratto}
