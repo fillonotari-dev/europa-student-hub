@@ -305,7 +305,7 @@ export default function Fatturazione() {
           totale: Number(c.totale),
           scadenza: c.scadenza,
           stato: c.stato,
-          numero: f?.numero != null ? `${f.numero}${f.numerazione ? `/${f.numerazione}` : ''}` : null,
+          numero: f?.numero != null ? `${f.numero}${f.numerazione ? (String(f.numerazione).startsWith('/') ? f.numerazione : `/${f.numerazione}`) : ''}` : null,
           url: f?.url_documento ?? null,
         };
       }).sort((a, b) => a.studente.localeCompare(b.studente, 'it'));
