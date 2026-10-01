@@ -46,4 +46,4 @@ Debiti aperti dichiarati:
 
 - [x] Bozza di contratto automatica all assegnazione (con deposito da definire, scadenza 15, motivo errore leggibile, elenco «Prima di attivare»)
 
-- [ ] Pulsante «Prepara le bozze mancanti» in /admin/contratti + esclusione per studente in creaBozzaDaAssegnazione
+- [x] Pulsante «Prepara le bozze mancanti» in /admin/contratti + esclusione per studente in creaBozzaDaAssegnazione
