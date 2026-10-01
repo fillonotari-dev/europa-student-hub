@@ -63,3 +63,10 @@ Stato attuale verificato:
 - Prova nel browser: tab e URL, archivio paginato e filtrato, le due righe in errore visibili, stato vuoto e «Prossimo lotto», menu ⋯.
 - Nel resoconto: file e riga di ogni modifica, scostamenti dichiarati.
 - Nessuna migration, nessun dato modificato.
+
+## Correzioni approvate (01/10)
+1. Punto 4 sostituito: le fatture in `errore` NON entrano in «Da riconciliare» (il documento non esiste; le due righe riguardano mensilità fatturate dopo). Vanno nell'Archivio con badge «Errore» e `messaggio_errore` leggibile sotto il badge. «Da riconciliare» resta `in_invio` + `emessa` senza mensilità; query mirata adeguata.
+2. Descrizione di «Da riconciliare» riscritta con una frase per stato, costruita dalle etichette di `statiFatturazione.ts` (In creazione: esito incerto, verificare su FIC; Creata su Fatture in Cloud: nessuna mensilità collegata).
+3. Archivio: tutte le fatture non `in_invio` (creata, errore, e annullata quando arriverà con P5a), ordinate per `created_at` decrescente; «Archivio (N)» usa lo stesso filtro. Dichiarato in pagina: con il filtro per mese le righe senza mensilità (gli errori) non compaiono.
+4. Mese predefinito: query dedicata `['fatturazione-piu-vecchia']` indipendente dal mese (canoni `da_fatturare` di contratti attivi, order competenza, limit 1); la query arretrati non serve a calcolarlo. Finché non risponde, la tabella del mese non viene mostrata.
+5. Prova nel browser solo navigazione e lettura: nessun clic su «Conferma e crea», «Collega» o «Salva».
