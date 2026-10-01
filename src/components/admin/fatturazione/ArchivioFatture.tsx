@@ -37,7 +37,7 @@ export function ArchivioFatture({ mesi }: { mesi: string[] }) {
         .from('fatture')
         .select(
           `id, numero, numerazione, data, totale, stato, ei_status, url_documento, messaggio_errore, created_at,
-           contratti(studenti(nome, cognome)), ${filtra ? FK_CANONI.replace('!', '!inner!').replace('!inner!canoni_', '!canoni_') : FK_CANONI}(competenza)`,
+           contratti(studenti(nome, cognome)), ${FK_CANONI}${filtra ? '!inner' : ''}(competenza)`,
           { count: 'exact' },
         )
         .not('stato', 'in', STATI_ARCHIVIO_ESCLUSI)
