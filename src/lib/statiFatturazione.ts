@@ -53,10 +53,23 @@ export function etichettaSdi(eiStatus: string | null | undefined, codiceDestinat
       return { etichetta: 'Recapito non riuscito', classi: CLASSI_SDI.attenzione };
     case 'discarded': case 'error':
       return { etichetta: 'Scartata dallo SDI: va riemessa', classi: CLASSI_SDI.errore };
+    case 'rejected':
+      return { etichetta: 'Rifiutata dal destinatario: va riemessa', classi: CLASSI_SDI.errore };
+    case 'manual_rejected':
+      return { etichetta: 'Rifiutata (esito manuale): va riemessa', classi: CLASSI_SDI.errore };
+    case 'no_response':
+      return conNota({ etichetta: 'Emessa, nessuna risposta dal destinatario', classi: CLASSI_SDI.successo });
+    case 'manual_accepted':
+      return conNota({ etichetta: 'Emessa e consegnata (esito manuale)', classi: CLASSI_SDI.successo });
+    case 'missing':
+      return { etichetta: 'Stato non disponibile', classi: CLASSI_SDI.neutro };
     default:
       return { etichetta: eiStatus || '—', classi: 'bg-muted text-muted-foreground' };
   }
 }
+
+/** Stati SDI per cui la fattura va riemessa: entrano nell'avviso di Fatturazione. */
+export const SDI_DA_RIEMETTERE: ReadonlySet<string> = new Set(['discarded', 'error', 'rejected', 'manual_rejected']);
 
 export const STATO_CANONE: Record<string, VoceStato> = {
   da_fatturare: { etichetta: 'Da fatturare', classi: 'bg-muted text-foreground' },
