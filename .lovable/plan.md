@@ -30,7 +30,9 @@ Due correzioni indipendenti. Nessuna migration, nessuna modifica al database o a
 **Modifica in `src/hooks/useCandidaturaActions.tsx`**, mutazione `annullaAssegnazione` (righe 124-166): dopo il controllo «soggiorno già iniziato» (resta com'è) e prima di eliminare l'assegnazione:
 
 1. Lettura dei contratti collegati all'assegnazione (`id`, `stato`, `file_firmato_path`).
-2. Se anche un solo contratto **non è in bozza**: nessuna eliminazione e errore comprensibile, es. «C'è un contratto <stato> collegato a questa assegnazione: riportalo in bozza o chiudilo dalla pagina del contratto, poi riprova.»
+2. Se anche un solo contratto **non è in bozza**: nessuna eliminazione e messaggio comprensibile, distinto per stato (mai suggerire di chiudere il contratto: un contratto chiuso resta collegato all'assegnazione e non può più tornare in bozza, quindi l'annullamento resterebbe bloccato per sempre):
+   - contratto **attivo** → «C'è un contratto attivo collegato a questa assegnazione: riportalo in bozza dalla pagina del contratto, poi riprova.»
+   - contratto in uno **stato di chiusura** (risolto, scaduto, rinnovato) → «Questa assegnazione non può essere annullata perché ha un contratto già chiuso.»
 3. Se ci sono solo **bozze**: eliminate una a una con `eliminaContrattoBozza` (`src/lib/contrattoDelete.ts`), la stessa regola già usata per eliminare una bozza — prima il PDF firmato dallo storage, poi la riga; se lo storage fallisce ci si ferma. I canoni spariscono in cascata.
 4. Poi eliminazione dell'assegnazione e ritorno della candidatura allo stato di oggi (`statoDopoAnnullamento`), invariato.
 
