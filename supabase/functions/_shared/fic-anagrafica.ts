@@ -27,9 +27,6 @@ export const EU_COUNTRY_CODES: string[] = [
   'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK',
 ];
 
-/** Codice partita IVA convenzionale per i soggetti Extra-UE. */
-export const TAX_ID_EXTRA_UE = 'OO99999999999';
-
 const s = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
 /**
