@@ -178,6 +178,11 @@ export function useCandidaturaActions(options: Options = {}) {
     },
     onSuccess: (_data, c) => {
       invalidateAll();
+      // invalidateAll non copre i contratti: la bozza eliminata deve sparire
+      // dall'elenco e l'avviso «bozze mancanti» deve ricontarla.
+      queryClient.invalidateQueries({ queryKey: ['contratti'] });
+      queryClient.invalidateQueries({ queryKey: ['assegnazioni-senza-contratto'] });
+      queryClient.invalidateQueries({ queryKey: ['studente-contratti'] });
       const nuovoStato = statoDopoAnnullamento(c.origine);
       const label = nuovoStato === 'in_attesa_posto' ? '"Lista d\'attesa"' : '"Da decidere"';
       toast({ title: 'Assegnazione annullata', description: `La candidatura torna in ${label}.` });
@@ -807,6 +812,7 @@ export function useCandidaturaActions(options: Options = {}) {
                 ) : (
                   <p>L'assegnazione verra' eliminata e la candidatura torna a <strong>Da decidere</strong>. Eventuale flag "esito comunicato" viene azzerato.</p>
                 )}
+                <p>Se all'assegnazione e' collegata una <strong>bozza di contratto</strong>, verra' eliminata anche quella.</p>
                 <p className="text-muted-foreground">Se il soggiorno e' gia' iniziato, dovrai invece <strong>concluderlo</strong> dalla pagina Residenti.</p>
               </div>
             </AlertDialogDescription>
