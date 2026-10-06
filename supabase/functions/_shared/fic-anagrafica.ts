@@ -21,12 +21,6 @@ export type AnagraficaFic = {
   email_recapito?: string | null;
 };
 
-/** Codici ISO 3166-1 alpha-2 dei 27 Stati membri UE. */
-export const EU_COUNTRY_CODES: string[] = [
-  'AT', 'BE', 'BG', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR', 'GR', 'HR',
-  'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK',
-];
-
 const s = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
 /**
@@ -44,8 +38,6 @@ const fv = (v: unknown): string => s(v);
 
 export const nazioneDi = (a: AnagraficaFic): string => (s(a.indirizzo_nazione) || 'IT').toUpperCase();
 export const isEstera = (a: AnagraficaFic): boolean => nazioneDi(a) !== 'IT';
-export const isUe = (codice: string): boolean => EU_COUNTRY_CODES.includes(codice.toUpperCase());
-
 /** Codice destinatario proposto: 0000000 per l'Italia, XXXXXXX per l'estero. */
 export const codiceDestinatarioProposto = (nazione?: string | null): string =>
   (s(nazione) || 'IT').toUpperCase() === 'IT' ? '0000000' : 'XXXXXXX';
