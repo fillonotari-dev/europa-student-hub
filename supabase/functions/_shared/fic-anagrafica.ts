@@ -55,8 +55,8 @@ export const nomeCompleto = (a: AnagraficaFic): string =>
  *
  * Italia: nome/denominazione, via, comune, CAP, provincia, e almeno un
  * identificativo fiscale.
- * Estero: solo nome/denominazione, via, comune, nazione. Niente identificativo
- * fiscale (con P.IVA vuota Fatture in Cloud scrive da sé codice ISO ed ESTERO),
+ * Estero: solo nome/denominazione, via, comune, nazione. Niente obbligo di
+ * identificativo fiscale (la partita IVA, se compilata, si invia comunque),
  * niente CAP e niente provincia, perché la mappatura invia comunque 00000 ed EE.
  */
 function baseCampiMancantiPerFic(a: AnagraficaFic): string[] {
@@ -150,13 +150,13 @@ export function mappaAnagraficaPerFic(a: AnagraficaFic): MappaturaFic {
       trasformazioni.push('provincia inviata EE');
     }
 
-    if (!isUe(nazione)) {
-      vat = TAX_ID_EXTRA_UE;
-      trasformazioni.push(`paese Extra-UE: partita IVA inviata ${TAX_ID_EXTRA_UE}`);
-    } else if (vat) {
+    // UE ed Extra-UE seguono la stessa regola: la partita IVA si invia solo
+    // se compilata nell'anagrafica. Mai un codice convenzionale: Fatture in
+    // Cloud rifiuta con 409 un secondo cliente con la stessa partita IVA.
+    if (vat) {
       trasformazioni.push(`identificativo estero inviato nel campo partita IVA (${vat})`);
     } else {
-      trasformazioni.push('partita IVA lasciata vuota: Fatture in Cloud scrive codice paese ed ESTERO');
+      trasformazioni.push('partita IVA non inviata');
     }
   }
 
