@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { creaBozzaDaAssegnazione, type EsitoBozza } from '@/lib/precompilaContratto';
+import { eliminaContrattoBozza } from '@/lib/contrattoDelete';
 import { EsitoBozzaDialog } from '@/components/admin/contratti/EsitoBozzaDialog';
 import { MailCheck, Copy, CheckCircle, Mail, AlertTriangle } from 'lucide-react';
 import {
@@ -147,6 +148,26 @@ export function useCandidaturaActions(options: Options = {}) {
       if (dataInizio && new Date(dataInizio) <= new Date()) {
         throw new Error('Il soggiorno e\' gia\' iniziato: concludilo dalla pagina Residenti.');
       }
+      // Da P12 la bozza di contratto referenzia l'assegnazione
+      // (contratti_assegnazione_id_fkey) e ne impedisce la cancellazione:
+      // prima si eliminano le bozze collegate, poi l'assegnazione.
+      const { data: contrattiCollegati, error: errContratti } = await supabase
+        .from('contratti').select('id, stato, file_firmato_path')
+        .eq('assegnazione_id', assegnazioneId);
+      if (errContratti) throw errContratti;
+      const nonBozza = (contrattiCollegati ?? []).filter((ct) => ct.stato !== 'bozza');
+      if (nonBozza.length > 0) {
+        // Mai suggerire di chiudere il contratto: un contratto chiuso resta
+        // collegato all'assegnazione e non puo' piu' tornare in bozza, quindi
+        // l'annullamento resterebbe bloccato per sempre.
+        if (nonBozza.some((ct) => ct.stato === 'attivo')) {
+          throw new Error("C'e' un contratto attivo collegato a questa assegnazione: riportalo in bozza dalla pagina del contratto, poi riprova.");
+        }
+        throw new Error("Questa assegnazione non puo' essere annullata perche' ha un contratto gia' chiuso.");
+      }
+      for (const bozza of contrattiCollegati ?? []) {
+        await eliminaContrattoBozza(bozza);
+      }
       const { error: delErr } = await supabase.from('assegnazioni').delete().eq('id', assegnazioneId);
       if (delErr) throw delErr;
       const nuovoStato = statoDopoAnnullamento(c.origine);
@@ -157,6 +178,11 @@ export function useCandidaturaActions(options: Options = {}) {
     },
     onSuccess: (_data, c) => {
       invalidateAll();
+      // invalidateAll non copre i contratti: la bozza eliminata deve sparire
+      // dall'elenco e l'avviso «bozze mancanti» deve ricontarla.
+      queryClient.invalidateQueries({ queryKey: ['contratti'] });
+      queryClient.invalidateQueries({ queryKey: ['assegnazioni-senza-contratto'] });
+      queryClient.invalidateQueries({ queryKey: ['studente-contratti'] });
       const nuovoStato = statoDopoAnnullamento(c.origine);
       const label = nuovoStato === 'in_attesa_posto' ? '"Lista d\'attesa"' : '"Da decidere"';
       toast({ title: 'Assegnazione annullata', description: `La candidatura torna in ${label}.` });
@@ -786,6 +812,7 @@ export function useCandidaturaActions(options: Options = {}) {
                 ) : (
                   <p>L'assegnazione verra' eliminata e la candidatura torna a <strong>Da decidere</strong>. Eventuale flag "esito comunicato" viene azzerato.</p>
                 )}
+                <p>Se all'assegnazione e' collegata una <strong>bozza di contratto</strong>, verra' eliminata anche quella.</p>
                 <p className="text-muted-foreground">Se il soggiorno e' gia' iniziato, dovrai invece <strong>concluderlo</strong> dalla pagina Residenti.</p>
               </div>
             </AlertDialogDescription>

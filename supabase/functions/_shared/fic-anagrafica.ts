@@ -21,15 +21,6 @@ export type AnagraficaFic = {
   email_recapito?: string | null;
 };
 
-/** Codici ISO 3166-1 alpha-2 dei 27 Stati membri UE. */
-export const EU_COUNTRY_CODES: string[] = [
-  'AT', 'BE', 'BG', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR', 'GR', 'HR',
-  'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK',
-];
-
-/** Codice partita IVA convenzionale per i soggetti Extra-UE. */
-export const TAX_ID_EXTRA_UE = 'OO99999999999';
-
 const s = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
 /**
@@ -47,8 +38,6 @@ const fv = (v: unknown): string => s(v);
 
 export const nazioneDi = (a: AnagraficaFic): string => (s(a.indirizzo_nazione) || 'IT').toUpperCase();
 export const isEstera = (a: AnagraficaFic): boolean => nazioneDi(a) !== 'IT';
-export const isUe = (codice: string): boolean => EU_COUNTRY_CODES.includes(codice.toUpperCase());
-
 /** Codice destinatario proposto: 0000000 per l'Italia, XXXXXXX per l'estero. */
 export const codiceDestinatarioProposto = (nazione?: string | null): string =>
   (s(nazione) || 'IT').toUpperCase() === 'IT' ? '0000000' : 'XXXXXXX';
@@ -66,8 +55,8 @@ export const nomeCompleto = (a: AnagraficaFic): string =>
  *
  * Italia: nome/denominazione, via, comune, CAP, provincia, e almeno un
  * identificativo fiscale.
- * Estero: solo nome/denominazione, via, comune, nazione. Niente identificativo
- * fiscale (con P.IVA vuota Fatture in Cloud scrive da sé codice ISO ed ESTERO),
+ * Estero: solo nome/denominazione, via, comune, nazione. Niente obbligo di
+ * identificativo fiscale (la partita IVA, se compilata, si invia comunque),
  * niente CAP e niente provincia, perché la mappatura invia comunque 00000 ed EE.
  */
 function baseCampiMancantiPerFic(a: AnagraficaFic): string[] {
@@ -161,13 +150,13 @@ export function mappaAnagraficaPerFic(a: AnagraficaFic): MappaturaFic {
       trasformazioni.push('provincia inviata EE');
     }
 
-    if (!isUe(nazione)) {
-      vat = TAX_ID_EXTRA_UE;
-      trasformazioni.push(`paese Extra-UE: partita IVA inviata ${TAX_ID_EXTRA_UE}`);
-    } else if (vat) {
+    // UE ed Extra-UE seguono la stessa regola: la partita IVA si invia solo
+    // se compilata nell'anagrafica. Mai un codice convenzionale: Fatture in
+    // Cloud rifiuta con 409 un secondo cliente con la stessa partita IVA.
+    if (vat) {
       trasformazioni.push(`identificativo estero inviato nel campo partita IVA (${vat})`);
     } else {
-      trasformazioni.push('partita IVA lasciata vuota: Fatture in Cloud scrive codice paese ed ESTERO');
+      trasformazioni.push('partita IVA non inviata');
     }
   }
 

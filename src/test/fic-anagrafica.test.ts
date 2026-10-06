@@ -3,7 +3,6 @@ import {
   campiMancantiPerFicSync,
   campiMancantiPerFattura,
   mappaAnagraficaPerFic,
-  TAX_ID_EXTRA_UE,
   type AnagraficaFic,
 } from '../../supabase/functions/_shared/fic-anagrafica';
 
@@ -68,14 +67,21 @@ describe('mappaAnagraficaPerFic — anagrafica estera', () => {
     expect(m.data.address_province).toBe('EE');
   });
 
-  it('usa la partita IVA convenzionale per un paese Extra-UE', () => {
+  it('lascia la partita IVA vuota per un paese Extra-UE senza identificativo', () => {
     const m = mappaAnagraficaPerFic({ ...baseEstera, indirizzo_nazione: 'US' });
-    expect(m.data.vat_number).toBe(TAX_ID_EXTRA_UE);
+    expect(m.data.vat_number).toBe('');
+    expect(m.trasformazioni.join(' ')).toContain('partita IVA non inviata');
+  });
+
+  it('invia la partita IVA di un paese Extra-UE se compilata', () => {
+    const m = mappaAnagraficaPerFic({ ...baseEstera, indirizzo_nazione: 'US', partita_iva: 'US-EIN-123' });
+    expect(m.data.vat_number).toBe('US-EIN-123');
   });
 
   it('lascia la partita IVA vuota per un paese UE senza identificativo', () => {
     const m = mappaAnagraficaPerFic(baseEstera);
     expect(m.data.vat_number).toBe('');
+    expect(m.trasformazioni.join(' ')).toContain('partita IVA non inviata');
   });
 });
 
